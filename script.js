@@ -104,7 +104,7 @@ const ICONS = {
   blackHeart: "\u{1F5A4}",
 };
 
-seedPretaCellIfEmpty();
+seedInitialDataIfEmpty();
 if (session) {
   ensureLeaderCellForSession();
 }
@@ -1632,99 +1632,185 @@ function ensureLeaderCellForSession() {
   saveState(state);
 }
 
-function seedPretaCellIfEmpty() {
+function seedInitialDataIfEmpty() {
   if (state.cells.length > 0) {
     return;
   }
 
-  const pretaMembers = [
-    "Filipe",
-    "Sabrina",
-    "Mikaelly",
-    "Pedro",
-    "Vitor",
-    "Guilherme",
-    "Ana",
-    "Eliel",
-    "Ian Vieira",
-    "Thifanny",
-    "Danilo",
-    "Soraia",
-    "Josiel",
-    "Jonathan",
-    "Mikael",
-    "Deivid",
-    "Rebeca",
-    "Luiz Henrique",
-    "Leo",
-    "Leticia",
-    "Faby",
-    "Andrey",
-    "Dryka",
-    "Sarah",
+  const mkMember = (name) => ({ id: createId(), name, phone: "" });
+
+  const cellDefs = [
+    {
+      name: "Preta",
+      meetingDay: "Terca",
+      leader: "Sabrina e Filipe",
+      members: [
+        "Filipe", "Sabrina", "Mikaelly", "Pedro", "Vitor", "Guilherme", "Ana",
+        "Eliel", "Ian Vieira", "Thifanny", "Danilo", "Soraia", "Josiel",
+        "Jonathan", "Mikael", "Deivid", "Rebeca", "Luiz Henrique", "Leo",
+        "Leticia", "Faby", "Andrey", "Dryka", "Sarah",
+      ],
+    },
+    {
+      name: "Vinho",
+      meetingDay: "Quinta",
+      leader: "Jonattham e Marilene",
+      members: [
+        "Jonattham", "Marilene", "Mikaelly", "Marcos", "Sabrina", "Gabriel",
+        "Marilda", "Estefanny", "Madalena", "Silvia", "Adriana", "Francisco", "Alzira",
+      ],
+    },
+    {
+      name: "Cinza",
+      meetingDay: "Quinta",
+      leader: "Jander e Aline",
+      members: [
+        "Jander", "Aline", "Amanda Rayssa", "Amanda", "Daniel", "Luiz",
+        "Manu", "Ray", "Mayara", "Ana", "Rebeca", "Liz", "Mariana",
+      ],
+    },
+    {
+      name: "Logos",
+      meetingDay: "Segunda",
+      leader: "Thiago e Augusto",
+      members: ["Thiago", "Augusto", "Rian", "Gustavo", "Leticia", "Mariana", "Jenny", "Phedro", "Raquel"],
+    },
+    {
+      name: "Alex e Ariane",
+      meetingDay: "Terca",
+      leader: "Alex e Ariane",
+      members: [
+        "Ariane", "Alex", "Karla", "Lara", "Vera", "Fiorella", "Luzimar",
+        "Murilo", "Karlen", "Missikely", "Dafynie", "Mayara", "Alessandro",
+      ],
+    },
+    {
+      name: "Karina e Jhennifer",
+      meetingDay: "Terca",
+      leader: "Karina e Jhennifer",
+      members: [
+        "Karina", "Jhennifer", "Lucas", "Renata", "Antonio", "Nazare",
+        "Rogerio", "Fabiana", "Eva", "Adlaine", "Renan", "Elvis", "Aparecida",
+        "Flavio", "Alice", "Gabriel", "Vitoria", "Iasmin", "Juliana", "Rose",
+      ],
+    },
+    {
+      name: "Visão de Águia",
+      meetingDay: "Segunda",
+      leader: "Chirlene",
+      members: ["Chirlene", "Kelma", "Marta", "Denise", "Viviane", "Mery", "Geisy", "Luiz", "Osmar", "Ezequiel", "Ney"],
+    },
+    {
+      name: "Verde",
+      meetingDay: "Terca",
+      leader: "Evelyn",
+      members: [
+        "Evelyn", "Raiane", "Alice", "Hatos", "Enzo", "Helloany", "Daniel",
+        "Ana Lu", "Gaby", "Sushinie", "Jefferson", "Jonas", "Shelcy", "Bruno", "Kamila", "Danilo",
+      ],
+    },
+    {
+      name: "Ekballo",
+      meetingDay: "Terca",
+      leader: "Vitória e Pedro",
+      members: [
+        "Igor", "Julya Maria", "Maria Eduarda", "Pedro", "Vitoria", "Wallafy",
+        "Yasmin", "Vitor Gabriel", "Manu", "Lindsay", "Ana Clara", "Fernanda",
+      ],
+    },
+    {
+      name: "Peregrinos",
+      meetingDay: "Quinta",
+      leader: "Isabella e Sarah",
+      members: ["Isabella", "Sarah", "Roberto", "Erick", "Isabelle", "Willian", "Elias", "Eloah"],
+    },
   ];
 
-  const pretaCell = {
-    id: createId(),
-    name: "Preta",
-    neighborhood: "Nao informado",
-    meetingDay: "Terca",
-    meetingTime: "20:00",
-    leader: "Sabrina e Filipe",
-    members: pretaMembers.map((name) => ({
+  const now = new Date().toISOString();
+
+  for (const def of cellDefs) {
+    state.cells.push({
       id: createId(),
-      name,
-      phone: "",
-    })),
-    createdAt: new Date("2026-02-24T20:00:00").toISOString(),
-  };
+      name: def.name,
+      neighborhood: "Nao informado",
+      meetingDay: def.meetingDay,
+      meetingTime: "20:00",
+      leader: def.leader,
+      members: def.members.map(mkMember),
+      createdAt: now,
+    });
+  }
 
-  const presentNames = [
-    "Filipe",
-    "Sabrina",
-    "Mikael",
-    "Ian Vieira",
-    "Eliel",
-    "Deivid",
-    "Jonathan",
-    "Leo",
-    "Leticia",
-    "Vitor",
-    "Guilherme",
-    "Dryka",
-    "Soraia",
-    "Thifanny",
-    "Mikaelly",
-    "Ana",
+  const pretaCell = state.cells.find((c) => normalizeName(c.name) === "preta");
+  if (pretaCell) {
+    const presentNames = [
+      "Filipe", "Sabrina", "Mikael", "Ian Vieira", "Eliel", "Deivid",
+      "Jonathan", "Leo", "Leticia", "Vitor", "Guilherme", "Dryka", "Soraia", "Thifanny", "Mikaelly", "Ana",
+    ];
+    const presentMemberIds = pretaCell.members
+      .filter((member) => presentNames.some((name) => normalizeName(name) === normalizeName(member.name)))
+      .map((member) => member.id);
+    const initialReport = {
+      id: createId(),
+      cellId: pretaCell.id,
+      date: "2026-02-24",
+      leaders: "Sabrina e Filipe",
+      coLeaders: "Ian Vieira",
+      host: "Salipe",
+      presentMemberIds,
+      visitorsCount: 5,
+      visitorNames: [],
+      offering: 0,
+      foods: "Nao",
+      snack: "Nao",
+      discipleship: "Sim",
+      visits: "Sim",
+      conversions: 0,
+      createdAt: new Date("2026-02-24T22:00:00").toISOString(),
+    };
+    state.reports.push(initialReport);
+    state.lastReportId = initialReport.id;
+  }
+
+  saveState(state);
+
+  const leaderDefs = [
+    { name: "Sabrina",   username: "sabrina.preta",        assignedCellName: "Preta" },
+    { name: "Filipe",    username: "filipe.preta",          assignedCellName: "Preta" },
+    { name: "Jonattham", username: "jonattham.vinho",       assignedCellName: "Vinho" },
+    { name: "Marilene",  username: "marilene.vinho",        assignedCellName: "Vinho" },
+    { name: "Jander",    username: "jander.cinza",          assignedCellName: "Cinza" },
+    { name: "Aline",     username: "aline.cinza",           assignedCellName: "Cinza" },
+    { name: "Thiago",    username: "thiago.logos",          assignedCellName: "Logos" },
+    { name: "Augusto",   username: "augusto.logos",         assignedCellName: "Logos" },
+    { name: "Alex",      username: "alex.celula",           assignedCellName: "Alex e Ariane" },
+    { name: "Ariane",    username: "ariane.celula",         assignedCellName: "Alex e Ariane" },
+    { name: "Karina",    username: "karina.celula",         assignedCellName: "Karina e Jhennifer" },
+    { name: "Jhennifer", username: "jhennifer.celula",      assignedCellName: "Karina e Jhennifer" },
+    { name: "Chirlene",  username: "chirlene.aguia",        assignedCellName: "Visão de Águia" },
+    { name: "Evelyn",    username: "evelyn.verde",          assignedCellName: "Verde" },
+    { name: "Vitória",   username: "vitoria.ekballo",       assignedCellName: "Ekballo" },
+    { name: "Pedro",     username: "pedro.ekballo",         assignedCellName: "Ekballo" },
+    { name: "Isabella",  username: "isabella.peregrinos",   assignedCellName: "Peregrinos" },
+    { name: "Sarah",     username: "sarah.peregrinos",      assignedCellName: "Peregrinos" },
   ];
 
-  const presentMemberIds = pretaCell.members
-    .filter((member) => presentNames.some((name) => normalizeName(name) === normalizeName(member.name)))
-    .map((member) => member.id);
+  for (const def of leaderDefs) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({
+        id: createId(),
+        name: def.name,
+        username: def.username,
+        password: "123456",
+        role: "leader",
+        assignedCellName: def.assignedCellName,
+        createdAt: now,
+        updatedAt: null,
+      });
+    }
+  }
 
-  const initialReport = {
-    id: createId(),
-    cellId: pretaCell.id,
-    date: "2026-02-24",
-    leaders: "Sabrina e Filipe",
-    coLeaders: "Ian Vieira",
-    host: "Salipe",
-    presentMemberIds,
-    visitorsCount: 5,
-    visitorNames: [],
-    offering: 0,
-    foods: "Nao",
-    snack: "Nao",
-    discipleship: "Sim",
-    visits: "Sim",
-    conversions: 0,
-    createdAt: new Date("2026-02-24T22:00:00").toISOString(),
-  };
-
-  state.cells.push(pretaCell);
-  state.reports.push(initialReport);
-  state.lastReportId = initialReport.id;
-  saveState(state);
+  saveUsers(users);
 }
 
 function drawReportChart(present, absent, visitors) {

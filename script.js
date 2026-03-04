@@ -590,7 +590,7 @@ function bindAppEvents() {
     }
 
     const formData = new FormData(reportForm);
-    const cellId = String(formData.get("cellId") || "").trim();
+    const cellId = String(formData.get("cellId") || reportCellSelect.value || "").trim();
     const date = String(formData.get("date") || "").trim();
     const leaders = String(formData.get("leaders") || "").trim();
 

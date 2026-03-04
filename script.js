@@ -1811,6 +1811,29 @@ function seedInitialDataIfEmpty() {
     }
   }
 
+  const coordinatorDefs = [
+    { name: "Irmã Neta", username: "irma.neta" },
+    { name: "Anelia",    username: "anelia"     },
+    { name: "Adelaine",  username: "adelaine"   },
+    { name: "Bruno",     username: "bruno"      },
+    { name: "Gabriel",   username: "gabriel"    },
+  ];
+
+  for (const def of coordinatorDefs) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({
+        id: createId(),
+        name: def.name,
+        username: def.username,
+        password: "123456",
+        role: "coordinator",
+        assignedCellName: "",
+        createdAt: now,
+        updatedAt: null,
+      });
+    }
+  }
+
   saveUsers(users);
 }
 

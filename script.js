@@ -571,6 +571,20 @@ function bindAppEvents() {
 
   reportForm.addEventListener("submit", (event) => {
     event.preventDefault();
+
+    const generateBtn = document.getElementById("generate-report-btn");
+    if (generateBtn && generateBtn.textContent === "Gerar novo relatorio") {
+      const currentCellId = reportCellSelect.value;
+      reportForm.reset();
+      reportCellSelect.value = currentCellId;
+      reportDateInput.value = todayIsoDate();
+      renderAttendanceList();
+      reportOutput.value = "";
+      drawReportChart(0, 0, 0);
+      generateBtn.textContent = "Gerar relatorio";
+      return;
+    }
+
     if (!hasPermission("submitReports")) {
       return;
     }
@@ -624,7 +638,6 @@ function bindAppEvents() {
     reportOutput.value = buildReportText(reportData, cell);
     drawReportChart(presentCount, absentCount, reportData.visitorsCount);
 
-    const generateBtn = document.getElementById("generate-report-btn");
     if (generateBtn) generateBtn.textContent = "Gerar novo relatorio";
   });
 

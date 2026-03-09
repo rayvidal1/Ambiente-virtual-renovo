@@ -668,6 +668,7 @@ function bindAppEvents() {
     drawReportChart(presentCount, absentCount, reportData.visitorsCount);
     renderReportHistory();
     drawAverageCharts();
+    drawLineChart(cellId);
 
     if (generateReportButton) {
       generateReportButton.textContent = "Gerar novo relatorio";
@@ -1250,6 +1251,7 @@ function renderLatestReport() {
     reportOutput.value = "";
     drawReportChart(0, 0, 0);
     drawAverageCharts();
+    drawLineChart(reportCellSelect.value);
     return;
   }
 
@@ -1259,6 +1261,7 @@ function renderLatestReport() {
     reportOutput.value = "";
     drawReportChart(0, 0, 0);
     drawAverageCharts();
+    drawLineChart(reportCellSelect.value);
     return;
   }
 

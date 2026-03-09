@@ -698,6 +698,109 @@ button:hover {
   margin-top: 0.4rem;
 }
 
+.images-section {
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.6rem;
+}
+
+.images-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.images-section-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+.images-count {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.images-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+}
+
+.image-thumb-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.image-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+
+.image-remove-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+}
+
+.image-remove-btn:hover {
+  background: rgba(180,0,0,0.8);
+}
+
+.report-images-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.report-images-gallery .image-thumb-wrap {
+  width: 88px;
+  height: 88px;
+}
+
+/* lightbox overlay */
+.img-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  cursor: zoom-out;
+}
+
+.img-lightbox img {
+  max-width: 92vw;
+  max-height: 88vh;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+}
+
 .report-output-box {
   border: 1px solid var(--line);
   border-radius: 0.92rem;

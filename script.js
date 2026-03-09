@@ -74,6 +74,7 @@ const accessNote = document.getElementById("access-note");
 let hasAppliedInitialReportContext = false;
 let hasAutoOpenedLeaderReport = false;
 let currentVisitors = [];
+let currentImages = [];
 let prevCellIds = new Set();
 const collapsedCellIds = new Set();
 
@@ -645,6 +646,57 @@ function bindAppEvents() {
     }
   });
 
+  // Image upload events
+  const addImageBtn = document.getElementById("add-image-btn");
+  const imageFileInput = document.getElementById("image-file-input");
+  const imagesList = document.getElementById("images-list");
+  const MAX_IMAGES = 5;
+
+  addImageBtn?.addEventListener("click", () => {
+    if (currentImages.length >= MAX_IMAGES) return;
+    if (imageFileInput) imageFileInput.click();
+  });
+
+  imageFileInput?.addEventListener("change", () => {
+    const files = Array.from(imageFileInput.files || []);
+    let toRead = files.slice(0, MAX_IMAGES - currentImages.length);
+    let pending = toRead.length;
+    if (!pending) { imageFileInput.value = ""; return; }
+    toRead.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (currentImages.length < MAX_IMAGES) {
+          currentImages.push(e.target.result);
+        }
+        pending--;
+        if (pending === 0) {
+          imageFileInput.value = "";
+          renderImagesList();
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+
+  imagesList?.addEventListener("click", (e) => {
+    const removeBtn = e.target.closest(".image-remove-btn");
+    if (removeBtn) {
+      const idx = parseInt(removeBtn.dataset.index, 10);
+      if (!isNaN(idx)) {
+        currentImages.splice(idx, 1);
+        renderImagesList();
+      }
+      return;
+    }
+    const thumb = e.target.closest(".image-thumb");
+    if (thumb) openLightbox(thumb.src);
+  });
+
+  document.getElementById("report-images-gallery")?.addEventListener("click", (e) => {
+    const thumb = e.target.closest(".image-thumb");
+    if (thumb) openLightbox(thumb.src);
+  });
+
   reportForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
@@ -656,9 +708,12 @@ function bindAppEvents() {
       renderAttendanceList();
       currentVisitors = [];
       renderVisitorsList();
+      currentImages = [];
+      renderImagesList();
       reportOutput.value = "";
       drawReportChart(0, 0, 0);
       renderReportHistory();
+      renderReportImages([]);
       generateReportButton.textContent = "Gerar relatorio";
       return;
     }
@@ -705,6 +760,7 @@ function bindAppEvents() {
       discipleship: String(formData.get("discipleship") || "Nao").trim(),
       visits: String(formData.get("visits") || "Nao").trim(),
       conversions: parseNonNegativeInt(formData.get("conversions")),
+      images: currentImages.slice(),
       createdAt: new Date().toISOString(),
     };
 
@@ -720,6 +776,7 @@ function bindAppEvents() {
     renderReportHistory();
     drawAverageCharts();
     drawLineChart(cellId);
+    renderReportImages(reportData.images);
 
     if (generateReportButton) {
       generateReportButton.textContent = "Gerar novo relatorio";
@@ -1083,7 +1140,7 @@ function render() {
 function renderAccessControl() {
   const roleLabel = ROLE_LABELS[session.role] || ROLE_LABELS.leader;
   const isPastorJudson = session.role === "pastor" && normalizeUsername(session.username) === "pastor.judson";
-  accessBadge.textContent = isPastorJudson ? "Perfil ativo: Pastor Judson" : `Perfil ativo: ${roleLabel}`;
+  accessBadge.textContent = isPastorJudson ? `Pastor Judson · ${roleLabel}` : `${session.name} · ${roleLabel}`;
   const isLeader = session.role === "leader";
 
   accessNote.textContent =
@@ -1303,6 +1360,7 @@ function renderLatestReport() {
     drawReportChart(0, 0, 0);
     drawAverageCharts();
     drawLineChart(reportCellSelect.value);
+    renderReportImages([]);
     return;
   }
 
@@ -1313,6 +1371,7 @@ function renderLatestReport() {
     drawReportChart(0, 0, 0);
     drawAverageCharts();
     drawLineChart(reportCellSelect.value);
+    renderReportImages([]);
     return;
   }
 
@@ -1329,6 +1388,7 @@ function renderLatestReport() {
   drawReportChart(present, absent, selected.visitorsCount);
   drawAverageCharts();
   drawLineChart(reportCellSelect.value);
+  renderReportImages(selected.images);
 }
 
 function getVisibleReportsPool() {
@@ -1427,6 +1487,8 @@ function loadSavedReportIfExists() {
     ? report.visitorDetails.map((v) => ({ name: String(v.name || ""), address: String(v.address || ""), phone: String(v.phone || "") }))
     : (Array.isArray(report.visitorNames) ? report.visitorNames.map((n) => ({ name: n, address: "", phone: "" })) : []);
   renderVisitorsList();
+  currentImages = Array.isArray(report.images) ? report.images.slice() : [];
+  renderImagesList();
   state.lastReportId = report.id;
 }
 
@@ -1495,6 +1557,10 @@ function applyReportMode() {
   }
   if (generateReportButton) {
     generateReportButton.hidden = readOnly || !hasPermission("submitReports");
+  }
+  const imagesSection = document.getElementById("report-images-section");
+  if (imagesSection) {
+    imagesSection.hidden = readOnly || !hasPermission("submitReports");
   }
 }
 
@@ -2281,6 +2347,7 @@ function normalizeReport(report) {
     discipleship: String(report.discipleship || "Nao").trim(),
     visits: String(report.visits || "Nao").trim(),
     conversions: parseNonNegativeInt(report.conversions),
+    images: Array.isArray(report.images) ? report.images.filter((s) => typeof s === "string" && s.startsWith("data:")) : [],
     createdAt: report.createdAt || new Date().toISOString(),
     updatedAt: report.updatedAt || null,
   };
@@ -2690,4 +2757,44 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function renderImagesList() {
+  const grid = document.getElementById("images-list");
+  const countLabel = document.getElementById("images-count-label");
+  const addBtn = document.getElementById("add-image-btn");
+  const MAX = 5;
+  if (countLabel) countLabel.textContent = currentImages.length > 0 ? `${currentImages.length}/${MAX}` : "";
+  if (addBtn) addBtn.hidden = currentImages.length >= MAX;
+  if (!grid) return;
+  if (currentImages.length === 0) { grid.innerHTML = ""; return; }
+  grid.innerHTML = currentImages.map((src, i) => `
+    <div class="image-thumb-wrap">
+      <img class="image-thumb" src="${src}" alt="Foto ${i + 1}" />
+      <button type="button" class="image-remove-btn" data-index="${i}" aria-label="Remover foto">✕</button>
+    </div>
+  `).join("");
+}
+
+function renderReportImages(images) {
+  const gallery = document.getElementById("report-images-gallery");
+  if (!gallery) return;
+  const list = Array.isArray(images) ? images.filter((s) => typeof s === "string" && s.startsWith("data:")) : [];
+  if (list.length === 0) { gallery.hidden = true; gallery.innerHTML = ""; return; }
+  gallery.hidden = false;
+  gallery.innerHTML = list.map((src, i) => `
+    <div class="image-thumb-wrap">
+      <img class="image-thumb" src="${src}" alt="Foto ${i + 1}" />
+    </div>
+  `).join("");
+}
+
+function openLightbox(src) {
+  const overlay = document.createElement("div");
+  overlay.className = "img-lightbox";
+  const img = document.createElement("img");
+  img.src = src;
+  overlay.appendChild(img);
+  overlay.addEventListener("click", () => overlay.remove());
+  document.body.appendChild(overlay);
 }

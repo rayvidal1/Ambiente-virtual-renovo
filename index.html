@@ -294,6 +294,16 @@
               </div>
             </div>
 
+            <div class="images-section" id="report-images-section">
+              <div class="images-section-head">
+                <span class="images-section-label">Fotos da célula</span>
+                <span id="images-count-label" class="images-count"></span>
+                <button type="button" id="add-image-btn" class="ghost-btn small-btn">+ Adicionar foto</button>
+              </div>
+              <div id="images-list" class="images-grid"></div>
+              <input type="file" id="image-file-input" accept="image/*" multiple hidden />
+            </div>
+
             <button type="submit" id="generate-report-btn">Gerar relatorio</button>
           </form>
 
@@ -336,6 +346,7 @@
               </div>
               <div id="report-history-list" class="report-history-list"></div>
             </section>
+            <div id="report-images-gallery" class="report-images-gallery" hidden></div>
             <textarea
               id="report-output"
               rows="24"

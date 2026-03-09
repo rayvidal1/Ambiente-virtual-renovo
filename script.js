@@ -1516,18 +1516,20 @@ function drawLineChart(cellId) {
   const MAX_POINTS = 12;
   const data = pool.slice(-MAX_POINTS).map((r) => {
     const stats = getReportStats(r);
-    return { label: formatDateForReport(r.date).slice(0, 5), present: stats.present, visitors: stats.visitors };
+    return { label: formatDateForReport(r.date).slice(0, 5), present: stats.present, absent: stats.absent, visitors: stats.visitors };
   });
 
-  if (data.length < 2) { canvas.hidden = true; return; }
+  const legend = document.getElementById("report-line-legend");
+  if (data.length < 2) { canvas.hidden = true; if (legend) legend.hidden = true; return; }
   canvas.hidden = false;
+  if (legend) legend.hidden = false;
 
   const ctx = canvas.getContext("2d");
   const W = canvas.width, H = canvas.height;
   const pad = { top: 16, right: 12, bottom: 30, left: 28 };
   const cW = W - pad.left - pad.right;
   const cH = H - pad.top - pad.bottom;
-  const yMax = Math.max(...data.map((d) => d.present + d.visitors), 1);
+  const yMax = Math.max(...data.map((d) => Math.max(d.present, d.absent, d.visitors)), 1);
   const n = data.length;
   const toX = (i) => pad.left + (i / (n - 1)) * cW;
   const toY = (v) => pad.top + (1 - v / yMax) * cH;
@@ -1553,7 +1555,8 @@ function drawLineChart(cellId) {
     data.forEach((d, i) => { ctx.beginPath(); ctx.arc(toX(i), toY(getValue(d)), 3, 0, Math.PI * 2); ctx.fill(); });
   };
 
-  drawLine((d) => d.present + d.visitors, "rgb(45,138,94)", 0.09);
+  drawLine((d) => d.present, "rgb(45,138,94)", 0.09);
+  drawLine((d) => d.absent, "rgb(192,57,43)", 0);
   drawLine((d) => d.visitors, "rgb(41,128,185)", 0);
 
   const step = n > 8 ? 2 : 1;

@@ -108,6 +108,14 @@
               <small>Controle usuarios e permissoes do sistema.</small>
             </span>
           </button>
+
+          <button class="action-card action-card-visitantes" id="view-visitantes-card" type="button" hidden>
+            <span class="action-icon">&#128101;</span>
+            <span class="action-content">
+              <strong>Visitantes cadastrados</strong>
+              <small>Veja quem se cadastrou pelo formulario publico.</small>
+            </span>
+          </button>
         </section>
       </main>
     </div>
@@ -414,6 +422,24 @@
             <div id="access-users-list" class="access-users-list"></div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Visitantes cadastrados -->
+    <div class="modal-backdrop" id="visitantes-modal" hidden>
+      <div class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="visitantes-modal-title">
+        <div class="modal-head">
+          <h2 id="visitantes-modal-title">Visitantes cadastrados</h2>
+          <button type="button" class="ghost-btn modal-close" id="close-visitantes-modal">Fechar</button>
+        </div>
+
+        <div class="visitantes-toolbar">
+          <input id="visitantes-search" type="search" placeholder="Buscar por nome..." class="visitantes-search" />
+          <span id="visitantes-count" class="visitantes-count"></span>
+          <button type="button" id="copy-visitantes-link" class="ghost-btn small-btn">Copiar link publico</button>
+        </div>
+
+        <div id="visitantes-list" class="visitantes-list"></div>
       </div>
     </div>
 

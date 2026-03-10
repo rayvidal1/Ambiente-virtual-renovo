@@ -304,6 +304,99 @@ h1 {
   background: linear-gradient(160deg, #fbfaf5, #e8edf5);
 }
 
+.action-card-visitantes {
+  background: linear-gradient(160deg, #fbfaf5, #f0e8f5);
+}
+
+/* Visitantes modal */
+.visitantes-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.visitantes-search {
+  flex: 1;
+  min-width: 160px;
+  padding: 0.45rem 0.7rem;
+  border: 1.5px solid var(--line);
+  border-radius: 0.5rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--ink);
+}
+
+.visitantes-search:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+
+.visitantes-count {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.visitantes-list {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.visitante-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--surface);
+}
+
+.visitante-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+}
+
+.visitante-name {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.visitante-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.visitante-date {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+.visitante-delete-btn {
+  color: #b0350e;
+  border-color: #f4c9b8;
+  flex-shrink: 0;
+}
+
+.visitantes-empty {
+  text-align: center;
+  color: var(--ink-soft);
+  padding: 2rem 0;
+  font-size: 0.9rem;
+}
+
 .panel {
   padding: 0;
   overflow: hidden;

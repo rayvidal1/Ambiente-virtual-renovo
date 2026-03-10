@@ -47,18 +47,21 @@ const addMemberCard = document.getElementById("add-member-card");
 const viewCellsCard = document.getElementById("view-cells-card");
 const weeklyReportCard = document.getElementById("weekly-report-card");
 const manageAccessCard = document.getElementById("manage-access-card");
+const viewVisitantesCard = document.getElementById("view-visitantes-card");
 
 const cellModal = document.getElementById("cell-modal");
 const memberModal = document.getElementById("member-modal");
 const cellsModal = document.getElementById("cells-modal");
 const reportModal = document.getElementById("report-modal");
 const accessModal = document.getElementById("access-modal");
+const visitantesModal = document.getElementById("visitantes-modal");
 
 const closeCellModalButton = document.getElementById("close-cell-modal");
 const closeMemberModalButton = document.getElementById("close-member-modal");
 const closeCellsModalButton = document.getElementById("close-cells-modal");
 const closeReportModalButton = document.getElementById("close-report-modal");
 const closeAccessModalButton = document.getElementById("close-access-modal");
+const closeVisitantesModalButton = document.getElementById("close-visitantes-modal");
 
 const accessForm = document.getElementById("access-form");
 const accessUsersList = document.getElementById("access-users-list");
@@ -295,8 +298,34 @@ function bindAppEvents() {
   closeCellsModalButton?.addEventListener("click", () => closeModal(cellsModal));
   closeReportModalButton?.addEventListener("click", () => closeModal(reportModal));
   closeAccessModalButton?.addEventListener("click", () => closeModal(accessModal));
+  closeVisitantesModalButton?.addEventListener("click", () => closeModal(visitantesModal));
 
-  [cellModal, memberModal, cellsModal, reportModal, accessModal].forEach((modal) => {
+  viewVisitantesCard?.addEventListener("click", () => {
+    renderVisitantesList();
+    openModal(visitantesModal);
+  });
+
+  document.getElementById("visitantes-search")?.addEventListener("input", () => renderVisitantesList());
+
+  document.getElementById("copy-visitantes-link")?.addEventListener("click", () => {
+    const url = location.origin + location.pathname.replace("index.html", "") + "visitantes.html";
+    navigator.clipboard?.writeText(url).then(() => {
+      const btn = document.getElementById("copy-visitantes-link");
+      if (btn) { btn.textContent = "Link copiado!"; setTimeout(() => { btn.textContent = "Copiar link publico"; }, 2000); }
+    });
+  });
+
+  document.getElementById("visitantes-list")?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".visitante-delete-btn");
+    if (!btn || !hasPermission("manageAccess")) return;
+    const id = btn.dataset.id;
+    if (!id) return;
+    const list = loadVisitantesPub().filter((v) => v.id !== id);
+    saveVisitantesPub(list);
+    renderVisitantesList();
+  });
+
+  [cellModal, memberModal, cellsModal, reportModal, accessModal, visitantesModal].forEach((modal) => {
     modal?.addEventListener("click", (event) => {
       if (event.target === modal) {
         closeModal(modal);
@@ -1171,6 +1200,9 @@ function renderAccessControl() {
     if (manageAccessCard) {
       manageAccessCard.hidden = true;
     }
+    if (viewVisitantesCard) {
+      viewVisitantesCard.hidden = true;
+    }
     if (weeklyReportCard) {
       weeklyReportCard.hidden = false;
     }
@@ -1195,6 +1227,12 @@ function renderAccessControl() {
 
   if (manageAccessCard) {
     manageAccessCard.hidden = !hasPermission("manageAccess");
+  }
+
+  // Visitantes card: visible for coordinator, pastor, admin
+  if (viewVisitantesCard) {
+    const canSee = session.role === "coordinator" || session.role === "pastor" || session.role === "admin";
+    viewVisitantesCard.hidden = !canSee;
   }
 }
 function renderStats() {
@@ -2797,4 +2835,56 @@ function openLightbox(src) {
   overlay.appendChild(img);
   overlay.addEventListener("click", () => overlay.remove());
   document.body.appendChild(overlay);
+}
+
+// ── Visitantes públicos ──────────────────────────────────────────────────────
+const VISITANTES_PUB_KEY = "renovo_visitantes_pub_v1";
+
+function loadVisitantesPub() {
+  try { return JSON.parse(localStorage.getItem(VISITANTES_PUB_KEY) || "[]"); }
+  catch { return []; }
+}
+
+function saveVisitantesPub(list) {
+  localStorage.setItem(VISITANTES_PUB_KEY, JSON.stringify(list));
+}
+
+function renderVisitantesList() {
+  const list = document.getElementById("visitantes-list");
+  const countEl = document.getElementById("visitantes-count");
+  const search = (document.getElementById("visitantes-search")?.value || "").trim().toLowerCase();
+  const canDelete = hasPermission("manageAccess");
+
+  let entries = loadVisitantesPub();
+  entries = entries.slice().sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
+
+  const filtered = search
+    ? entries.filter((v) => (v.name || "").toLowerCase().includes(search))
+    : entries;
+
+  if (countEl) countEl.textContent = `${filtered.length} visitante(s)`;
+  if (!list) return;
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<p class="visitantes-empty">Nenhum visitante cadastrado ainda.</p>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map((v) => {
+    const date = v.registeredAt ? new Date(v.registeredAt).toLocaleDateString("pt-BR") : "";
+    return `
+      <div class="visitante-entry">
+        <div class="visitante-info">
+          <span class="visitante-name">${escapeHtml(v.name)}</span>
+          <span class="visitante-details">
+            ${v.age ? `<span>Idade: ${escapeHtml(v.age)}</span>` : ""}
+            ${v.phone ? `<span>📞 ${escapeHtml(v.phone)}</span>` : ""}
+            ${v.address ? `<span>📍 ${escapeHtml(v.address)}</span>` : ""}
+            ${date ? `<span class="visitante-date">${date}</span>` : ""}
+          </span>
+        </div>
+        ${canDelete ? `<button type="button" class="visitante-delete-btn ghost-btn small-btn" data-id="${v.id}">Remover</button>` : ""}
+      </div>
+    `;
+  }).join("");
 }

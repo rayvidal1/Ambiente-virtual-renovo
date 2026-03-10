@@ -168,7 +168,7 @@ function bindAuthEvents() {
     hasAppliedInitialReportContext = false;
     hasAutoOpenedLeaderReport = false;
     ensureLeaderCellForSession();
-    showAppScreen();
+    showHomeScreen();
     render();
     loginForm.reset();
     if (registerForm) {
@@ -226,7 +226,7 @@ function bindAuthEvents() {
     hasAppliedInitialReportContext = false;
     hasAutoOpenedLeaderReport = false;
     ensureLeaderCellForSession();
-    showAppScreen();
+    showHomeScreen();
     render();
     registerForm.reset();
     registerForm.hidden = true;
@@ -245,6 +245,63 @@ function bindAuthEvents() {
       registerForm.hidden = true;
     }
     setAuthFeedback("");
+  });
+
+  // Home screen
+  document.getElementById("home-logout-button")?.addEventListener("click", () => {
+    session = null;
+    clearSession();
+    hasAppliedInitialReportContext = false;
+    hasAutoOpenedLeaderReport = false;
+    showAuthScreen();
+    loginForm.reset();
+    setAuthFeedback("");
+  });
+
+  document.getElementById("go-to-celulas")?.addEventListener("click", () => {
+    showAppScreen();
+  });
+
+  document.getElementById("go-to-visitor-form")?.addEventListener("click", () => {
+    showVisitorFormScreen();
+  });
+
+  document.getElementById("visitor-form-back")?.addEventListener("click", () => {
+    showHomeScreen();
+  });
+
+  // Visitor registration inline form
+  document.getElementById("visitor-reg-form-inline")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const name = String(fd.get("name") || "").trim();
+    const errEl = document.getElementById("visitor-reg-inline-error");
+    if (!name) {
+      if (errEl) { errEl.textContent = "Por favor, informe o nome."; errEl.hidden = false; }
+      return;
+    }
+    if (errEl) errEl.hidden = true;
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name,
+      address : String(fd.get("address") || "").trim(),
+      age     : String(fd.get("age")     || "").trim(),
+      phone   : String(fd.get("phone")   || "").trim(),
+      registeredAt: new Date().toISOString(),
+    };
+    const list = loadVisitantesPub();
+    list.push(entry);
+    saveVisitantesPub(list);
+    e.target.hidden = true;
+    const success = document.getElementById("visitor-reg-success");
+    if (success) success.hidden = false;
+  });
+
+  document.getElementById("visitor-reg-new-btn")?.addEventListener("click", () => {
+    const form = document.getElementById("visitor-reg-form-inline");
+    const success = document.getElementById("visitor-reg-success");
+    if (form) { form.reset(); form.hidden = false; }
+    if (success) success.hidden = true;
   });
 }
 function bindAppEvents() {
@@ -957,17 +1014,46 @@ function initializeApp() {
   }
 
   ensureLeaderCellForSession();
-  showAppScreen();
+  showHomeScreen();
   render();
 }
 
+const homeScreen = document.getElementById("home-screen");
+const visitorFormScreen = document.getElementById("visitor-form-screen");
+
 function showAuthScreen() {
   authScreen.hidden = false;
+  homeScreen.hidden = true;
+  visitorFormScreen.hidden = true;
   appShell.hidden = true;
+}
+
+function showHomeScreen() {
+  authScreen.hidden = true;
+  homeScreen.hidden = false;
+  visitorFormScreen.hidden = true;
+  appShell.hidden = true;
+  const nameEl = document.getElementById("home-username");
+  if (nameEl) nameEl.textContent = session?.name || session?.username || "";
+}
+
+function showVisitorFormScreen() {
+  authScreen.hidden = true;
+  homeScreen.hidden = true;
+  visitorFormScreen.hidden = false;
+  appShell.hidden = true;
+  const form = document.getElementById("visitor-reg-form-inline");
+  const success = document.getElementById("visitor-reg-success");
+  const err = document.getElementById("visitor-reg-inline-error");
+  if (form) { form.reset(); form.hidden = false; }
+  if (success) success.hidden = true;
+  if (err) err.hidden = true;
 }
 
 function showAppScreen() {
   authScreen.hidden = true;
+  homeScreen.hidden = true;
+  visitorFormScreen.hidden = true;
   appShell.hidden = false;
 }
 

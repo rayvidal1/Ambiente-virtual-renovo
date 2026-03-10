@@ -39,6 +39,85 @@
       </div>
     </div>
 
+    <!-- TELA INICIAL (pós login) -->
+    <div id="home-screen" hidden>
+      <main class="page home-page">
+        <header class="hero">
+          <div class="hero-top-row">
+            <div>
+              <p class="eyebrow">Igreja Renovo</p>
+              <h1>Bem-vindo(a), <span id="home-username"></span>!</h1>
+            </div>
+            <button id="home-logout-button" type="button" class="ghost-btn">Sair</button>
+          </div>
+          <p class="subtitle">Escolha onde deseja acessar.</p>
+        </header>
+
+        <section class="home-cards">
+          <button class="home-card home-card-celulas" id="go-to-celulas" type="button">
+            <span class="home-card-icon">🌿</span>
+            <strong>Ambiente de Células</strong>
+            <small>Gerencie células, membros e relatórios semanais.</small>
+          </button>
+
+          <button class="home-card home-card-visitantes" id="go-to-visitor-form" type="button">
+            <span class="home-card-icon">🤝</span>
+            <strong>Cadastro de Visitantes</strong>
+            <small>Registre visitantes que chegaram à Igreja Renovo.</small>
+          </button>
+        </section>
+      </main>
+    </div>
+
+    <!-- TELA FORMULÁRIO DE VISITANTES (inline) -->
+    <div id="visitor-form-screen" hidden>
+      <main class="page">
+        <header class="hero">
+          <div class="hero-top-row">
+            <div>
+              <p class="eyebrow">Igreja Renovo</p>
+              <h1>Cadastro de Visitantes</h1>
+            </div>
+            <button id="visitor-form-back" type="button" class="ghost-btn">← Voltar</button>
+          </div>
+          <p class="subtitle">Preencha os dados do visitante.</p>
+        </header>
+
+        <div class="visitor-reg-wrap">
+          <div class="auth-card">
+            <div id="visitor-reg-success" class="pub-success" hidden>
+              <div class="pub-success-icon">✓</div>
+              <h2>Cadastro realizado!</h2>
+              <p>Obrigado por visitar a Igreja Renovo.<br>Que Deus abençoe você e sua família!</p>
+              <button type="button" id="visitor-reg-new-btn">Novo cadastro</button>
+            </div>
+
+            <form id="visitor-reg-form-inline" class="pub-form">
+              <p class="required-note">* Campo obrigatório</p>
+              <label>
+                Nome completo *
+                <input name="name" required maxlength="100" placeholder="Nome completo" autocomplete="name" />
+              </label>
+              <label>
+                Endereço
+                <input name="address" maxlength="200" placeholder="Rua, bairro, cidade" />
+              </label>
+              <label>
+                Idade
+                <input name="age" type="number" min="1" max="120" placeholder="Ex: 28" />
+              </label>
+              <label>
+                Telefone / WhatsApp
+                <input name="phone" maxlength="20" placeholder="(00) 00000-0000" inputmode="tel" />
+              </label>
+              <p id="visitor-reg-inline-error" class="form-error" hidden></p>
+              <button type="submit">Cadastrar</button>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+
     <!-- APP PRINCIPAL -->
     <div id="app-shell" hidden>
       <main class="page">

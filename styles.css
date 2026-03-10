@@ -72,6 +72,189 @@ body.modal-open {
   animation: enter 620ms ease both;
 }
 
+/* Home screen – dois cards de navegação */
+.home-page .hero h1 {
+  font-size: clamp(1.3rem, 3.5vw, 1.9rem);
+}
+
+.home-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 500px) {
+  .home-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  border: 1.5px solid var(--line);
+  border-radius: 1.1rem;
+  cursor: pointer;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transition: transform 0.15s, box-shadow 0.15s;
+  text-align: center;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+.home-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 48px rgba(25, 46, 35, 0.18);
+}
+
+.home-card-icon {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.home-card strong {
+  font-size: 1.05rem;
+  font-family: "Fraunces", Georgia, serif;
+}
+
+.home-card small {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+.home-card-celulas {
+  background: linear-gradient(150deg, #fbfaf5, #e7efe9);
+}
+
+.home-card-visitantes {
+  background: linear-gradient(150deg, #fbfaf5, #f0e8f5);
+}
+
+/* Visitor reg inline screen */
+.visitor-reg-wrap {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.pub-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.pub-form label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.pub-form input {
+  padding: 0.55rem 0.75rem;
+  border: 1.5px solid var(--line);
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--ink);
+  width: 100%;
+  transition: border-color 0.18s;
+}
+
+.pub-form input:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+
+.pub-form button[type="submit"] {
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  border-radius: 0.55rem;
+  padding: 0.7rem 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 0.3rem;
+  transition: background 0.18s;
+}
+
+.pub-form button[type="submit"]:hover {
+  background: var(--brand-strong);
+}
+
+.form-error {
+  color: #b0350e;
+  font-size: 0.84rem;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  background: #fdf3ef;
+  border-radius: 0.4rem;
+  border: 1px solid #f4c9b8;
+}
+
+.pub-success {
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.pub-success-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+.pub-success h2 {
+  font-family: "Fraunces", Georgia, serif;
+  margin: 0 0 0.5rem;
+  color: var(--ink);
+}
+
+.pub-success p {
+  color: var(--ink-soft);
+  margin: 0 0 1.2rem;
+  font-size: 0.92rem;
+}
+
+.pub-success button {
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  border-radius: 0.55rem;
+  padding: 0.65rem 1.8rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+
+.pub-success button:hover {
+  background: var(--brand-strong);
+}
+
+.required-note {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
 .auth-card {
   border: 1px solid var(--line);
   border-radius: 1rem;

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Instalar App - Ambiente Digital Renovo</title>
+    <meta name="theme-color" content="#c92f2f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="icon" type="image/png" href="icon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-shape bg-shape-1" aria-hidden="true"></div>
+    <div class="bg-shape bg-shape-2" aria-hidden="true"></div>
+
+    <main class="install-page">
+      <img src="icon.png" alt="Logo Renovo" class="install-logo" />
+      <p class="eyebrow">Igreja Renovo</p>
+      <h1>Instalar aplicativo</h1>
+      <p class="install-subtitle">
+        Abra este link no celular e toque no botao para instalar.
+      </p>
+
+      <button type="button" class="install-btn" data-install-app hidden>
+        Instalar aplicativo
+      </button>
+
+      <p class="install-status" data-install-status>
+        Preparando instalacao...
+      </p>
+      <p class="install-hint" data-install-hint></p>
+
+      <a href="index.html" class="ghost-btn install-open-link">Abrir sistema</a>
+
+      <div class="install-share">
+        <span>Link de instalacao:</span>
+        <code>https://renovomais.netlify.app/instalar.html?install=1</code>
+      </div>
+    </main>
+
+    <script src="pwa-install.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

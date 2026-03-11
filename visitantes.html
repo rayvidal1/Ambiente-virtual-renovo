@@ -1,9 +1,13 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cadastro de Visitantes – Igreja Renovo</title>
+    <title>Cadastro de Visitantes â€“ Igreja Renovo</title>
+    <meta name="theme-color" content="#c92f2f" />
+    <link rel="icon" type="image/png" href="icon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
     <style>
       .pub-wrap {
@@ -148,15 +152,15 @@
 
         <!-- SUCESSO -->
         <div id="success-state" class="pub-success" hidden>
-          <div class="pub-success-icon">✓</div>
+          <div class="pub-success-icon">âœ“</div>
           <h2>Cadastro realizado!</h2>
-          <p>Obrigado por visitar a Igreja Renovo.<br>Que Deus abençoe você e sua família!</p>
+          <p>Obrigado por visitar a Igreja Renovo.<br>Que Deus abenÃ§oe vocÃª e sua famÃ­lia!</p>
           <button type="button" id="new-registration-btn">Novo cadastro</button>
         </div>
 
-        <!-- FORMULÁRIO -->
+        <!-- FORMULÃRIO -->
         <form id="visitor-reg-form" class="pub-form">
-          <p class="required-note">* Campo obrigatório</p>
+          <p class="required-note">* Campo obrigatÃ³rio</p>
 
           <label>
             Nome completo *
@@ -164,7 +168,7 @@
           </label>
 
           <label>
-            Endereço
+            EndereÃ§o
             <input name="address" maxlength="200" placeholder="Rua, bairro, cidade" autocomplete="street-address" />
           </label>
 
@@ -184,8 +188,12 @@
         </form>
       </div>
 
-      <p class="pub-footer">Igreja Renovo &mdash; Sistema de células</p>
+      <p class="pub-footer">Igreja Renovo &mdash; Sistema de cÃ©lulas</p>
     </main>
+
+    <a href="instalar.html?install=1" class="install-link-chip" aria-label="Baixar aplicativo">
+      Baixar app
+    </a>
 
     <script>
       const STORAGE_KEY = "renovo_visitantes_pub_v1";
@@ -239,5 +247,14 @@
         regError.hidden   = true;
       });
     </script>
+    <script src="pwa-install.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>
+

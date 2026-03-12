@@ -10,9 +10,17 @@
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="styles.css?v=20260311d" />
+    <link rel="stylesheet" href="styles.css?v=20260312a" />
   </head>
   <body>
+    <!-- Tela de carregamento inicial -->
+    <div id="loading-screen" class="loading-screen">
+      <div class="loading-inner">
+        <img src="icon.png" alt="Renovo" class="loading-logo" />
+        <p class="loading-text">Carregando...</p>
+        <div class="loading-spinner"></div>
+      </div>
+    </div>
     <div class="bg-shape bg-shape-1" aria-hidden="true"></div>
     <div class="bg-shape bg-shape-2" aria-hidden="true"></div>
 
@@ -586,12 +594,16 @@
       </div>
     </div>
 
-    <script src="script.js?v=20260311d"></script>
+    <!-- Firebase SDK (compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-db.js?v=20260312a"></script>
+    <script src="script.js?v=20260312a"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", async () => {
           try {
-            const registration = await navigator.serviceWorker.register("./service-worker.js?v=2026-03-11-d");
+            const registration = await navigator.serviceWorker.register("./service-worker.js?v=2026-03-12-a");
             await registration.update();
 
             if (registration.waiting) {

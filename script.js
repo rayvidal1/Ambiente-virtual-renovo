@@ -1,12 +1,14 @@
 ﻿const STORAGE_KEY = "renovo_celulas_v1";
 const SESSION_STORAGE_KEY = "renovo_session_v1";
 const USERS_STORAGE_KEY = "renovo_users_v1";
+const LOCAL_IMAGES_KEY = "renovo_images_v1";
+const LOCAL_PDFS_KEY = "renovo_pdfs_v1";
 const MANAGEABLE_ROLES = ["leader", "coordinator", "pastor", "admin"];
 
-const state = loadState();
-let users = loadUsers();
-ensureDefaultUsers();
-let session = loadSession();
+// Inicializados de forma assíncrona em bootstrapApp()
+let state = { cells: [], reports: [], studies: [], lastReportId: null };
+let users = [];
+let session = null;
 
 const authScreen = document.getElementById("auth-screen");
 const homeScreen = document.getElementById("home-screen");
@@ -141,7 +143,7 @@ if (session) {
 
 bindAuthEvents();
 bindAppEvents();
-initializeApp();
+bootstrapApp();
 
 function bindAuthEvents() {
   toggleRegisterFormButton?.addEventListener("click", () => {
@@ -1162,6 +1164,69 @@ function bindAppEvents() {
   });
 }
 
+async function bootstrapApp() {
+  showLoadingScreen();
+  try {
+    const fsData = await window.fsLoadAll();
+
+    // Estado (células, relatórios, estudos)
+    if (fsData.state) {
+      const raw = fsData.state;
+      const cells = Array.isArray(raw.cells) ? raw.cells.map(normalizeCell).filter(Boolean) : [];
+      const reports = Array.isArray(raw.reports) ? raw.reports.map(normalizeReport).filter(Boolean) : [];
+      const studies = Array.isArray(raw.studies) ? raw.studies.map(normalizeStudy).filter(Boolean) : [];
+      // Restaura imagens e PDFs do localStorage local
+      try {
+        const imgStore = JSON.parse(localStorage.getItem(LOCAL_IMAGES_KEY) || "{}");
+        const pdfStore = JSON.parse(localStorage.getItem(LOCAL_PDFS_KEY) || "{}");
+        state.cells = cells;
+        state.reports = reports.map((r) => Object.assign({}, r, { images: imgStore[r.id] || [] }));
+        state.studies = studies.map((s) => Object.assign({}, s, { pdfDataUrl: pdfStore[s.id] || "" }));
+        state.lastReportId = typeof raw.lastReportId === "string" ? raw.lastReportId : null;
+      } catch (_) {
+        state.cells = cells;
+        state.reports = reports;
+        state.studies = studies;
+        state.lastReportId = typeof raw.lastReportId === "string" ? raw.lastReportId : null;
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } else {
+      // Firebase vazio ou offline — usa localStorage local
+      const cached = loadState();
+      state.cells = cached.cells;
+      state.reports = cached.reports;
+      state.studies = cached.studies;
+      state.lastReportId = cached.lastReportId;
+    }
+
+    // Usuários
+    if (fsData.users && fsData.users.length > 0) {
+      users = fsData.users.map(normalizeUser).filter(Boolean);
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    } else {
+      users = loadUsers();
+    }
+
+    // Visitantes da igreja
+    if (Array.isArray(fsData.visitantes)) {
+      localStorage.setItem(VISITANTES_PUB_KEY, JSON.stringify(fsData.visitantes));
+    }
+  } catch (_) {
+    // Fallback total para localStorage
+    const cached = loadState();
+    state.cells = cached.cells;
+    state.reports = cached.reports;
+    state.studies = cached.studies;
+    state.lastReportId = cached.lastReportId;
+    users = loadUsers();
+  }
+
+  ensureDefaultUsers();
+  session = loadSession();
+  hideLoadingScreen();
+  initializeApp();
+}
+
 function initializeApp() {
   if (!session) {
     showAuthScreen();
@@ -1171,6 +1236,16 @@ function initializeApp() {
   ensureLeaderCellForSession();
   showHomeScreen();
   render();
+}
+
+function showLoadingScreen() {
+  const el = document.getElementById("loading-screen");
+  if (el) el.hidden = false;
+}
+
+function hideLoadingScreen() {
+  const el = document.getElementById("loading-screen");
+  if (el) el.hidden = true;
 }
 
 function showAuthScreen() {
@@ -2596,6 +2671,7 @@ function loadUsers() {
 
 function saveUsers(nextUsers) {
   localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(nextUsers));
+  if (window.fsSaveUsers) window.fsSaveUsers(nextUsers);
 }
 
 function normalizeUser(user) {
@@ -2708,19 +2784,36 @@ function loadState() {
       : [];
     const lastReportId = typeof parsed.lastReportId === "string" ? parsed.lastReportId : null;
 
-    return {
-      cells,
-      reports,
-      studies,
-      lastReportId,
-    };
+    // Restaura imagens e PDFs do armazenamento local separado
+    try {
+      const imgStore = JSON.parse(localStorage.getItem(LOCAL_IMAGES_KEY) || "{}");
+      const pdfStore = JSON.parse(localStorage.getItem(LOCAL_PDFS_KEY) || "{}");
+      return {
+        cells,
+        reports: reports.map((r) => Object.assign({}, r, { images: imgStore[r.id] || r.images || [] })),
+        studies: studies.map((s) => Object.assign({}, s, { pdfDataUrl: pdfStore[s.id] || s.pdfDataUrl || "" })),
+        lastReportId,
+      };
+    } catch (_) {
+      return { cells, reports, studies, lastReportId };
+    }
   } catch {
     return fallback;
   }
 }
 
 function saveState(nextState) {
+  // Salva imagens e PDFs separadamente (não vão para o Firestore)
+  try {
+    const imgStore = {};
+    const pdfStore = {};
+    (nextState.reports || []).forEach((r) => { if (r.images && r.images.length) imgStore[r.id] = r.images; });
+    (nextState.studies || []).forEach((s) => { if (s.pdfDataUrl) pdfStore[s.id] = s.pdfDataUrl; });
+    localStorage.setItem(LOCAL_IMAGES_KEY, JSON.stringify(imgStore));
+    localStorage.setItem(LOCAL_PDFS_KEY, JSON.stringify(pdfStore));
+  } catch (_) {}
   localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+  if (window.fsSaveState) window.fsSaveState(nextState);
 }
 
 function normalizeCell(cell) {
@@ -3277,6 +3370,7 @@ function loadVisitantesPub() {
 
 function saveVisitantesPub(list) {
   localStorage.setItem(VISITANTES_PUB_KEY, JSON.stringify(list));
+  if (window.fsSaveVisitantes) window.fsSaveVisitantes(list);
 }
 
 function renderVisitantesList() {

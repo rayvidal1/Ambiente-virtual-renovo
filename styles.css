@@ -66,6 +66,54 @@ body.modal-open {
   animation: enter 620ms ease both;
 }
 
+/* Loading screen */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.loading-screen[hidden] {
+  display: none;
+}
+
+.loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.loading-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 1rem;
+}
+
+.loading-text {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.1rem;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--line);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .auth-screen {
   width: min(520px, 92vw);
   margin: 5.5vh auto 0;

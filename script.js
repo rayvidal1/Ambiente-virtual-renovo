@@ -2803,7 +2803,7 @@ function loadState() {
 }
 
 function saveState(nextState) {
-  // Salva imagens e PDFs separadamente (não vão para o Firestore)
+  // Salva imagens e PDFs separadamente (não cabem no localStorage principal nem no Firestore)
   try {
     const imgStore = {};
     const pdfStore = {};
@@ -2812,7 +2812,15 @@ function saveState(nextState) {
     localStorage.setItem(LOCAL_IMAGES_KEY, JSON.stringify(imgStore));
     localStorage.setItem(LOCAL_PDFS_KEY, JSON.stringify(pdfStore));
   } catch (_) {}
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+
+  // Salva estado sem imagens/PDFs no localStorage principal (evita quota exceeded)
+  const stripped = {
+    cells: nextState.cells,
+    reports: (nextState.reports || []).map((r) => Object.assign({}, r, { images: [] })),
+    studies: (nextState.studies || []).map((s) => Object.assign({}, s, { pdfDataUrl: "" })),
+    lastReportId: nextState.lastReportId,
+  };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped)); } catch (_) {}
   if (window.fsSaveState) window.fsSaveState(nextState);
 }
 

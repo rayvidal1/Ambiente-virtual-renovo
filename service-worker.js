@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = "renovo-static-v6";
+﻿const CACHE_NAME = "renovo-static-v7";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -53,23 +53,21 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const isSameOrigin = request.url.startsWith(self.location.origin);
+
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
 
       return fetch(request)
         .then((response) => {
-          if (
-            response &&
-            response.status === 200 &&
-            request.url.startsWith(self.location.origin)
-          ) {
+          if (response && response.status === 200 && isSameOrigin) {
             const copy = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
           return response;
         })
-        .catch(() => caches.match("./index.html"));
+        .catch(() => isSameOrigin ? caches.match("./index.html") : Response.error());
     })
   );
 });

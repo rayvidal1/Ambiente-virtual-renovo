@@ -1895,10 +1895,6 @@ function renderLatestReport() {
   }
 
   state.lastReportId = selected.id;
-  if (reportDateInput.value !== selected.date) {
-    reportDateInput.value = selected.date;
-    loadSavedReportIfExists();
-  }
 
   reportOutput.value = buildReportText(selected, cell);
   const stats = getReportStats(selected);

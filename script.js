@@ -354,6 +354,7 @@ function bindAppEvents() {
     renderLatestReport();
     renderReportHistory();
     applyReportMode();
+    if (generateReportButton) generateReportButton.textContent = "Gerar relatorio";
     openModal(reportModal);
   });
 

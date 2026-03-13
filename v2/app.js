@@ -681,9 +681,9 @@ function getHomeActionsForSession() {
   if (session.role !== "leader") {
     cards.push({
       meta: "Visitantes",
-      title: "Cadastro publico",
-      description: "Abrir o formulario publico de visitantes em uma rota separada e estavel.",
-      url: base + "visitantes.html",
+      title: "Cadastro de visitantes",
+      description: "Abrir a rota da v2 com formulario publico e painel interno de acompanhamento.",
+      url: "./visitantes.html?v=1",
     });
   }
 

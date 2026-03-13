@@ -106,6 +106,32 @@
     }
   }
 
+  async function loadVisitantes() {
+    const base = await init();
+    if (!base.db) {
+      return Object.assign({}, base, { visitantes: [] });
+    }
+
+    try {
+      const snapshot = await base.db.collection("renovo").doc("visitantes").get();
+      const data = snapshot.exists ? snapshot.data() : null;
+      const visitantes = data && Array.isArray(data.list) ? data.list : [];
+      return buildResult(
+        "ok",
+        visitantes.length ? "Visitantes carregados do Firestore." : "Nenhum visitante remoto encontrado.",
+        {
+          db: base.db,
+          visitantes,
+        }
+      );
+    } catch (error) {
+      return buildResult("warn", "Nao foi possivel carregar visitantes remotos. Seguindo com fallback local.", {
+        db: base.db,
+        visitantes: [],
+      });
+    }
+  }
+
   async function saveState(nextState) {
     const base = await init();
     if (!base.db) {
@@ -149,12 +175,33 @@
     }
   }
 
+  async function saveVisitantes(nextVisitantes) {
+    const base = await init();
+    if (!base.db) {
+      return buildResult("warn", "Firestore indisponivel para salvar visitantes.");
+    }
+
+    try {
+      await base.db
+        .collection("renovo")
+        .doc("visitantes")
+        .set({ list: Array.isArray(nextVisitantes) ? nextVisitantes : [] });
+      return buildResult("ok", "Visitantes salvos no Firestore.");
+    } catch (error) {
+      return buildResult("warn", "Falha ao salvar visitantes remotos. Os dados seguem ao menos no local.", {
+        error,
+      });
+    }
+  }
+
   window.RenovoV2Firebase = {
     init,
     loadUsers,
     loadStateSummary,
     loadFullState,
+    loadVisitantes,
     saveState,
     saveUsers,
+    saveVisitantes,
   };
 })();

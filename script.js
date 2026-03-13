@@ -847,6 +847,7 @@ function bindAppEvents() {
   const addVisitorBtn = document.getElementById("add-visitor-btn");
   const visitorInlineForm = document.getElementById("visitor-inline-form");
   const visitorNameInput = document.getElementById("visitor-name-input");
+  const visitorHowInput = document.getElementById("visitor-how-input");
   const visitorAddressInput = document.getElementById("visitor-address-input");
   const visitorPhoneInput = document.getElementById("visitor-phone-input");
   const visitorSaveBtn = document.getElementById("visitor-save-btn");
@@ -861,12 +862,16 @@ function bindAppEvents() {
   visitorSaveBtn?.addEventListener("click", () => {
     const name = visitorNameInput?.value.trim();
     if (!name) { if (visitorNameInput) visitorNameInput.focus(); return; }
+    const how = visitorHowInput?.value.trim();
+    if (!how) { if (visitorHowInput) visitorHowInput.focus(); return; }
     currentVisitors.push({
       name,
+      how,
       address: visitorAddressInput?.value.trim() || "",
       phone: visitorPhoneInput?.value.trim() || "",
     });
     if (visitorNameInput) visitorNameInput.value = "";
+    if (visitorHowInput) visitorHowInput.value = "";
     if (visitorAddressInput) visitorAddressInput.value = "";
     if (visitorPhoneInput) visitorPhoneInput.value = "";
     if (visitorInlineForm) visitorInlineForm.hidden = true;
@@ -876,6 +881,7 @@ function bindAppEvents() {
   visitorCancelBtn?.addEventListener("click", () => {
     if (visitorInlineForm) visitorInlineForm.hidden = true;
     if (visitorNameInput) visitorNameInput.value = "";
+    if (visitorHowInput) visitorHowInput.value = "";
     if (visitorAddressInput) visitorAddressInput.value = "";
     if (visitorPhoneInput) visitorPhoneInput.value = "";
   });
@@ -986,7 +992,7 @@ function bindAppEvents() {
 
     const visitorNames = currentVisitors.map((v) => v.name);
     const visitorsCountInput = currentVisitors.length;
-    const visitorDetails = currentVisitors.map((v) => ({ name: v.name, address: v.address, phone: v.phone }));
+    const visitorDetails = currentVisitors.map((v) => ({ name: v.name, how: v.how || "", address: v.address, phone: v.phone }));
     const reportData = {
       id: createId(),
       cellId,
@@ -1988,8 +1994,8 @@ function loadSavedReportIfExists() {
   setFormFieldValue(reportForm, "host", report.host);
   setFormFieldValue(reportForm, "visits", report.visits);
   currentVisitors = Array.isArray(report.visitorDetails) && report.visitorDetails.length > 0
-    ? report.visitorDetails.map((v) => ({ name: String(v.name || ""), address: String(v.address || ""), phone: String(v.phone || "") }))
-    : (Array.isArray(report.visitorNames) ? report.visitorNames.map((n) => ({ name: n, address: "", phone: "" })) : []);
+    ? report.visitorDetails.map((v) => ({ name: String(v.name || ""), how: String(v.how || ""), address: String(v.address || ""), phone: String(v.phone || "") }))
+    : (Array.isArray(report.visitorNames) ? report.visitorNames.map((n) => ({ name: n, how: "", address: "", phone: "" })) : []);
   renderVisitorsList();
   currentImages = Array.isArray(report.images) ? report.images.slice() : [];
   renderImagesList();
@@ -2443,9 +2449,16 @@ function buildReportText(report, cell) {
     ? absentMembers.map((member, index) => `${index + 1}. ${member.name}`).join("\n")
     : "1. Nenhum faltou";
 
-  const visitorsLines = report.visitorNames.length
-    ? report.visitorNames.map((name, index) => `${index + 1}. ${name}`).join("\n")
-    : "Sem nomes informados.";
+  const visitorsLines = report.visitorDetails && report.visitorDetails.length
+    ? report.visitorDetails.map((v, i) => {
+        let line = `${i + 1}. ${v.name}${v.how ? ` — ${v.how}` : ""}`;
+        if (v.address) line += `\n   📍 ${v.address}`;
+        if (v.phone) line += `\n   📞 ${v.phone}`;
+        return line;
+      }).join("\n")
+    : report.visitorNames.length
+      ? report.visitorNames.map((name, i) => `${i + 1}. ${name}`).join("\n")
+      : "Sem nomes informados.";
 
   const totalPeople = presentMembers.length + report.visitorsCount;
 
@@ -2863,7 +2876,7 @@ function normalizeReport(report) {
       ? report.visitorNames.map((name) => String(name).trim()).filter(Boolean)
       : [],
     visitorDetails: Array.isArray(report.visitorDetails)
-      ? report.visitorDetails.map((v) => ({ name: String(v?.name || "").trim(), address: String(v?.address || "").trim(), phone: String(v?.phone || "").trim() })).filter((v) => v.name)
+      ? report.visitorDetails.map((v) => ({ name: String(v?.name || "").trim(), how: String(v?.how || "").trim(), address: String(v?.address || "").trim(), phone: String(v?.phone || "").trim() })).filter((v) => v.name)
       : [],
     images: Array.isArray(report.images) ? report.images.filter((s) => typeof s === "string" && s.startsWith("data:")) : [],
     createdAt: report.createdAt || new Date().toISOString(),
@@ -3278,6 +3291,7 @@ function renderVisitorsList() {
     <div class="visitor-entry">
       <div class="visitor-entry-info">
         <span class="visitor-entry-name">${escapeHtml(v.name)}</span>
+        ${v.how ? `<span class="visitor-entry-detail">🔹 ${escapeHtml(v.how)}</span>` : ""}
         ${v.address ? `<span class="visitor-entry-detail">📍 ${escapeHtml(v.address)}</span>` : ""}
         ${v.phone ? `<span class="visitor-entry-detail">📞 ${escapeHtml(v.phone)}</span>` : ""}
       </div>

@@ -660,6 +660,16 @@ function getHomeActionsForSession() {
   const base = "../";
   const cards = [];
 
+  cards.push({
+    meta: "Celulas",
+    title: session.role === "leader" ? "Minha celula" : "Celulas e membros",
+    description:
+      session.role === "leader"
+        ? "Abrir a leitura da sua celula vinculada na v2."
+        : "Criar celulas, organizar membros e acompanhar a estrutura da nova base.",
+    url: "./cells.html?v=1",
+  });
+
   if (hasPermission("viewReports")) {
     cards.push({
       meta: "Relatorios",
@@ -714,6 +724,8 @@ function hasPermission(permission) {
     manageMembers: ["coordinator", "pastor", "admin"],
     submitReports: ["leader", "admin"],
     viewReports: ["leader", "coordinator", "pastor", "admin"],
+    viewCells: ["coordinator", "pastor", "admin"],
+    deleteCell: ["admin"],
     manageAccess: ["pastor", "admin"],
     viewStudies: ["leader", "coordinator", "pastor", "admin"],
   };

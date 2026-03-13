@@ -38,7 +38,30 @@
     }
   }
 
+  async function loadUsers() {
+    const base = await init();
+    if (!base.db) {
+      return Object.assign({}, base, { users: [] });
+    }
+
+    try {
+      const snapshot = await base.db.collection("renovo").doc("users").get();
+      const data = snapshot.exists ? snapshot.data() : null;
+      const users = data && Array.isArray(data.list) ? data.list : [];
+      return buildResult("ok", users.length ? "Usuarios carregados do Firestore." : "Nenhum usuario remoto encontrado.", {
+        db: base.db,
+        users,
+      });
+    } catch (error) {
+      return buildResult("warn", "Nao foi possivel carregar usuarios remotos. Seguindo com fallback local.", {
+        db: base.db,
+        users: [],
+      });
+    }
+  }
+
   window.RenovoV2Firebase = {
     init,
+    loadUsers,
   };
 })();

@@ -1,3 +1,6 @@
+const USERS_STORAGE_KEY = "renovo_users_v1";
+const SESSION_STORAGE_KEY = "renovo_session_v1";
+
 const loadingScreen = document.getElementById("loading-screen");
 const loadingStatus = document.getElementById("loading-status");
 const appShell = document.getElementById("app-shell");
@@ -6,6 +9,17 @@ const logOutput = document.getElementById("log-output");
 const installButton = document.getElementById("install-button");
 const refreshButton = document.getElementById("refresh-button");
 const clearCacheButton = document.getElementById("clear-cache-button");
+const loginForm = document.getElementById("login-form");
+const authFeedback = document.getElementById("auth-feedback");
+const authPanel = document.getElementById("auth-panel");
+const dashboardPanel = document.getElementById("dashboard-panel");
+const dashboardUser = document.getElementById("dashboard-user");
+const dashboardRole = document.getElementById("dashboard-role");
+const dashboardCell = document.getElementById("dashboard-cell");
+const sessionBar = document.getElementById("session-bar");
+const sessionTitle = document.getElementById("session-title");
+const sessionCopy = document.getElementById("session-copy");
+const logoutButton = document.getElementById("logout-button");
 
 const statusNodes = new Map(
   Array.from(document.querySelectorAll("[data-status-key]")).map((card) => [
@@ -19,6 +33,8 @@ const statusNodes = new Map(
 );
 
 let deferredInstallPrompt = null;
+let users = [];
+let session = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
@@ -29,6 +45,30 @@ function bindEvents() {
   refreshButton?.addEventListener("click", () => bootstrap());
   clearCacheButton?.addEventListener("click", clearV2Cache);
   installButton?.addEventListener("click", handleInstallClick);
+  logoutButton?.addEventListener("click", handleLogout);
+
+  loginForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const formData = new FormData(loginForm);
+    const username = normalizeUsername(formData.get("username"));
+    const password = String(formData.get("password") || "");
+
+    const user = users.find(
+      (entry) => normalizeUsername(entry.username) === username && String(entry.password || "") === password
+    );
+
+    if (!user) {
+      setAuthFeedback("Usuario ou senha invalidos.");
+      appendLog("Tentativa de login falhou para " + (username || "usuario-vazio") + ".", "warn");
+      return;
+    }
+
+    session = buildSessionFromUser(user);
+    saveSession(session);
+    setAuthFeedback("");
+    appendLog("Login realizado com sucesso para " + session.username + ".", "ok");
+    renderAuthState();
+  });
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -74,8 +114,18 @@ async function bootstrap() {
   setLoading("Montando diagnostico da v2...");
   appendLog("Boot iniciado em " + new Date().toLocaleString("pt-BR") + ".");
   setStatus("boot", "Iniciando", "Preparando verificacoes principais.", "warn");
-  setStatus("network", navigator.onLine ? "Online" : "Offline", navigator.onLine ? "Conexao ativa." : "Sem internet.", navigator.onLine ? "ok" : "warn");
-  setStatus("install", isStandalone() ? "Instalado" : "Navegador", isStandalone() ? "Rodando em modo app." : "Rodando no navegador.", isStandalone() ? "ok" : "warn");
+  setStatus(
+    "network",
+    navigator.onLine ? "Online" : "Offline",
+    navigator.onLine ? "Conexao ativa." : "Sem internet.",
+    navigator.onLine ? "ok" : "warn"
+  );
+  setStatus(
+    "install",
+    isStandalone() ? "Instalado" : "Navegador",
+    isStandalone() ? "Rodando em modo app." : "Rodando no navegador.",
+    isStandalone() ? "ok" : "warn"
+  );
 
   try {
     const bootResult = await Promise.race([
@@ -85,7 +135,12 @@ async function bootstrap() {
       }),
     ]);
 
-    setStatus("boot", bootResult.degraded ? "Pronto com fallback" : "Pronto", bootResult.message, bootResult.degraded ? "warn" : "ok");
+    setStatus(
+      "boot",
+      bootResult.degraded ? "Pronto com fallback" : "Pronto",
+      bootResult.message,
+      bootResult.degraded ? "warn" : "ok"
+    );
 
     if (bootResult.degraded) {
       showBanner("A v2 abriu em modo seguro. Consulte o log abaixo antes de migrar as telas.");
@@ -95,6 +150,7 @@ async function bootstrap() {
     setStatus("boot", "Erro", "A inicializacao travou antes de concluir.", "danger");
     appendLog("Bootstrap falhou: " + (error?.message || error), "danger");
   } finally {
+    renderAuthState();
     appShell.hidden = false;
     loadingScreen.hidden = true;
   }
@@ -119,6 +175,21 @@ async function runDiagnostics() {
     }
   }
 
+  setLoading("Carregando usuarios...");
+  const usersResult = await hydrateUsers();
+  appendLog(usersResult.detail, usersResult.tone);
+  if (usersResult.tone !== "ok") {
+    degraded = true;
+  }
+
+  setLoading("Restaurando sessao...");
+  session = loadSession();
+  if (session) {
+    appendLog("Sessao restaurada para " + session.username + ".", "ok");
+  } else {
+    appendLog("Nenhuma sessao valida encontrada. Aguardando login.", "info");
+  }
+
   setLoading("Registrando cache offline...");
   const swResult = await registerServiceWorker();
   setStatus("serviceWorker", swResult.label, swResult.detail, swResult.tone);
@@ -136,6 +207,40 @@ async function runDiagnostics() {
   }
 
   return { degraded, message: detail };
+}
+
+async function hydrateUsers() {
+  const firebaseApi = window.RenovoV2Firebase;
+  let remoteUsers = [];
+  let tone = "ok";
+  let detail = "Usuarios carregados do armazenamento local.";
+
+  if (firebaseApi && typeof firebaseApi.loadUsers === "function") {
+    const remoteResult = await firebaseApi.loadUsers();
+    if (Array.isArray(remoteResult.users) && remoteResult.users.length > 0) {
+      remoteUsers = remoteResult.users;
+      tone = "ok";
+      detail = "Usuarios sincronizados do Firestore.";
+    } else if (remoteResult.status === "warn") {
+      tone = "warn";
+      detail = remoteResult.detail;
+    }
+  }
+
+  const localUsers = loadUsers();
+  const sourceUsers = remoteUsers.length > 0 ? remoteUsers : localUsers;
+  users = sourceUsers.map((entry) => normalizeUser(entry)).filter(Boolean);
+  ensureDefaultUsers();
+  saveUsers(users);
+
+  if (!remoteUsers.length && !localUsers.length) {
+    detail = "Nenhum usuario existente encontrado. Defaults da v2 foram criados.";
+    tone = "warn";
+  } else if (!remoteUsers.length && localUsers.length > 0) {
+    detail = "Usuarios carregados do localStorage compartilhado com a v1.";
+  }
+
+  return { tone, detail };
 }
 
 async function registerServiceWorker() {
@@ -218,9 +323,190 @@ async function handleInstallClick() {
   setStatus("install", "Cancelado", "A instalacao foi cancelada.", "warn");
 }
 
+function handleLogout() {
+  session = null;
+  clearSession();
+  setAuthFeedback("");
+  appendLog("Sessao encerrada.", "info");
+  renderAuthState();
+}
+
+function renderAuthState() {
+  if (sessionBar) {
+    sessionBar.hidden = false;
+  }
+
+  if (!session) {
+    authPanel.hidden = false;
+    dashboardPanel.hidden = true;
+    logoutButton.hidden = true;
+    if (sessionTitle) sessionTitle.textContent = "Nao autenticado";
+    if (sessionCopy) sessionCopy.textContent = "Entre para liberar as proximas migracoes da v2.";
+    return;
+  }
+
+  authPanel.hidden = true;
+  dashboardPanel.hidden = false;
+  logoutButton.hidden = false;
+
+  if (sessionTitle) {
+    sessionTitle.textContent = "Bem-vindo, " + (session.name || session.username);
+  }
+  if (sessionCopy) {
+    sessionCopy.textContent = "Sessao ativa com cargo " + formatRole(session.role) + ".";
+  }
+  if (dashboardUser) {
+    dashboardUser.textContent = session.name || session.username || "-";
+  }
+  if (dashboardRole) {
+    dashboardRole.textContent = formatRole(session.role);
+  }
+  if (dashboardCell) {
+    dashboardCell.textContent = session.assignedCellName || "Nao vinculada";
+  }
+}
+
+function normalizeUsername(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeUser(user) {
+  if (!user || typeof user !== "object") {
+    return null;
+  }
+
+  const name = String(user.name || "").trim();
+  const username = normalizeUsername(user.username);
+  const password = String(user.password || "");
+  const role = sanitizeRole(user.role);
+
+  if (!name || !username || !password) {
+    return null;
+  }
+
+  return {
+    id: String(user.id || createId()),
+    name,
+    username,
+    password,
+    role,
+    assignedCellName: role === "leader" ? String(user.assignedCellName || "").trim() : "",
+    createdAt: user.createdAt || new Date().toISOString(),
+    updatedAt: user.updatedAt || null,
+  };
+}
+
+function ensureDefaultUsers() {
+  if (!users.some((entry) => normalizeUsername(entry.username) === "admin")) {
+    users.push({
+      id: "admin-root",
+      name: "Administrador",
+      username: "admin",
+      password: "123456",
+      role: "admin",
+      assignedCellName: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: null,
+    });
+  }
+
+  if (!users.some((entry) => normalizeUsername(entry.username) === "pastor.judson")) {
+    users.push({
+      id: "pastor-judson",
+      name: "Pastor Judson",
+      username: "pastor.judson",
+      password: "123456",
+      role: "pastor",
+      assignedCellName: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: null,
+    });
+  }
+}
+
+function loadUsers() {
+  try {
+    const raw = localStorage.getItem(USERS_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveUsers(nextUsers) {
+  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(nextUsers));
+}
+
+function buildSessionFromUser(user) {
+  return {
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    role: user.role,
+    assignedCellName: user.assignedCellName || "",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.username) {
+      return null;
+    }
+
+    const user = users.find((entry) => normalizeUsername(entry.username) === normalizeUsername(parsed.username));
+    return user ? buildSessionFromUser(user) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(nextSession) {
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+function sanitizeRole(value) {
+  const role = String(value || "leader").trim().toLowerCase();
+  return ["leader", "coordinator", "pastor", "admin"].includes(role) ? role : "leader";
+}
+
+function formatRole(role) {
+  if (role === "admin") return "Admin";
+  if (role === "pastor") return "Pastor";
+  if (role === "coordinator") return "Coordenador";
+  return "Lider";
+}
+
+function createId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+}
+
+function setAuthFeedback(message) {
+  if (!authFeedback) return;
+  authFeedback.textContent = message || "";
+}
+
 function resetUiForBootstrap() {
   hideBanner();
   clearLog();
+  setAuthFeedback("");
   installButton.hidden = deferredInstallPrompt ? false : true;
 }
 

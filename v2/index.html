@@ -48,6 +48,69 @@
 
         <section id="alert-banner" class="alert-banner" hidden></section>
 
+        <section id="session-bar" class="session-bar" hidden>
+          <div>
+            <p class="eyebrow">Sessao</p>
+            <h2 id="session-title" class="session-title">Nao autenticado</h2>
+            <p id="session-copy" class="session-copy">Entre para liberar as proximas migracoes da v2.</p>
+          </div>
+          <button id="logout-button" class="ghost-btn" type="button" hidden>Sair</button>
+        </section>
+
+        <section class="panel-grid auth-grid">
+          <article id="auth-panel" class="panel-card">
+            <div class="panel-head">
+              <p class="eyebrow">Acesso</p>
+              <h2>Entrar na v2</h2>
+            </div>
+
+            <form id="login-form" class="auth-form">
+              <label>
+                Usuario
+                <input name="username" autocomplete="username" required placeholder="admin" />
+              </label>
+
+              <label>
+                Senha
+                <input name="password" type="password" autocomplete="current-password" required placeholder="123456" />
+              </label>
+
+              <button class="primary-btn auth-submit" type="submit">Entrar</button>
+              <p id="auth-feedback" class="auth-feedback"></p>
+            </form>
+
+            <p class="auth-hint">
+              A v2 tenta carregar usuarios do Firestore primeiro e cai para localStorage se precisar.
+            </p>
+          </article>
+
+          <article id="dashboard-panel" class="panel-card" hidden>
+            <div class="panel-head">
+              <p class="eyebrow">Area liberada</p>
+              <h2>Dashboard inicial</h2>
+            </div>
+
+            <div class="dashboard-grid">
+              <div class="mini-status">
+                <span class="mini-label">Usuario</span>
+                <strong id="dashboard-user">-</strong>
+              </div>
+              <div class="mini-status">
+                <span class="mini-label">Cargo</span>
+                <strong id="dashboard-role">-</strong>
+              </div>
+              <div class="mini-status">
+                <span class="mini-label">Celula</span>
+                <strong id="dashboard-cell">-</strong>
+              </div>
+            </div>
+
+            <p class="dashboard-copy">
+              Login migrado com sucesso. O proximo passo e trazer a home real e os modulos por partes.
+            </p>
+          </article>
+        </section>
+
         <section class="status-grid" aria-label="Status da plataforma">
           <article class="status-card" data-status-key="boot">
             <p class="status-label">Inicializacao</p>

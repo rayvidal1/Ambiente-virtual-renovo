@@ -198,6 +198,111 @@ body {
   border: 1px solid rgba(155, 35, 40, 0.16);
 }
 
+.session-bar {
+  margin-top: 1rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 1.2rem;
+  background: rgba(255, 249, 246, 0.82);
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.session-title {
+  margin: 0;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.8rem;
+}
+
+.session-copy {
+  margin: 0.25rem 0 0;
+  color: var(--ink-soft);
+}
+
+.auth-grid {
+  margin-top: 1rem;
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 2.9rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(122, 76, 70, 0.2);
+  background: rgba(255, 255, 255, 0.84);
+  padding: 0 0.95rem;
+  font: inherit;
+  color: var(--ink);
+}
+
+.auth-form input:focus {
+  outline: 2px solid rgba(139, 13, 18, 0.14);
+  border-color: rgba(139, 13, 18, 0.3);
+}
+
+.auth-submit {
+  width: 100%;
+}
+
+.auth-feedback,
+.auth-hint,
+.dashboard-copy,
+.mini-label {
+  color: var(--ink-soft);
+}
+
+.auth-feedback {
+  min-height: 1.2rem;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.auth-hint {
+  margin: 0.95rem 0 0;
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.mini-status {
+  border: 1px solid rgba(122, 76, 70, 0.14);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 0.95rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.mini-label {
+  font-size: 0.8rem;
+}
+
+.dashboard-copy {
+  margin: 1rem 0 0;
+  line-height: 1.6;
+}
+
 .status-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -341,6 +446,10 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
   .hero-row {
     flex-direction: column;
   }
@@ -365,6 +474,11 @@ body {
   .log-card,
   .status-card {
     border-radius: 1.2rem;
+  }
+
+  .session-bar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .panel-head h2 {

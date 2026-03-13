@@ -1243,7 +1243,7 @@ async function bootstrapApp() {
   }
 
   ensureDefaultUsers();
-  seedInitialDataIfEmpty();
+  try { seedInitialDataIfEmpty(); } catch (e) { console.warn("[seed] erro:", e); }
   session = loadSession();
   hideLoadingScreen();
   initializeApp();
@@ -2996,7 +2996,6 @@ function seedInitialDataIfEmpty() {
       visitorsCount: 1, visitorNames: [], visitorDetails: [],
       createdAt: new Date("2026-01-20T20:00:00").toISOString(),
     });
-    saveState(state);
   }
 
   // ── Líderes da Branca ────────────────────────────────────────────────────
@@ -3046,16 +3045,14 @@ function seedInitialDataIfEmpty() {
     state.reports.push(mkReport("2026-01-26", ["Aline", "Jander", "Luiz", "Manu", "Ray", "Mayara"],
       [{ name: "Samuel", how: "", address: "", phone: "" }],
       "Luiz e Manu"));
-    saveState(state);
   } else {
     // Migração: adiciona membros novos e relatórios que possam estar faltando
     const cinzaCell = state.cells.find((c) => normalizeName(c.name) === "cinza");
     if (cinzaCell) {
       const extras = ["Liz", "Mariana", "Ray", "Mayara"];
       const existingNames = new Set(cinzaCell.members.map((m) => normalizeName(m.name)));
-      let changed = false;
       for (const name of extras) {
-        if (!existingNames.has(normalizeName(name))) { cinzaCell.members.push(mkMember(name)); changed = true; }
+        if (!existingNames.has(normalizeName(name))) { cinzaCell.members.push(mkMember(name)); }
       }
       for (const { date, present, visitors, host } of [
         { date: "2026-01-19", present: ["Luiz", "Manu", "Rebeca", "Jander", "Aline", "Mariana"], visitors: [{ name: "Ray", how: "", address: "", phone: "" }, { name: "Mayara", how: "", address: "", phone: "" }, { name: "Amanda Rayssa", how: "", address: "", phone: "" }], host: "Luiz e Manu" },
@@ -3066,10 +3063,8 @@ function seedInitialDataIfEmpty() {
             presentMemberIds: cinzaCell.members.filter((m) => present.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
             visitorsCount: visitors.length, visitorNames: visitors.map(v => v.name), visitorDetails: visitors,
             createdAt: new Date(`${date}T20:00:00`).toISOString() });
-          changed = true;
         }
       }
-      if (changed) saveState(state);
     }
   }
   const cinzaLeaders = [
@@ -3103,7 +3098,6 @@ function seedInitialDataIfEmpty() {
       visitorsCount: 6, visitorNames: [], visitorDetails: [],
       createdAt: new Date("2026-01-13T20:00:00").toISOString(),
     });
-    saveState(state);
   }
   const pretaLeaders = [
     { name: "Sabrina", username: "sabrina.preta" },
@@ -3142,7 +3136,6 @@ function seedInitialDataIfEmpty() {
       ],
       createdAt: new Date("2026-01-22T20:00:00").toISOString(),
     });
-    saveState(state);
   }
   const vinhoLeaders = [
     { name: "Jonattham", username: "jonattham.vinho" },
@@ -3160,7 +3153,6 @@ function seedInitialDataIfEmpty() {
     const arianeId = state.cells[arianeIdx].id;
     state.cells.splice(arianeIdx, 1);
     state.reports = state.reports.filter((r) => r.cellId !== arianeId);
-    saveState(state);
   }
   users = users.filter((u) => !["alex.ariane", "ariane.ariane"].includes(normalizeUsername(u.username)));
 
@@ -3184,7 +3176,6 @@ function seedInitialDataIfEmpty() {
       visitorsCount: 0, visitorNames: [], visitorDetails: [],
       createdAt: new Date("2026-01-27T20:00:00").toISOString(),
     });
-    saveState(state);
   }
   const aguiaLeaders = [
     { name: "Chirlene", username: "chirlene.aguia" },
@@ -3219,7 +3210,6 @@ function seedInitialDataIfEmpty() {
       visitorDetails: [{ name: "Faby", how: "", address: "", phone: "" }],
       createdAt: new Date("2026-01-31T20:00:00").toISOString(),
     });
-    saveState(state);
   }
   const amarelaLeaders = [
     { name: "Leticia", username: "leticia.amarela" },
@@ -3258,7 +3248,6 @@ function seedInitialDataIfEmpty() {
       ],
       createdAt: new Date("2026-01-27T20:00:00").toISOString(),
     });
-    saveState(state);
   }
   if (!users.some((u) => normalizeUsername(u.username) === "evelyn.verde")) {
     users.push({ id: createId(), name: "Evelyn", username: "evelyn.verde", password: "123456", role: "leader", assignedCellName: "Verde", createdAt: now, updatedAt: null });

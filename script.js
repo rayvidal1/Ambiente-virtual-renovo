@@ -3471,6 +3471,104 @@ function seedInitialDataIfEmpty() {
     ],
   });
 
+  // Branca 24/02 — Dyene novo membro
+  addMembers("Branca", ["Dyene"]);
+  addReport("Branca", {
+    date: "2026-02-24", leaders: "Joana", coLeaders: "Josué e Vânia", host: "Joana",
+    present: ["Joana", "Conceição", "Maria Lopes", "Dyene"],
+    visitors: [],
+  });
+
+  // ── Célula GET ────────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "get")) {
+    const getMems = ["Miguel", "Raíssa", "Hugo", "Thayssa", "Nicoly"];
+    const getCell = {
+      id: createId(), name: "GET", neighborhood: "Nao informado",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Raíssa e Miguel",
+      members: getMems.map(mkMember), createdAt: now,
+    };
+    state.cells.push(getCell);
+    state.reports.push({
+      id: createId(), cellId: getCell.id, date: "2026-02-24",
+      leaders: "Raíssa e Miguel", coLeaders: "", host: "Miguel",
+      presentMemberIds: getCell.members.filter((m) => ["Miguel", "Raíssa", "Thayssa", "Nicoly"].some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 1, visitorNames: [], visitorDetails: [],
+      createdAt: new Date("2026-02-24T20:00:00").toISOString(),
+    });
+  }
+  const getLeaders = [
+    { name: "Raíssa", username: "raissa.get" },
+    { name: "Miguel", username: "miguel.get" },
+  ];
+  for (const def of getLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "GET", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // Preta 24/02 — Soraia novo membro
+  addMembers("Preta", ["Soraia"]);
+  addReport("Preta", {
+    date: "2026-02-24", leaders: "Sabrina e Filipe", coLeaders: "Ian Vieira", host: "Salipe",
+    present: ["Filipe", "Sabrina", "Mikael", "Ian Vieira", "Eliel", "Deivid", "Jhonatan", "Leo", "Leticia", "Vitor", "Guilherme", "Dryka", "Soraia", "Thifany", "Mikaelly"],
+    visitors: [],
+  });
+
+  // Cinza 23/01 — Ana novo membro
+  addMembers("Cinza", ["Ana"]);
+  addReport("Cinza", {
+    date: "2026-01-23", leaders: "Jander e Aline", coLeaders: "", host: "Luiz e Manu",
+    present: ["Aline", "Jander", "Mariana", "Mayara", "Ana", "Luiz", "Manu", "Ray"],
+    visitors: [],
+  });
+
+  // Verde 24/02 — Danilo novo membro
+  addMembers("Verde", ["Danilo"]);
+  addReport("Verde", {
+    date: "2026-02-24", leaders: "Evelyn", coLeaders: "", host: "Igreja",
+    present: ["Evelyn", "Hatos", "Helloany", "Danilo", "Enzo", "Raiane"],
+    visitors: [
+      { name: "Huna",     how: "", address: "", phone: "" },
+      { name: "João",     how: "", address: "", phone: "" },
+      { name: "Jordylan", how: "", address: "", phone: "" },
+      { name: "Anthony",  how: "", address: "", phone: "" },
+    ],
+  });
+
+  // ── Célula Ekballo ────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "ekballo")) {
+    const ekballoMems = ["Igor", "Julya Maria", "Maria Eduarda", "Pedro", "Vitoria", "Wallafy", "Yasmin", "Vitor Gabriel", "Manu", "Lindsay", "Ana Clara", "Fernanda"];
+    const ekballoCell = {
+      id: createId(), name: "Ekballo", neighborhood: "Nao informado",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Vitória e Pedro",
+      members: ekballoMems.map(mkMember), createdAt: now,
+    };
+    state.cells.push(ekballoCell);
+    state.reports.push({
+      id: createId(), cellId: ekballoCell.id, date: "2026-02-25",
+      leaders: "Vitória e Pedro", coLeaders: "", host: "",
+      presentMemberIds: ekballoCell.members.filter((m) => ["Igor", "Julya Maria", "Maria Eduarda", "Pedro", "Vitoria", "Wallafy"].some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 4,
+      visitorNames: ["Diego", "Weslem", "Weverton", "Ana Letícia"],
+      visitorDetails: [
+        { name: "Diego",       how: "", address: "", phone: "" },
+        { name: "Weslem",      how: "", address: "", phone: "" },
+        { name: "Weverton",    how: "", address: "", phone: "" },
+        { name: "Ana Letícia", how: "", address: "", phone: "" },
+      ],
+      createdAt: new Date("2026-02-25T20:00:00").toISOString(),
+    });
+  }
+  const ekballoLeaders = [
+    { name: "Vitória", username: "vitoria.ekballo" },
+    { name: "Pedro",   username: "pedro.ekballo"   },
+  ];
+  for (const def of ekballoLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Ekballo", createdAt: now, updatedAt: null });
+    }
+  }
+
   saveState(state);
 
   saveUsers(users);

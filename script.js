@@ -3010,6 +3010,104 @@ function seedInitialDataIfEmpty() {
     }
   }
 
+  // ── Célula Cinza ─────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "cinza")) {
+    const cinzaMembers = ["Jander", "Aline", "Manu", "Luiz", "Rebeca", "Gabriel", "Amanda", "Daniel"];
+    const cinzaCell = {
+      id: createId(), name: "Cinza", neighborhood: "Nao informado",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Jander e Aline",
+      members: cinzaMembers.map(mkMember), createdAt: now,
+    };
+    state.cells.push(cinzaCell);
+    const cinzaPresent = ["Jander", "Aline", "Luiz", "Manu", "Gabriel"];
+    state.reports.push({
+      id: createId(), cellId: cinzaCell.id, date: "2026-01-12",
+      leaders: "Jander e Aline", coLeaders: "", host: "Luiz e Manu",
+      presentMemberIds: cinzaCell.members.filter((m) => cinzaPresent.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 2, visitorNames: [], visitorDetails: [],
+      createdAt: new Date("2026-01-12T20:00:00").toISOString(),
+    });
+    saveState(state);
+  }
+  const cinzaLeaders = [
+    { name: "Jander", username: "jander.cinza" },
+    { name: "Aline",  username: "aline.cinza"  },
+  ];
+  for (const def of cinzaLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Cinza", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // ── Célula Preta ──────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "preta")) {
+    const pretaMembers = [
+      "Filipe", "Sabrina", "Mikaelly", "Pedro", "Vitor", "Guilherme", "Ana", "Huggo",
+      "Ian Vieira", "Sthefany", "Danilo", "Davi", "Josiel", "Jhonatan", "Thifany",
+      "Deivid", "Rebeca", "Luiz Henrique", "Raissa", "Paulo Miguel", "Eliel", "Leo", "Mikael",
+    ];
+    const pretaCell = {
+      id: createId(), name: "Preta", neighborhood: "Nao informado",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Sabrina e Filipe",
+      members: pretaMembers.map(mkMember), createdAt: now,
+    };
+    state.cells.push(pretaCell);
+    const pretaPresent = ["Filipe", "Sabrina", "Mikael", "Eliel", "Paulo Miguel", "Luiz Henrique", "Raissa", "Josiel", "Ian Vieira", "Guilherme", "Ana", "Deivid", "Vitor", "Rebeca", "Mikaelly"];
+    state.reports.push({
+      id: createId(), cellId: pretaCell.id, date: "2026-01-13",
+      leaders: "Sabrina e Filipe", coLeaders: "", host: "Salipe",
+      presentMemberIds: pretaCell.members.filter((m) => pretaPresent.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 6, visitorNames: [], visitorDetails: [],
+      createdAt: new Date("2026-01-13T20:00:00").toISOString(),
+    });
+    saveState(state);
+  }
+  const pretaLeaders = [
+    { name: "Sabrina", username: "sabrina.preta" },
+    { name: "Filipe",  username: "filipe.preta"  },
+  ];
+  for (const def of pretaLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Preta", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // ── Célula Alex e Ariane ─────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === normalizeName("Alex e Ariane"))) {
+    const arianeMembers = ["Ariane", "Alex", "Karla", "Lara", "Vera", "Fiorella", "Luzimar", "Murilo", "Karlen", "Missikely", "Dáfynie", "Mayara", "Alessandro"];
+    const arianeCell = {
+      id: createId(), name: "Alex e Ariane", neighborhood: "Nao informado",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Alex e Ariane",
+      members: arianeMembers.map(mkMember), createdAt: now,
+    };
+    state.cells.push(arianeCell);
+    const arianePresent = ["Alex", "Ariane", "Mayara", "Alessandro"];
+    state.reports.push({
+      id: createId(), cellId: arianeCell.id, date: "2026-01-13",
+      leaders: "Alex e Ariane", coLeaders: "Fiorella", host: "Karla e Murilo",
+      presentMemberIds: arianeCell.members.filter((m) => arianePresent.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 4,
+      visitorNames: ["Deborah", "Luysa", "Edson", "Julia"],
+      visitorDetails: [
+        { name: "Deborah", how: "", address: "", phone: "" },
+        { name: "Luysa",   how: "", address: "", phone: "" },
+        { name: "Edson",   how: "", address: "", phone: "" },
+        { name: "Julia",   how: "", address: "", phone: "" },
+      ],
+      createdAt: new Date("2026-01-13T20:00:00").toISOString(),
+    });
+    saveState(state);
+  }
+  const arianeLeaders = [
+    { name: "Alex",   username: "alex.ariane"   },
+    { name: "Ariane", username: "ariane.ariane"  },
+  ];
+  for (const def of arianeLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Alex e Ariane", createdAt: now, updatedAt: null });
+    }
+  }
+
   // ── Coordenadores ────────────────────────────────────────────────────────
   const coordinatorDefs = [
     { name: "Irmã Neta", username: "irma.neta" },

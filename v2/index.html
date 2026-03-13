@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Renovo v2</title>
+    <meta name="theme-color" content="#8b0d12" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="icon" type="image/png" href="../icon.png" />
+    <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest?v=1" />
+    <link rel="stylesheet" href="./styles.css?v=1" />
+  </head>
+  <body>
+    <div id="loading-screen" class="loading-screen">
+      <div class="loading-card">
+        <p class="eyebrow">Renovo v2</p>
+        <h1>Preparando nova base</h1>
+        <p class="loading-copy">Carregando estrutura, diagnosticos e modo de seguranca.</p>
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <p id="loading-status" class="loading-status">Iniciando...</p>
+      </div>
+    </div>
+
+    <div class="page-shell">
+      <div class="orb orb-a" aria-hidden="true"></div>
+      <div class="orb orb-b" aria-hidden="true"></div>
+
+      <main id="app-shell" class="app-shell" hidden>
+        <section class="hero-card">
+          <p class="eyebrow">Igreja Renovo</p>
+          <div class="hero-row">
+            <div>
+              <h1>Nova base do webapp</h1>
+              <p class="hero-copy">
+                Esta versao foi criada separada da antiga para dar um ponto limpo de publicacao,
+                instalacao e diagnostico.
+              </p>
+            </div>
+
+            <div class="hero-actions">
+              <button id="install-button" class="primary-btn" type="button" hidden>Instalar app</button>
+              <button id="refresh-button" class="ghost-btn" type="button">Rodar diagnostico</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="alert-banner" class="alert-banner" hidden></section>
+
+        <section class="status-grid" aria-label="Status da plataforma">
+          <article class="status-card" data-status-key="boot">
+            <p class="status-label">Inicializacao</p>
+            <strong class="status-value">Aguardando</strong>
+            <span class="status-detail">Ainda nao executada.</span>
+          </article>
+
+          <article class="status-card" data-status-key="firebase">
+            <p class="status-label">Firebase</p>
+            <strong class="status-value">Aguardando</strong>
+            <span class="status-detail">Sem diagnostico ainda.</span>
+          </article>
+
+          <article class="status-card" data-status-key="serviceWorker">
+            <p class="status-label">Cache offline</p>
+            <strong class="status-value">Aguardando</strong>
+            <span class="status-detail">Sem diagnostico ainda.</span>
+          </article>
+
+          <article class="status-card" data-status-key="install">
+            <p class="status-label">Modo de uso</p>
+            <strong class="status-value">Aguardando</strong>
+            <span class="status-detail">Sem diagnostico ainda.</span>
+          </article>
+
+          <article class="status-card" data-status-key="network">
+            <p class="status-label">Rede</p>
+            <strong class="status-value">Aguardando</strong>
+            <span class="status-detail">Sem diagnostico ainda.</span>
+          </article>
+        </section>
+
+        <section class="panel-grid">
+          <article class="panel-card">
+            <div class="panel-head">
+              <p class="eyebrow">Proximo passo</p>
+              <h2>Migracao organizada</h2>
+            </div>
+
+            <ol class="roadmap-list">
+              <li>Validar esta base nova no navegador e como PWA.</li>
+              <li>Migrar o login para esta v2.</li>
+              <li>Migrar as telas principais em blocos pequenos.</li>
+              <li>Publicar a v2 em URL propria antes de desligar a v1.</li>
+            </ol>
+          </article>
+
+          <article class="panel-card">
+            <div class="panel-head">
+              <p class="eyebrow">Acoes rapidas</p>
+              <h2>Testes e manutencao</h2>
+            </div>
+
+            <div class="action-list">
+              <a class="action-link" href="./install.html?v=1">Abrir guia de instalacao</a>
+              <a class="action-link" href="../index.html">Abrir versao antiga</a>
+              <button id="clear-cache-button" class="ghost-btn action-button" type="button">Limpar cache da v2</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="log-card">
+          <div class="panel-head">
+            <p class="eyebrow">Diagnostico</p>
+            <h2>Log de inicializacao</h2>
+          </div>
+
+          <div id="log-output" class="log-output" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="./firebase.js?v=1"></script>
+    <script src="./app.js?v=1"></script>
+  </body>
+</html>

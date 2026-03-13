@@ -3419,6 +3419,58 @@ function seedInitialDataIfEmpty() {
     }
   }
 
+  // ── Célula Logos ──────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "logos")) {
+    const logosMems = ["Thiago", "Augusto", "Denis", "Gustavo", "Rian", "Letícia", "Mariana", "Jenny", "Phedro"];
+    const logosCell = {
+      id: createId(), name: "Logos", neighborhood: "Nao informado",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Thiago e Augusto",
+      members: logosMems.map(mkMember), createdAt: now,
+    };
+    state.cells.push(logosCell);
+    state.reports.push({
+      id: createId(), cellId: logosCell.id, date: "2026-02-10",
+      leaders: "Thiago e Augusto", coLeaders: "", host: "Irmã Neta",
+      presentMemberIds: logosCell.members.filter((m) => ["Thiago", "Augusto", "Denis", "Rian", "Gustavo"].some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 4,
+      visitorNames: ["Davi", "Ney", "Endrew", "Lucas"],
+      visitorDetails: [
+        { name: "Davi",   how: "", address: "", phone: "" },
+        { name: "Ney",    how: "", address: "", phone: "" },
+        { name: "Endrew", how: "", address: "", phone: "" },
+        { name: "Lucas",  how: "", address: "", phone: "" },
+      ],
+      createdAt: new Date("2026-02-10T20:00:00").toISOString(),
+    });
+  }
+  const logosLeaders = [
+    { name: "Thiago",  username: "thiago.logos"  },
+    { name: "Augusto", username: "augusto.logos" },
+  ];
+  for (const def of logosLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Logos", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // Visão de Águia 10/02
+  addReport("Visão de Águia", {
+    date: "2026-02-10", leaders: "Chirlene", coLeaders: "Marta e Kelma", host: "Luiz e Chirlene",
+    present: ["Chirlene", "Marta", "Kelma", "Ney", "Luiz"],
+    visitors: [],
+  });
+
+  // Amarela 14/02
+  addReport("Amarela", {
+    date: "2026-02-14", leaders: "Leticia", coLeaders: "Samuel e Layanne", host: "Leticia",
+    present: ["Leticia", "Samuel", "Rosa", "Layanne", "Juliana", "Davi"],
+    visitors: [
+      { name: "Karla",     how: "", address: "", phone: "" },
+      { name: "Alexandre", how: "", address: "", phone: "" },
+      { name: "Chirlene",  how: "", address: "", phone: "" },
+    ],
+  });
+
   saveState(state);
 
   saveUsers(users);

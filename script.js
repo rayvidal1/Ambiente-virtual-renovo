@@ -3154,41 +3154,15 @@ function seedInitialDataIfEmpty() {
     }
   }
 
-  // ── Célula Alex e Ariane ─────────────────────────────────────────────────
-  if (!state.cells.some((c) => normalizeName(c.name) === normalizeName("Alex e Ariane"))) {
-    const arianeMembers = ["Ariane", "Alex", "Karla", "Lara", "Vera", "Fiorella", "Luzimar", "Murilo", "Karlen", "Missikely", "Dáfynie", "Mayara", "Alessandro"];
-    const arianeCell = {
-      id: createId(), name: "Alex e Ariane", neighborhood: "Nao informado",
-      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Alex e Ariane",
-      members: arianeMembers.map(mkMember), createdAt: now,
-    };
-    state.cells.push(arianeCell);
-    const arianePresent = ["Alex", "Ariane", "Mayara", "Alessandro"];
-    state.reports.push({
-      id: createId(), cellId: arianeCell.id, date: "2026-01-13",
-      leaders: "Alex e Ariane", coLeaders: "Fiorella", host: "Karla e Murilo",
-      presentMemberIds: arianeCell.members.filter((m) => arianePresent.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
-      visitorsCount: 4,
-      visitorNames: ["Deborah", "Luysa", "Edson", "Julia"],
-      visitorDetails: [
-        { name: "Deborah", how: "", address: "", phone: "" },
-        { name: "Luysa",   how: "", address: "", phone: "" },
-        { name: "Edson",   how: "", address: "", phone: "" },
-        { name: "Julia",   how: "", address: "", phone: "" },
-      ],
-      createdAt: new Date("2026-01-13T20:00:00").toISOString(),
-    });
+  // ── Remover célula Alex e Ariane se existir ──────────────────────────────
+  const arianeIdx = state.cells.findIndex((c) => normalizeName(c.name) === normalizeName("Alex e Ariane"));
+  if (arianeIdx !== -1) {
+    const arianeId = state.cells[arianeIdx].id;
+    state.cells.splice(arianeIdx, 1);
+    state.reports = state.reports.filter((r) => r.cellId !== arianeId);
     saveState(state);
   }
-  const arianeLeaders = [
-    { name: "Alex",   username: "alex.ariane"   },
-    { name: "Ariane", username: "ariane.ariane"  },
-  ];
-  for (const def of arianeLeaders) {
-    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
-      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Alex e Ariane", createdAt: now, updatedAt: null });
-    }
-  }
+  users = users.filter((u) => !["alex.ariane", "ariane.ariane"].includes(normalizeUsername(u.username)));
 
   // ── Célula Visão de Águia ─────────────────────────────────────────────────
   if (!state.cells.some((c) => normalizeName(c.name) === normalizeName("Visão de Águia"))) {
@@ -3290,30 +3264,6 @@ function seedInitialDataIfEmpty() {
     users.push({ id: createId(), name: "Evelyn", username: "evelyn.verde", password: "123456", role: "leader", assignedCellName: "Verde", createdAt: now, updatedAt: null });
   }
 
-  // ── Relatório 27/01 Alex e Ariane ─────────────────────────────────────────
-  const arianeCell2 = state.cells.find((c) => normalizeName(c.name) === normalizeName("Alex e Ariane"));
-  if (arianeCell2 && !state.reports.some((r) => r.cellId === arianeCell2.id && r.date === "2026-01-27")) {
-    const arianePresent2 = ["Luzimar", "Vera", "Karlen", "Fiorella", "Karla", "Murilo"];
-    state.reports.push({
-      id: createId(), cellId: arianeCell2.id, date: "2026-01-27",
-      leaders: "Alex e Ariane", coLeaders: "Karla e Fiorella", host: "Karla e Murilo",
-      presentMemberIds: arianeCell2.members.filter((m) => arianePresent2.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
-      visitorsCount: 8,
-      visitorNames: ["Luciene", "Manuella", "Gleyce", "James", "Felipe", "Soninha", "Deborah", "Luysa"],
-      visitorDetails: [
-        { name: "Luciene",  how: "", address: "", phone: "" },
-        { name: "Manuella", how: "", address: "", phone: "" },
-        { name: "Gleyce",   how: "", address: "", phone: "" },
-        { name: "James",    how: "", address: "", phone: "" },
-        { name: "Felipe",   how: "", address: "", phone: "" },
-        { name: "Soninha",  how: "", address: "", phone: "" },
-        { name: "Deborah",  how: "", address: "", phone: "" },
-        { name: "Luysa",    how: "", address: "", phone: "" },
-      ],
-      createdAt: new Date("2026-01-27T20:00:00").toISOString(),
-    });
-    saveState(state);
-  }
 
   // ── Coordenadores ────────────────────────────────────────────────────────
   const coordinatorDefs = [

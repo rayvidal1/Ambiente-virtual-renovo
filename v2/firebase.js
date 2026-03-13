@@ -60,8 +60,35 @@
     }
   }
 
+  async function loadStateSummary() {
+    const base = await init();
+    if (!base.db) {
+      return Object.assign({}, base, { state: null, visitantes: [] });
+    }
+
+    try {
+      const [stateDoc, visitantesDoc] = await Promise.all([
+        base.db.collection("renovo").doc("state").get(),
+        base.db.collection("renovo").doc("visitantes").get(),
+      ]);
+
+      return buildResult("ok", "Resumo remoto carregado com sucesso.", {
+        db: base.db,
+        state: stateDoc.exists ? stateDoc.data() : null,
+        visitantes: visitantesDoc.exists ? (visitantesDoc.data().list || []) : [],
+      });
+    } catch (error) {
+      return buildResult("warn", "Nao foi possivel carregar o resumo remoto. Seguindo com fallback local.", {
+        db: base.db,
+        state: null,
+        visitantes: [],
+      });
+    }
+  }
+
   window.RenovoV2Firebase = {
     init,
     loadUsers,
+    loadStateSummary,
   };
 })();

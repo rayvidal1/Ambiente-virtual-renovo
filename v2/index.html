@@ -87,7 +87,22 @@
           <article id="dashboard-panel" class="panel-card" hidden>
             <div class="panel-head">
               <p class="eyebrow">Area liberada</p>
-              <h2>Dashboard inicial</h2>
+              <h2>Home da v2</h2>
+            </div>
+
+            <div class="dashboard-hero">
+              <div>
+                <p class="dashboard-kicker">Painel principal</p>
+                <h3 id="dashboard-heading" class="dashboard-heading">Bem-vindo</h3>
+                <p id="dashboard-copy" class="dashboard-copy">
+                  A home da v2 centraliza acesso, diagnostico e o caminho de migracao.
+                </p>
+              </div>
+
+              <div class="access-chip-wrap">
+                <span id="access-chip" class="access-chip">Aguardando sessao</span>
+                <span id="access-detail" class="access-detail">Entre para liberar os cards corretos.</span>
+              </div>
             </div>
 
             <div class="dashboard-grid">
@@ -105,9 +120,26 @@
               </div>
             </div>
 
-            <p class="dashboard-copy">
-              Login migrado com sucesso. O proximo passo e trazer a home real e os modulos por partes.
-            </p>
+            <div class="summary-grid">
+              <article class="summary-card">
+                <span class="mini-label">Celulas</span>
+                <strong id="summary-cells">0</strong>
+              </article>
+              <article class="summary-card">
+                <span class="mini-label">Membros</span>
+                <strong id="summary-members">0</strong>
+              </article>
+              <article class="summary-card">
+                <span class="mini-label">Relatorios</span>
+                <strong id="summary-reports">0</strong>
+              </article>
+              <article class="summary-card">
+                <span class="mini-label">Visitantes</span>
+                <strong id="summary-visitantes">0</strong>
+              </article>
+            </div>
+
+            <div id="home-actions" class="home-actions-grid"></div>
           </article>
         </section>
 

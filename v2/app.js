@@ -1,5 +1,7 @@
 const USERS_STORAGE_KEY = "renovo_users_v1";
 const SESSION_STORAGE_KEY = "renovo_session_v1";
+const STORAGE_KEY = "renovo_celulas_v1";
+const VISITANTES_PUB_KEY = "renovo_visitantes_pub_v1";
 
 const loadingScreen = document.getElementById("loading-screen");
 const loadingStatus = document.getElementById("loading-status");
@@ -16,6 +18,15 @@ const dashboardPanel = document.getElementById("dashboard-panel");
 const dashboardUser = document.getElementById("dashboard-user");
 const dashboardRole = document.getElementById("dashboard-role");
 const dashboardCell = document.getElementById("dashboard-cell");
+const dashboardHeading = document.getElementById("dashboard-heading");
+const dashboardCopy = document.getElementById("dashboard-copy");
+const accessChip = document.getElementById("access-chip");
+const accessDetail = document.getElementById("access-detail");
+const summaryCells = document.getElementById("summary-cells");
+const summaryMembers = document.getElementById("summary-members");
+const summaryReports = document.getElementById("summary-reports");
+const summaryVisitantes = document.getElementById("summary-visitantes");
+const homeActions = document.getElementById("home-actions");
 const sessionBar = document.getElementById("session-bar");
 const sessionTitle = document.getElementById("session-title");
 const sessionCopy = document.getElementById("session-copy");
@@ -35,6 +46,7 @@ const statusNodes = new Map(
 let deferredInstallPrompt = null;
 let users = [];
 let session = null;
+let summary = { cells: 0, members: 0, reports: 0, visitantes: 0 };
 
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
@@ -179,6 +191,13 @@ async function runDiagnostics() {
   const usersResult = await hydrateUsers();
   appendLog(usersResult.detail, usersResult.tone);
   if (usersResult.tone !== "ok") {
+    degraded = true;
+  }
+
+  setLoading("Calculando resumo...");
+  const summaryResult = await hydrateSummary();
+  appendLog(summaryResult.detail, summaryResult.tone);
+  if (summaryResult.tone !== "ok") {
     degraded = true;
   }
 
@@ -364,6 +383,104 @@ function renderAuthState() {
   if (dashboardCell) {
     dashboardCell.textContent = session.assignedCellName || "Nao vinculada";
   }
+  if (dashboardHeading) {
+    dashboardHeading.textContent = "Central de acesso da v2";
+  }
+  if (dashboardCopy) {
+    dashboardCopy.textContent = buildAccessNote();
+  }
+  if (accessChip) {
+    accessChip.textContent = (session.name || session.username) + " · " + formatRole(session.role);
+  }
+  if (accessDetail) {
+    accessDetail.textContent = buildAccessNote();
+  }
+  renderSummary();
+  renderHomeActions();
+}
+
+async function hydrateSummary() {
+  const firebaseApi = window.RenovoV2Firebase;
+  let cells = [];
+  let reports = [];
+  let visitantes = [];
+  let tone = "ok";
+  let detail = "Resumo carregado do armazenamento local.";
+
+  if (firebaseApi && typeof firebaseApi.loadStateSummary === "function") {
+    const remoteResult = await firebaseApi.loadStateSummary();
+    if (remoteResult.state) {
+      cells = Array.isArray(remoteResult.state.cells) ? remoteResult.state.cells : [];
+      reports = Array.isArray(remoteResult.state.reports) ? remoteResult.state.reports : [];
+      visitantes = Array.isArray(remoteResult.visitantes) ? remoteResult.visitantes : [];
+      detail = "Resumo sincronizado do Firestore.";
+    } else if (remoteResult.status === "warn") {
+      tone = "warn";
+      detail = remoteResult.detail;
+    }
+  }
+
+  if (cells.length === 0 && reports.length === 0) {
+    const localState = loadLocalState();
+    cells = localState.cells;
+    reports = localState.reports;
+    if (Array.isArray(localState.visitantes) && localState.visitantes.length > 0) {
+      visitantes = localState.visitantes;
+    }
+    if (cells.length || reports.length) {
+      detail = "Resumo carregado do localStorage compartilhado com a v1.";
+    }
+  }
+
+  if (visitantes.length === 0) {
+    visitantes = loadVisitantes();
+  }
+
+  summary = {
+    cells: cells.length,
+    members: cells.reduce((acc, cell) => acc + (Array.isArray(cell.members) ? cell.members.length : 0), 0),
+    reports: reports.length,
+    visitantes: visitantes.length,
+  };
+
+  return { tone, detail };
+}
+
+function renderSummary() {
+  if (summaryCells) summaryCells.textContent = String(summary.cells);
+  if (summaryMembers) summaryMembers.textContent = String(summary.members);
+  if (summaryReports) summaryReports.textContent = String(summary.reports);
+  if (summaryVisitantes) summaryVisitantes.textContent = String(summary.visitantes);
+}
+
+function renderHomeActions() {
+  if (!homeActions || !session) return;
+
+  const actions = getHomeActionsForSession();
+  homeActions.innerHTML = actions
+    .map(
+      (action) => `
+        <button
+          type="button"
+          class="ghost-btn home-action-card"
+          data-action-url="${escapeHtml(action.url)}"
+          ${action.disabled ? "disabled" : ""}
+        >
+          <span class="home-action-meta">${escapeHtml(action.meta)}</span>
+          <strong>${escapeHtml(action.title)}</strong>
+          <p>${escapeHtml(action.description)}</p>
+        </button>
+      `
+    )
+    .join("");
+
+  homeActions.querySelectorAll("[data-action-url]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const url = button.getAttribute("data-action-url");
+      if (!url || button.hasAttribute("disabled")) return;
+      window.location.href = url;
+    });
+  });
 }
 
 function normalizeUsername(value) {
@@ -437,6 +554,37 @@ function loadUsers() {
   }
 }
 
+function loadLocalState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return { cells: [], reports: [], visitantes: [] };
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      cells: Array.isArray(parsed?.cells) ? parsed.cells : [],
+      reports: Array.isArray(parsed?.reports) ? parsed.reports : [],
+      visitantes: loadVisitantes(),
+    };
+  } catch {
+    return { cells: [], reports: [], visitantes: [] };
+  }
+}
+
+function loadVisitantes() {
+  try {
+    const raw = localStorage.getItem(VISITANTES_PUB_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 function saveUsers(nextUsers) {
   localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(nextUsers));
 }
@@ -489,6 +637,97 @@ function formatRole(role) {
   if (role === "pastor") return "Pastor";
   if (role === "coordinator") return "Coordenador";
   return "Lider";
+}
+
+function buildAccessNote() {
+  if (!session) {
+    return "Entre para ver a home autenticada da v2.";
+  }
+
+  if (session.role === "leader") {
+    return "Acesso focado em relatorios e acompanhamento da celula " + (session.assignedCellName || "-") + ".";
+  }
+  if (session.role === "coordinator") {
+    return "Acesso de coordenador com leitura ampla e acompanhamento de resultados.";
+  }
+  if (session.role === "pastor") {
+    return "Acesso pastoral com visao geral e controle de acessos.";
+  }
+  return "Acesso administrativo total liberado para a migracao da v2.";
+}
+
+function getHomeActionsForSession() {
+  const base = "../";
+  const cards = [];
+
+  if (hasPermission("viewReports")) {
+    cards.push({
+      meta: "Relatorios",
+      title: "Informacoes das celulas",
+      description: "Abrir o modulo atual para preencher e consultar relatorios semanais.",
+      url: base + "index.html",
+    });
+  }
+
+  if (hasPermission("viewStudies")) {
+    cards.push({
+      meta: "Biblioteca",
+      title: "Estudos em PDF",
+      description: "Acessar a biblioteca existente enquanto migramos o modulo nativo da v2.",
+      url: base + "index.html",
+    });
+  }
+
+  if (session.role !== "leader") {
+    cards.push({
+      meta: "Visitantes",
+      title: "Cadastro publico",
+      description: "Abrir o formulario publico de visitantes em uma rota separada e estavel.",
+      url: base + "visitantes.html",
+    });
+  }
+
+  if (hasPermission("manageAccess")) {
+    cards.push({
+      meta: "Acesso",
+      title: "Gerenciar acessos",
+      description: "Usar a tela atual de acessos enquanto preparamos o modulo definitivo da v2.",
+      url: base + "index.html",
+    });
+  }
+
+  cards.push({
+    meta: "Instalacao",
+    title: "Guia da v2",
+    description: "Abrir a tela de instalacao e suporte da nova base.",
+    url: "./install.html?v=1",
+  });
+
+  return cards;
+}
+
+function hasPermission(permission) {
+  if (!session) return false;
+
+  const permissions = {
+    createCell: ["coordinator", "pastor", "admin"],
+    manageMembers: ["coordinator", "pastor", "admin"],
+    submitReports: ["leader", "admin"],
+    viewReports: ["leader", "coordinator", "pastor", "admin"],
+    manageAccess: ["pastor", "admin"],
+    viewStudies: ["leader", "coordinator", "pastor", "admin"],
+  };
+
+  return (permissions[permission] || []).includes(session.role);
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function createId() {

@@ -998,12 +998,6 @@ function bindAppEvents() {
       visitorsCount: visitorsCountInput,
       visitorNames,
       visitorDetails,
-      offering: parseNonNegativeNumber(formData.get("offering")),
-      foods: String(formData.get("foods") || "Nao").trim(),
-      snack: String(formData.get("snack") || "Nao").trim(),
-      discipleship: String(formData.get("discipleship") || "Nao").trim(),
-      visits: String(formData.get("visits") || "Nao").trim(),
-      conversions: parseNonNegativeInt(formData.get("conversions")),
       images: currentImages.slice(),
       createdAt: new Date().toISOString(),
     };
@@ -1992,11 +1986,6 @@ function loadSavedReportIfExists() {
   setFormFieldValue(reportForm, "leaders", report.leaders);
   setFormFieldValue(reportForm, "coLeaders", report.coLeaders);
   setFormFieldValue(reportForm, "host", report.host);
-  setFormFieldValue(reportForm, "conversions", String(report.conversions));
-  setFormFieldValue(reportForm, "offering", String(report.offering));
-  setFormFieldValue(reportForm, "foods", report.foods);
-  setFormFieldValue(reportForm, "snack", report.snack);
-  setFormFieldValue(reportForm, "discipleship", report.discipleship);
   setFormFieldValue(reportForm, "visits", report.visits);
   currentVisitors = Array.isArray(report.visitorDetails) && report.visitorDetails.length > 0
     ? report.visitorDetails.map((v) => ({ name: String(v.name || ""), address: String(v.address || ""), phone: String(v.phone || "") }))
@@ -2028,13 +2017,7 @@ function applyReportMode() {
     "coLeaders",
     "host",
     "visitorsCount",
-    "foods",
-    "snack",
-    "discipleship",
-    "visits",
     "visitorNames",
-    "offering",
-    "conversions",
   ];
 
   reportForm?.classList.toggle("readonly", readOnly);
@@ -2493,12 +2476,7 @@ ${ICONS.people} Total de membros: ${members.length}
 ${ICONS.present} Presentes: ${presentMembers.length}
 ${ICONS.visitors} Visitantes: ${report.visitorsCount}
 ${ICONS.totalPeople} Total de pessoas: ${totalPeople}
-${ICONS.offering} Oferta: ${formatOffering(report.offering)}
-${ICONS.foods} Alimentos: ${report.foods}
-${ICONS.snack} Lanche: ${report.snack}
-${ICONS.discipleship} Discipulado: ${report.discipleship}
-${ICONS.visits} Visitas: ${report.visits}
-${ICONS.conversions} Conversoes: ${report.conversions}`;
+`;
 }
 
 function resolveRoleSuffix(memberName, leaderNames, coLeaderNames) {
@@ -2887,12 +2865,6 @@ function normalizeReport(report) {
     visitorDetails: Array.isArray(report.visitorDetails)
       ? report.visitorDetails.map((v) => ({ name: String(v?.name || "").trim(), address: String(v?.address || "").trim(), phone: String(v?.phone || "").trim() })).filter((v) => v.name)
       : [],
-    offering: parseNonNegativeNumber(report.offering),
-    foods: String(report.foods || "Nao").trim(),
-    snack: String(report.snack || "Nao").trim(),
-    discipleship: String(report.discipleship || "Nao").trim(),
-    visits: String(report.visits || "Nao").trim(),
-    conversions: parseNonNegativeInt(report.conversions),
     images: Array.isArray(report.images) ? report.images.filter((s) => typeof s === "string" && s.startsWith("data:")) : [],
     createdAt: report.createdAt || new Date().toISOString(),
     updatedAt: report.updatedAt || null,
@@ -3116,12 +3088,6 @@ function seedInitialDataIfEmpty() {
       presentMemberIds,
       visitorsCount: 5,
       visitorNames: [],
-      offering: 0,
-      foods: "Nao",
-      snack: "Nao",
-      discipleship: "Sim",
-      visits: "Sim",
-      conversions: 0,
       createdAt: new Date("2026-02-24T22:00:00").toISOString(),
     };
     state.reports.push(initialReport);
@@ -3157,12 +3123,6 @@ function seedInitialDataIfEmpty() {
       presentMemberIds: cinzaPresentMemberIds,
       visitorsCount: 0,
       visitorNames: [],
-      offering: 0,
-      foods: "Nao",
-      snack: "Nao",
-      discipleship: "Sim",
-      visits: "Nao",
-      conversions: 0,
       createdAt: new Date("2026-01-23T22:00:00").toISOString(),
     };
 

@@ -110,6 +110,15 @@ body.modal-open {
   animation: spin 0.8s linear infinite;
 }
 
+.loading-debug {
+  max-width: 280px;
+  margin: 0;
+  text-align: center;
+  color: var(--brand-strong);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -1673,6 +1682,5 @@ button:hover {
     min-height: 400px;
   }
 }
-
 
 

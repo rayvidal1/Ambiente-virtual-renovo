@@ -36,7 +36,7 @@ const generateReportButton = document.getElementById("generate-report-btn");
 const cellsList = document.getElementById("cells-list");
 const totalCells = document.getElementById("total-cells");
 const totalMembers = document.getElementById("total-members");
-const reportDateInput = reportForm.elements.namedItem("date");
+const reportDateInput = reportForm?.elements?.namedItem("date");
 const statsSection = document.querySelector(".stats");
 const reportModeNote = document.getElementById("report-mode-note");
 const reportHistoryList = document.getElementById("report-history-list");
@@ -140,9 +140,18 @@ if (session) {
   ensureLeaderCellForSession();
 }
 
-bindAuthEvents();
-bindAppEvents();
-bootstrapApp();
+try {
+  bindAuthEvents();
+  bindAppEvents();
+  bootstrapApp();
+} catch (error) {
+  console.error("[Renovo] Falha na inicializacao:", error);
+  if (typeof window !== "undefined" && typeof window.__renovoShowLoadingDebug === "function") {
+    window.__renovoShowLoadingDebug(
+      "Erro de inicializacao: " + (error?.message || String(error || "falha desconhecida"))
+    );
+  }
+}
 
 function bindAuthEvents() {
   toggleRegisterFormButton?.addEventListener("click", () => {
@@ -734,7 +743,7 @@ function bindAppEvents() {
     }
   });
 
-  cellForm.addEventListener("submit", (event) => {
+  cellForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!hasPermission("createCell")) {
       return;
@@ -767,7 +776,7 @@ function bindAppEvents() {
     renderAttendanceList();
   });
 
-  memberForm.addEventListener("submit", (event) => {
+  memberForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!hasPermission("manageMembers")) {
       return;
@@ -803,7 +812,7 @@ function bindAppEvents() {
     }
   });
 
-  reportCellSelect.addEventListener("change", () => {
+  reportCellSelect?.addEventListener("change", () => {
     loadSavedReportIfExists();
     renderAttendanceList();
     renderLatestReport();
@@ -814,7 +823,7 @@ function bindAppEvents() {
     applyReportMode();
   });
 
-  reportDateInput.addEventListener("change", () => {
+  reportDateInput?.addEventListener("change", () => {
     loadSavedReportIfExists();
     renderAttendanceList();
     renderLatestReport();
@@ -825,7 +834,7 @@ function bindAppEvents() {
     applyReportMode();
   });
 
-  markAllAttendanceButton.addEventListener("click", () => {
+  markAllAttendanceButton?.addEventListener("click", () => {
     if (!hasPermission("submitReports")) {
       return;
     }
@@ -834,7 +843,7 @@ function bindAppEvents() {
     });
   });
 
-  clearAttendanceButton.addEventListener("click", () => {
+  clearAttendanceButton?.addEventListener("click", () => {
     if (!hasPermission("submitReports")) {
       return;
     }
@@ -946,7 +955,7 @@ function bindAppEvents() {
     if (thumb) openLightbox(thumb.src);
   });
 
-  reportForm.addEventListener("submit", (event) => {
+  reportForm?.addEventListener("submit", (event) => {
     event.preventDefault();
 
     if (generateReportButton && generateReportButton.textContent === "Gerar novo relatorio") {
@@ -1058,7 +1067,7 @@ function bindAppEvents() {
     applyReportMode();
   });
 
-  cellsList.addEventListener("click", (event) => {
+  cellsList?.addEventListener("click", (event) => {
     const clickTarget = event.target;
     if (!(clickTarget instanceof Element)) {
       return;
@@ -1134,7 +1143,7 @@ function bindAppEvents() {
     card.classList.toggle("collapsed");
   });
 
-  copyReportButton.addEventListener("click", async () => {
+  copyReportButton?.addEventListener("click", async () => {
     const text = reportOutput.value.trim();
     if (!text) {
       return;
@@ -1178,8 +1187,13 @@ async function bootstrapApp() {
   }
 
   try {
+    const loadRemoteData =
+      typeof window.fsLoadAll === "function"
+        ? window.fsLoadAll()
+        : Promise.resolve({ state: null, users: null, visitantes: null });
+
     const fsData = await Promise.race([
-      window.fsLoadAll(),
+      loadRemoteData,
       new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
     ]);
 

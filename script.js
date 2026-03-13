@@ -3290,6 +3290,45 @@ function seedInitialDataIfEmpty() {
     users.push({ id: createId(), name: "Evelyn", username: "evelyn.verde", password: "123456", role: "leader", assignedCellName: "Verde", createdAt: now, updatedAt: null });
   }
 
+  // ── Relatório 27/01 Alex e Ariane ─────────────────────────────────────────
+  const arianeCell2 = state.cells.find((c) => normalizeName(c.name) === normalizeName("Alex e Ariane"));
+  if (arianeCell2 && !state.reports.some((r) => r.cellId === arianeCell2.id && r.date === "2026-01-27")) {
+    const arianePresent2 = ["Luzimar", "Vera", "Karlen", "Fiorella", "Karla", "Murilo"];
+    state.reports.push({
+      id: createId(), cellId: arianeCell2.id, date: "2026-01-27",
+      leaders: "Alex e Ariane", coLeaders: "Karla e Fiorella", host: "Karla e Murilo",
+      presentMemberIds: arianeCell2.members.filter((m) => arianePresent2.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 8,
+      visitorNames: ["Luciene", "Manuella", "Gleyce", "James", "Felipe", "Soninha", "Deborah", "Luysa"],
+      visitorDetails: [
+        { name: "Luciene",  how: "", address: "", phone: "" },
+        { name: "Manuella", how: "", address: "", phone: "" },
+        { name: "Gleyce",   how: "", address: "", phone: "" },
+        { name: "James",    how: "", address: "", phone: "" },
+        { name: "Felipe",   how: "", address: "", phone: "" },
+        { name: "Soninha",  how: "", address: "", phone: "" },
+        { name: "Deborah",  how: "", address: "", phone: "" },
+        { name: "Luysa",    how: "", address: "", phone: "" },
+      ],
+      createdAt: new Date("2026-01-27T20:00:00").toISOString(),
+    });
+    saveState(state);
+  }
+
+  // ── Coordenadores ────────────────────────────────────────────────────────
+  const coordinatorDefs = [
+    { name: "Irmã Neta", username: "irma.neta" },
+    { name: "Anelia",    username: "anelia"     },
+    { name: "Adelaine",  username: "adelaine"   },
+    { name: "Bruno",     username: "bruno"      },
+    { name: "Gabriel",   username: "gabriel"    },
+  ];
+  for (const def of coordinatorDefs) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "coordinator", assignedCellName: "", createdAt: now, updatedAt: null });
+    }
+  }
+
   saveUsers(users);
 }
 

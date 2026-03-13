@@ -136,7 +136,6 @@ const ICONS = {
   blackHeart: "\u{1F5A4}",
 };
 
-seedInitialDataIfEmpty();
 if (session) {
   ensureLeaderCellForSession();
 }
@@ -1244,6 +1243,7 @@ async function bootstrapApp() {
   }
 
   ensureDefaultUsers();
+  seedInitialDataIfEmpty();
   session = loadSession();
   hideLoadingScreen();
   initializeApp();
@@ -2947,8 +2947,70 @@ function ensureLeaderCellForSession() {
 }
 
 function seedInitialDataIfEmpty() {
+  const mkMember = (name) => ({ id: createId(), name, phone: "" });
   const now = new Date().toISOString();
 
+  // ── Célula Branca ────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "branca")) {
+    const brancaMembers = [
+      "Joana", "Josué", "Vânia", "Vitória", "Cecília",
+      "Maria Alice", "Maria Lopes", "Elci", "Patrícia", "Conceição", "Cel", "Kelly",
+    ];
+    const brancaCell = {
+      id: createId(),
+      name: "Branca",
+      neighborhood: "Nao informado",
+      meetingDay: "Nao informado",
+      meetingTime: "20:00",
+      leader: "Joana",
+      members: brancaMembers.map(mkMember),
+      createdAt: now,
+    };
+    state.cells.push(brancaCell);
+
+    // Relatório 14/01/2026
+    const presentNames = ["Kelly", "Vitória", "Cecília", "Joana", "Cel", "Conceição", "Maria Lopes", "Maria Alice", "Vânia"];
+    const presentMemberIds = brancaCell.members
+      .filter((m) => presentNames.some((n) => normalizeName(n) === normalizeName(m.name)))
+      .map((m) => m.id);
+    state.reports.push({
+      id: createId(),
+      cellId: brancaCell.id,
+      date: "2026-01-14",
+      leaders: "Joana",
+      coLeaders: "Josué e Vânia",
+      host: "Vânia",
+      presentMemberIds,
+      visitorsCount: 3,
+      visitorNames: [],
+      visitorDetails: [],
+      createdAt: new Date("2026-01-14T20:00:00").toISOString(),
+    });
+    saveState(state);
+  }
+
+  // ── Líderes da Branca ────────────────────────────────────────────────────
+  const brancaLeaders = [
+    { name: "Joana",  username: "joana.branca"  },
+    { name: "Vânia",  username: "vania.branca"   },
+    { name: "Josué",  username: "josue.branca"   },
+  ];
+  for (const def of brancaLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({
+        id: createId(),
+        name: def.name,
+        username: def.username,
+        password: "123456",
+        role: "leader",
+        assignedCellName: "Branca",
+        createdAt: now,
+        updatedAt: null,
+      });
+    }
+  }
+
+  // ── Coordenadores ────────────────────────────────────────────────────────
   const coordinatorDefs = [
     { name: "Irmã Neta", username: "irma.neta" },
     { name: "Anelia",    username: "anelia"     },

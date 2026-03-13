@@ -6,11 +6,13 @@ const VISITANTES_PUB_KEY = "renovo_visitantes_pub_v1";
 const loadingScreen = document.getElementById("loading-screen");
 const loadingStatus = document.getElementById("loading-status");
 const appShell = document.getElementById("app-shell");
+const heroSection = document.getElementById("hero-section");
 const alertBanner = document.getElementById("alert-banner");
 const logOutput = document.getElementById("log-output");
 const installButton = document.getElementById("install-button");
 const refreshButton = document.getElementById("refresh-button");
 const clearCacheButton = document.getElementById("clear-cache-button");
+const authGridSection = document.getElementById("auth-grid-section");
 const loginForm = document.getElementById("login-form");
 const authFeedback = document.getElementById("auth-feedback");
 const authPanel = document.getElementById("auth-panel");
@@ -31,6 +33,9 @@ const sessionBar = document.getElementById("session-bar");
 const sessionTitle = document.getElementById("session-title");
 const sessionCopy = document.getElementById("session-copy");
 const logoutButton = document.getElementById("logout-button");
+const statusSection = document.getElementById("status-section");
+const supportSection = document.getElementById("support-section");
+const logSection = document.getElementById("log-section");
 
 const statusNodes = new Map(
   Array.from(document.querySelectorAll("[data-status-key]")).map((card) => [
@@ -351,8 +356,25 @@ function handleLogout() {
 }
 
 function renderAuthState() {
+  const isAdmin = session?.role === "admin";
+
+  if (heroSection) {
+    heroSection.hidden = !isAdmin;
+  }
+  if (statusSection) {
+    statusSection.hidden = !isAdmin;
+  }
+  if (supportSection) {
+    supportSection.hidden = !isAdmin;
+  }
+  if (logSection) {
+    logSection.hidden = !isAdmin;
+  }
   if (sessionBar) {
-    sessionBar.hidden = false;
+    sessionBar.hidden = !session;
+  }
+  if (authGridSection) {
+    authGridSection.classList.add("single-panel");
   }
 
   if (!session) {

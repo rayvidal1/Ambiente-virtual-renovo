@@ -226,6 +226,11 @@ body {
   margin-top: 1rem;
 }
 
+.single-panel {
+  grid-template-columns: minmax(0, 720px);
+  justify-content: center;
+}
+
 .auth-form {
   display: grid;
   gap: 0.9rem;

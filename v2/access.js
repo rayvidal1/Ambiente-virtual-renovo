@@ -46,6 +46,7 @@ function bindEvents() {
 
     if (action === "edit") {
       fillForm(user);
+      accessForm?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
 
@@ -335,7 +336,7 @@ function ensureLeaderCell(user) {
   cells.push({
     id: createId(),
     name: assigned,
-    neighborhood: "Nao informado",
+    neighborhood: "Sem endereco",
     meetingDay: "Nao definido",
     meetingTime: "20:00",
     leader: user.name || "Lider",
@@ -480,7 +481,7 @@ function normalizeCell(cell) {
   return {
     id: String(cell.id || createId()),
     name: String(cell.name || "").trim(),
-    neighborhood: String(cell.neighborhood || "Nao informado").trim(),
+    neighborhood: String(cell.neighborhood || "Sem endereco").trim(),
     meetingDay: String(cell.meetingDay || "Nao definido").trim(),
     meetingTime: String(cell.meetingTime || "20:00").trim(),
     leader: String(cell.leader || "").trim(),

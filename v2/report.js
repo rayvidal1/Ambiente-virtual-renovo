@@ -12,6 +12,7 @@ const reportDate = document.getElementById("report-date");
 const reportLeaders = document.getElementById("report-leaders");
 const reportCoLeaders = document.getElementById("report-co-leaders");
 const reportHost = document.getElementById("report-host");
+const reportAddress = document.getElementById("report-address");
 const attendanceList = document.getElementById("attendance-list");
 const markAllButton = document.getElementById("mark-all-button");
 const clearAllButton = document.getElementById("clear-all-button");
@@ -186,7 +187,7 @@ function renderCellOptions() {
   }
 
   const options = cells
-    .map((cell) => `<option value="${escapeHtml(cell.id)}">${escapeHtml(cell.name)} - ${escapeHtml(cell.neighborhood || "Nao informado")}</option>`)
+    .map((cell) => `<option value="${escapeHtml(cell.id)}">${escapeHtml(cell.name)} - ${escapeHtml(cell.neighborhood || "Sem endereco")}</option>`)
     .join("");
 
   reportCell.innerHTML = options;
@@ -230,6 +231,7 @@ function loadDefaultFormState() {
   reportLeaders.value = cell?.leader || session?.name || "";
   reportCoLeaders.value = "";
   reportHost.value = "";
+  if (reportAddress) reportAddress.value = "";
 }
 
 function loadReportIntoForm(report) {
@@ -245,6 +247,7 @@ function loadReportIntoForm(report) {
   reportLeaders.value = report.leaders || "";
   reportCoLeaders.value = report.coLeaders || "";
   reportHost.value = report.host || "";
+  if (reportAddress) reportAddress.value = report.address || "";
 }
 
 function renderAttendance() {
@@ -385,6 +388,7 @@ function buildDraftReport() {
     leaders: String(reportLeaders.value || "").trim(),
     coLeaders: String(reportCoLeaders.value || "").trim(),
     host: String(reportHost.value || "").trim(),
+    address: String(reportAddress?.value || "").trim(),
     presentMemberIds: selectedIds,
     visitorsCount: currentVisitors.length,
     visitorNames: currentVisitors.map((visitor) => visitor.name),
@@ -481,6 +485,7 @@ Data: ${formatDateForReport(report.date)}
 Lideres: ${report.leaders || "-"}
 Co-lideres: ${report.coLeaders || "-"}
 Anfitriao: ${report.host || "-"}
+Local: ${report.address || "-"}
 
 MEMBROS (${cell.members.length})
 ${(cell.members || []).map((member, index) => `${index + 1}. ${member.name}`).join("\n") || "Sem membros cadastrados."}
@@ -520,7 +525,7 @@ function normalizeCell(cell) {
   return {
     id: String(cell.id || createId()),
     name: String(cell.name || "").trim(),
-    neighborhood: String(cell.neighborhood || "Nao informado").trim(),
+    neighborhood: String(cell.neighborhood || "Sem endereco").trim(),
     meetingDay: String(cell.meetingDay || "Nao definido").trim(),
     meetingTime: String(cell.meetingTime || "20:00").trim(),
     leader: String(cell.leader || "").trim(),
@@ -546,6 +551,7 @@ function normalizeReport(report) {
     leaders: String(report.leaders || "").trim(),
     coLeaders: String(report.coLeaders || "").trim(),
     host: String(report.host || "").trim(),
+    address: String(report.address || "").trim(),
     presentMemberIds: Array.isArray(report.presentMemberIds) ? report.presentMemberIds.map((id) => String(id)) : [],
     visitorsCount: Number(report.visitorsCount || 0),
     visitorNames: Array.isArray(report.visitorNames) ? report.visitorNames.map((name) => String(name)) : [],

@@ -1632,7 +1632,7 @@ function ensureCellForLeaderUser(user) {
   state.cells.push({
     id: createId(),
     name: assignedCellName,
-    neighborhood: "Nao informado",
+    neighborhood: "Sem endereco",
     meetingDay: "Nao definido",
     meetingTime: "20:00",
     leader: user.name || "Lider",
@@ -2847,7 +2847,7 @@ function normalizeCell(cell) {
   return {
     id: String(cell.id || createId()),
     name: String(cell.name || "").trim(),
-    neighborhood: String(cell.neighborhood || "Nao informado").trim(),
+    neighborhood: String(cell.neighborhood || "Sem endereco").trim(),
     meetingDay: String(cell.meetingDay || "Nao definido").trim(),
     meetingTime: String(cell.meetingTime || "20:00").trim(),
     leader: String(cell.leader || "").trim(),
@@ -2953,7 +2953,7 @@ function ensureLeaderCellForSession() {
   state.cells.push({
     id: createId(),
     name: assignedCellName,
-    neighborhood: "Nao informado",
+    neighborhood: "Sem endereco",
     meetingDay: "Nao definido",
     meetingTime: "20:00",
     leader: session.name || "Lider",
@@ -2976,7 +2976,7 @@ function seedInitialDataIfEmpty() {
     const brancaCell = {
       id: createId(),
       name: "Branca",
-      neighborhood: "Nao informado",
+      neighborhood: "Sem endereco",
       meetingDay: "Nao informado",
       meetingTime: "20:00",
       leader: "Joana",
@@ -3043,7 +3043,7 @@ function seedInitialDataIfEmpty() {
       "Amanda", "Daniel", "Liz", "Mariana", "Ray", "Mayara",
     ];
     const cinzaCell = {
-      id: createId(), name: "Cinza", neighborhood: "Nao informado",
+      id: createId(), name: "Cinza", neighborhood: "Sem endereco",
       meetingDay: "Nao definido", meetingTime: "20:00", leader: "Jander e Aline",
       members: cinzaMembers.map(mkMember), createdAt: now,
     };
@@ -3102,7 +3102,7 @@ function seedInitialDataIfEmpty() {
       "Deivid", "Rebeca", "Luiz Henrique", "Raissa", "Paulo Miguel", "Eliel", "Leo", "Mikael",
     ];
     const pretaCell = {
-      id: createId(), name: "Preta", neighborhood: "Nao informado",
+      id: createId(), name: "Preta", neighborhood: "Sem endereco",
       meetingDay: "Nao definido", meetingTime: "20:00", leader: "Sabrina e Filipe",
       members: pretaMembers.map(mkMember), createdAt: now,
     };
@@ -3133,7 +3133,7 @@ function seedInitialDataIfEmpty() {
       "Marilda", "Estefanny", "Madalena", "Silvia", "Adriana", "Francisco", "Alzira", "Kessio",
     ];
     const vinhoCell = {
-      id: createId(), name: "Vinho", neighborhood: "Nao informado",
+      id: createId(), name: "Vinho", neighborhood: "Sem endereco",
       meetingDay: "Nao definido", meetingTime: "20:00", leader: "Jonattham e Marilene",
       members: vinhoMembers.map(mkMember), createdAt: now,
     };
@@ -3180,7 +3180,7 @@ function seedInitialDataIfEmpty() {
       "Geisy", "Luiz", "Osmar", "Ezequiel", "Ney",
     ];
     const aguiaCell = {
-      id: createId(), name: "Visão de Águia", neighborhood: "Nao informado",
+      id: createId(), name: "Visão de Águia", neighborhood: "Sem endereco",
       meetingDay: "Nao definido", meetingTime: "20:00", leader: "Chirlene",
       members: aguiaMembers.map(mkMember), createdAt: now,
     };
@@ -3212,7 +3212,7 @@ function seedInitialDataIfEmpty() {
       "Bia", "Manu", "Tatiana", "Juliana", "Davi", "Guilherme",
     ];
     const amarelaCell = {
-      id: createId(), name: "Amarela", neighborhood: "Nao informado",
+      id: createId(), name: "Amarela", neighborhood: "Sem endereco",
       meetingDay: "Nao definido", meetingTime: "20:00", leader: "Leticia",
       members: amarelaMembers.map(mkMember), createdAt: now,
     };
@@ -3247,7 +3247,7 @@ function seedInitialDataIfEmpty() {
       "Shelcy", "Bruno", "Kamila",
     ];
     const verdeCell = {
-      id: createId(), name: "Verde", neighborhood: "Nao informado",
+      id: createId(), name: "Verde", neighborhood: "Sem endereco",
       meetingDay: "Nao definido", meetingTime: "20:00", leader: "Evelyn",
       members: verdeMembers.map(mkMember), createdAt: now,
     };
@@ -3395,7 +3395,7 @@ function seedInitialDataIfEmpty() {
   if (!state.cells.some((c) => normalizeName(c.name) === "peregrinos")) {
     const peregrMems = ["Isabella", "Sarah", "Roberto", "Erick", "Isabelle", "Willian"];
     const peregrCell = {
-      id: createId(), name: "Peregrinos", neighborhood: "Nao informado",
+      id: createId(), name: "Peregrinos", neighborhood: "Sem endereco",
       meetingDay: "Nao definido", meetingTime: "20:00", leader: "Isabella e Sarah",
       members: peregrMems.map(mkMember), createdAt: now,
     };
@@ -3429,7 +3429,7 @@ function seedInitialDataIfEmpty() {
   if (!state.cells.some((c) => normalizeName(c.name) === "logos")) {
     const logosMems = ["Thiago", "Augusto", "Denis", "Gustavo", "Rian", "Letícia", "Mariana", "Jenny", "Phedro"];
     const logosCell = {
-      id: createId(), name: "Logos", neighborhood: "Nao informado",
+      id: createId(), name: "Logos", neighborhood: "Sem endereco",
       meetingDay: "Nao definido", meetingTime: "20:00", leader: "Thiago e Augusto",
       members: logosMems.map(mkMember), createdAt: now,
     };
@@ -3489,7 +3489,7 @@ function seedInitialDataIfEmpty() {
   if (!state.cells.some((c) => normalizeName(c.name) === "get")) {
     const getMems = ["Miguel", "Raíssa", "Hugo", "Thayssa", "Nicoly"];
     const getCell = {
-      id: createId(), name: "GET", neighborhood: "Nao informado",
+      id: createId(), name: "GET", neighborhood: "Sem endereco",
       meetingDay: "Nao definido", meetingTime: "20:00", leader: "Raíssa e Miguel",
       members: getMems.map(mkMember), createdAt: now,
     };
@@ -3545,7 +3545,7 @@ function seedInitialDataIfEmpty() {
   if (!state.cells.some((c) => normalizeName(c.name) === "ekballo")) {
     const ekballoMems = ["Igor", "Julya Maria", "Maria Eduarda", "Pedro", "Vitoria", "Wallafy", "Yasmin", "Vitor Gabriel", "Manu", "Lindsay", "Ana Clara", "Fernanda"];
     const ekballoCell = {
-      id: createId(), name: "Ekballo", neighborhood: "Nao informado",
+      id: createId(), name: "Ekballo", neighborhood: "Sem endereco",
       meetingDay: "Nao definido", meetingTime: "20:00", leader: "Vitória e Pedro",
       members: ekballoMems.map(mkMember), createdAt: now,
     };

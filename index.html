@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="styles.css?v=20260313c" />
+    <link rel="stylesheet" href="styles.css?v=20260315a" />
   </head>
   <body>
     <!-- Tela de carregamento inicial -->
@@ -339,17 +339,6 @@
               <input name="address" maxlength="120" placeholder="Ex: Rua das Flores, 123 - Bairro" />
             </label>
 
-            <div class="visitor-count-grid">
-              <label>
-                Visitantes novos
-                <input name="newVisitorsCount" type="number" min="0" value="0" />
-              </label>
-              <label>
-                Visitantes retornaram
-                <input name="returningVisitorsCount" type="number" min="0" value="0" />
-              </label>
-            </div>
-
             <label class="inline-check-label">
               <input name="hadCommunion" type="checkbox" />
               Houve comunhao nesta reuniao
@@ -368,23 +357,17 @@
 
 
             <div class="visitors-section">
-              <div class="visitors-section-head">
-                <span class="visitors-section-label">Visitantes</span>
-                <button type="button" id="add-visitor-btn" class="ghost-btn small-btn">+ Adicionar</button>
+              <span class="visitors-section-label">Visitantes</span>
+              <div class="visitor-tabs-bar" id="visitor-tabs-bar">
+                <button type="button" class="visitor-tab-btn active" data-tab="first">
+                  Primeira visita <span class="visitor-tab-badge" id="first-visit-badge"></span>
+                </button>
+                <button type="button" class="visitor-tab-btn" data-tab="returning">
+                  Recorrente <span class="visitor-tab-badge" id="returning-visit-badge"></span>
+                </button>
               </div>
-              <div id="visitors-list"></div>
-              <div id="visitor-inline-form" hidden>
-                <div class="visitor-form-fields">
-                  <input id="visitor-name-input" placeholder="Nome *" />
-                  <input id="visitor-how-input" placeholder="Como chegou * (ex: Convite de membro, Proximidade, Direcionado pela igreja, Espontâneo)" />
-                  <input id="visitor-address-input" placeholder="Endereço (opcional)" />
-                  <input id="visitor-phone-input" placeholder="Telefone (opcional)" />
-                </div>
-                <div class="visitor-form-actions">
-                  <button type="button" id="visitor-save-btn">Salvar</button>
-                  <button type="button" id="visitor-cancel-btn" class="ghost-btn">Cancelar</button>
-                </div>
-              </div>
+              <div class="visitor-panel" id="visitor-panel-first"></div>
+              <div class="visitor-panel" id="visitor-panel-returning" hidden></div>
             </div>
 
             <div class="images-section" id="report-images-section">
@@ -581,8 +564,8 @@
     <!-- Firebase SDK (compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="firebase-db.js?v=20260313c"></script>
-    <script src="script.js?v=20260313c"></script>
+    <script src="firebase-db.js?v=20260315a"></script>
+    <script src="script.js?v=20260315a"></script>
     <script>
       (function () {
         const debugEl = document.getElementById("loading-debug");

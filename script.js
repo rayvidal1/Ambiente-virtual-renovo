@@ -4181,6 +4181,29 @@ function renderPastorPanel() {
   const total = estagnada + saudavel + crescimento;
   const pct = (n) => (total > 0 ? Math.round((n / total) * 100) : 0);
 
+  const activeAlerts = loadAlerts().filter((a) => a.status !== "resolved");
+  const alertItems = activeAlerts.map((alert) => {
+    const statusLabel = { pending: "Pendente", monitoring: "Em acompanhamento", resolved: "Resolvido" }[alert.status] || alert.status;
+    const statusTone = { pending: "danger", monitoring: "warn", resolved: "ok" }[alert.status] || "neutral";
+    return `<div class="alert-item">
+      <div class="alert-info">
+        <strong>${escapeHtml(alert.memberName)}</strong>
+        <span>${escapeHtml(alert.cellName)} · ${alert.consecutiveAbsences} faltas consecutivas</span>
+        ${alert.observation ? `<p class="alert-obs">${escapeHtml(alert.observation)}</p>` : ""}
+      </div>
+      <div class="alert-actions">
+        <span class="alert-status-chip status-${statusTone}">${statusLabel}</span>
+        <select class="alert-status-select" data-alert-id="${escapeHtml(alert.id)}">
+          <option value="pending" ${alert.status === "pending" ? "selected" : ""}>Pendente</option>
+          <option value="monitoring" ${alert.status === "monitoring" ? "selected" : ""}>Em acompanhamento</option>
+          <option value="resolved" ${alert.status === "resolved" ? "selected" : ""}>Resolvido</option>
+        </select>
+        <input type="text" class="alert-obs-input" placeholder="Observacao..." value="${escapeHtml(alert.observation || "")}" />
+        <button type="button" class="ghost-btn tiny-btn" data-alert-save="${escapeHtml(alert.id)}">Salvar</button>
+      </div>
+    </div>`;
+  }).join("");
+
   trackingSection.innerHTML = `
     <h2 class="tracking-title">Visao consolidada</h2>
     <div class="tracking-grid">
@@ -4216,6 +4239,10 @@ function renderPastorPanel() {
             <strong>${estagnada} (${pct(estagnada)}%)</strong>
           </div>
         </div>`}
+      </div>
+      <div class="tracking-card tracking-card-full">
+        <h3 class="tracking-card-title">Alertas de ausencia ${activeAlerts.length > 0 ? `<span class="alert-count">${activeAlerts.length}</span>` : ""}</h3>
+        ${alertItems ? `<div class="alert-list">${alertItems}</div>` : `<p class="empty">Nenhum alerta ativo no momento.</p>`}
       </div>
     </div>`;
 }

@@ -413,9 +413,18 @@ function bindAppEvents() {
   });
 
   document.getElementById("visitantes-list")?.addEventListener("click", (e) => {
-    const btn = e.target.closest(".visitante-delete-btn");
-    if (!btn || !hasPermission("manageAccess")) return;
-    const id = btn.dataset.id;
+    const convertBtn = e.target.closest(".visitante-convert-btn");
+    if (convertBtn) {
+      if (!hasPermission("manageMembers")) return;
+      const id = convertBtn.dataset.id;
+      if (!id) return;
+      convertRecurringVisitorToMember(id);
+      return;
+    }
+
+    const deleteBtn = e.target.closest(".visitante-delete-btn");
+    if (!deleteBtn || !hasPermission("manageAccess")) return;
+    const id = deleteBtn.dataset.id;
     if (!id) return;
     const list = loadVisitantesPub().filter((v) => v.id !== id);
     saveVisitantesPub(list);
@@ -3878,7 +3887,9 @@ function renderVisitantesList() {
   const list = document.getElementById("visitantes-list");
   const countEl = document.getElementById("visitantes-count");
   const search = (document.getElementById("visitantes-search")?.value || "").trim().toLowerCase();
+  const canConvert = hasPermission("manageMembers");
   const canDelete = hasPermission("manageAccess");
+  const recurringMap = buildRecurringVisitorsMap();
 
   let entries = loadVisitantesPub();
   entries = entries.slice().sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
@@ -3897,6 +3908,24 @@ function renderVisitantesList() {
 
   list.innerHTML = filtered.map((v) => {
     const date = v.registeredAt ? new Date(v.registeredAt).toLocaleDateString("pt-BR") : "";
+    const recurring = recurringMap.get(normalizeName(v.name));
+    const recurringCell = recurring?.cell || null;
+    const recurringCount = recurring?.count || 0;
+    const isAlreadyMember =
+      recurringCell &&
+      recurringCell.members.some((member) => normalizeName(member.name) === normalizeName(v.name));
+    const recurringMeta = recurringCell
+      ? `<span class="visitante-recurring">${escapeHtml(recurringCell.name)} · ${recurringCount} visita(s)</span>`
+      : "";
+    const memberBadge = recurringCell && isAlreadyMember
+      ? `<span class="visitante-member-badge">Ja e membro em ${escapeHtml(recurringCell.name)}</span>`
+      : "";
+    const convertBtn = canConvert && recurringCell && !isAlreadyMember
+      ? `<button type="button" class="visitante-convert-btn ghost-btn small-btn" data-id="${v.id}">Tornar membro</button>`
+      : "";
+    const deleteBtn = canDelete
+      ? `<button type="button" class="visitante-delete-btn ghost-btn small-btn" data-id="${v.id}">Remover</button>`
+      : "";
     return `
       <div class="visitante-entry">
         <div class="visitante-info">
@@ -3906,12 +3935,100 @@ function renderVisitantesList() {
             ${v.phone ? `<span>📞 ${escapeHtml(v.phone)}</span>` : ""}
             ${v.address ? `<span>📍 ${escapeHtml(v.address)}</span>` : ""}
             ${date ? `<span class="visitante-date">${date}</span>` : ""}
+            ${recurringMeta}
+            ${memberBadge}
           </span>
         </div>
-        ${canDelete ? `<button type="button" class="visitante-delete-btn ghost-btn small-btn" data-id="${v.id}">Remover</button>` : ""}
+        <div class="visitante-actions">
+          ${convertBtn}
+          ${deleteBtn}
+        </div>
       </div>
     `;
   }).join("");
+}
+
+function buildRecurringVisitorsMap() {
+  const visitMap = new Map();
+
+  state.reports.forEach((report) => {
+    if (!Array.isArray(report?.visitorDetails) || !report.cellId) {
+      return;
+    }
+
+    report.visitorDetails.forEach((visitor) => {
+      const key = normalizeName(visitor?.name);
+      if (!key) {
+        return;
+      }
+
+      const existing = visitMap.get(key) || new Map();
+      existing.set(report.cellId, (existing.get(report.cellId) || 0) + 1);
+      visitMap.set(key, existing);
+    });
+  });
+
+  const recurringMap = new Map();
+
+  visitMap.forEach((cellCounts, key) => {
+    let bestCellId = "";
+    let bestCount = 0;
+
+    cellCounts.forEach((count, cellId) => {
+      if (count > bestCount) {
+        bestCount = count;
+        bestCellId = cellId;
+      }
+    });
+
+    if (!bestCellId || bestCount < 2) {
+      return;
+    }
+
+    const cell = getCellById(bestCellId);
+    if (!cell) {
+      return;
+    }
+
+    recurringMap.set(key, { cell, count: bestCount });
+  });
+
+  return recurringMap;
+}
+
+function convertRecurringVisitorToMember(visitorId) {
+  const visitor = loadVisitantesPub().find((entry) => String(entry.id) === String(visitorId));
+  if (!visitor) {
+    return;
+  }
+
+  const recurring = buildRecurringVisitorsMap().get(normalizeName(visitor.name));
+  if (!recurring?.cell) {
+    window.alert("Este visitante ainda nao possui recorrencia suficiente em uma celula.");
+    return;
+  }
+
+  const cell = recurring.cell;
+  if (!Array.isArray(cell.members)) {
+    cell.members = [];
+  }
+
+  if (cell.members.some((member) => normalizeName(member.name) === normalizeName(visitor.name))) {
+    window.alert(`${visitor.name} ja esta cadastrado como membro em ${cell.name}.`);
+    renderVisitantesList();
+    return;
+  }
+
+  cell.members.push({
+    id: createId(),
+    name: String(visitor.name || "").trim(),
+    phone: String(visitor.phone || "").trim(),
+  });
+
+  saveState(state);
+  render();
+  renderVisitantesList();
+  window.alert(`${visitor.name} foi adicionado como membro da celula ${cell.name}.`);
 }
 
 // ── Modulo de acompanhamento ──────────────────────────────────────────────────

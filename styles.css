@@ -658,6 +658,7 @@ h1 {
   flex-direction: column;
   gap: 0.2rem;
   flex: 1;
+  min-width: 0;
 }
 
 .visitante-name {
@@ -677,6 +678,35 @@ h1 {
 .visitante-date {
   color: var(--ink-soft);
   font-size: 0.76rem;
+}
+
+.visitante-recurring,
+.visitante-member-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.visitante-recurring {
+  background: rgba(139, 13, 18, 0.08);
+  color: var(--brand-strong);
+}
+
+.visitante-member-badge {
+  background: rgba(45, 138, 94, 0.12);
+  color: #2d6a4f;
+}
+
+.visitante-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-shrink: 0;
 }
 
 .visitante-delete-btn {

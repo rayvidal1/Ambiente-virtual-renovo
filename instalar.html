@@ -93,21 +93,10 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", async () => {
           try {
-            const reg = await navigator.serviceWorker.register("./service-worker.js?v=2026-03-16-d");
-            await reg.update();
-            if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
-            reg.addEventListener("updatefound", () => {
-              const w = reg.installing;
-              if (!w) return;
-              w.addEventListener("statechange", () => {
-                if (w.state === "installed" && navigator.serviceWorker.controller)
-                  w.postMessage({ type: "SKIP_WAITING" });
-              });
-            });
-            let refreshing = false;
-            navigator.serviceWorker.addEventListener("controllerchange", () => {
-              if (refreshing) return; refreshing = true; window.location.reload();
-            });
+            const reg = await navigator.serviceWorker.register("./service-worker.js?v=2026-03-16-e");
+            window.setTimeout(() => {
+              reg.update().catch(() => {});
+            }, 30000);
           } catch (_) {}
         });
       }

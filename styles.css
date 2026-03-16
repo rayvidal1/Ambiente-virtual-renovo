@@ -896,6 +896,12 @@ button:hover {
   align-items: start;
 }
 
+.report-grid > *,
+.access-grid > *,
+.studies-grid > * {
+  min-width: 0;
+}
+
 .report-form {
   gap: 0.95rem;
 }
@@ -1215,6 +1221,7 @@ button:hover {
   border-radius: 0.92rem;
   background: #fdf5f3;
   padding: 0.8rem;
+  min-width: 0;
 }
 
 .report-output-box h4 {
@@ -1279,6 +1286,8 @@ button:hover {
 #report-line-chart {
   display: block;
   width: 100%;
+  max-width: 100%;
+  height: auto;
   margin: 0.5rem 0 0.2rem;
   border-radius: 0.5rem;
 }
@@ -1555,15 +1564,18 @@ button:hover {
   z-index: 50;
   background: rgba(49, 15, 17, 0.44);
   backdrop-filter: blur(2px);
-  display: grid;
-  place-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   padding: 1rem;
 }
 
 .modal-card {
-  width: min(620px, 95vw);
+  width: min(620px, calc(100vw - 2rem));
+  max-width: 100%;
   max-height: 92vh;
   overflow: auto;
+  overflow-x: hidden;
   border: 1px solid rgba(108, 38, 34, 0.14);
   border-radius: 1.4rem;
   background: rgba(255, 250, 247, 0.96);
@@ -1573,11 +1585,11 @@ button:hover {
 }
 
 .modal-card-wide {
-  width: min(980px, 95vw);
+  width: min(980px, calc(100vw - 2rem));
 }
 
 .modal-card-xl {
-  width: min(1140px, 96vw);
+  width: min(1140px, calc(100vw - 2rem));
 }
 
 .modal-head {
@@ -1592,13 +1604,20 @@ button:hover {
   margin: 0;
 }
 
+.modal-head > * {
+  min-width: 0;
+}
+
 .modal-head .panel-sub {
   color: var(--ink-soft);
   margin-top: 0.2rem;
+  max-width: 100%;
 }
 
 .modal-close {
   flex-shrink: 0;
+  max-width: 100%;
+  align-self: flex-start;
 }
 
 #report-chart-wrap {
@@ -1607,6 +1626,8 @@ button:hover {
 
 #report-chart {
   display: block;
+  max-width: 100%;
+  height: auto;
   margin: 0 auto;
 }
 
@@ -1649,9 +1670,16 @@ button:hover {
 
 #report-output {
   width: 100%;
+  max-width: 100%;
   min-height: 520px;
   font-family: "Sora", "Segoe UI", sans-serif;
   background: #fff;
+}
+
+#cell-average-chart,
+#overall-average-chart {
+  max-width: 100%;
+  height: auto;
 }
 
 @keyframes enter {
@@ -2298,6 +2326,133 @@ button:hover {
 @media (max-width: 600px) {
   .tracking-grid   { grid-template-columns: 1fr; }
   .alert-obs-input { width: 110px; }
+}
+
+/* ── Otimizações para celular ─────────────────────────────────────────────── */
+@media (max-width: 520px) {
+  /* Página: menos padding vertical */
+  .page {
+    width: 96vw;
+    padding: 0.75rem 0 2rem;
+  }
+
+  /* Hero: padding menor e título menor */
+  .hero {
+    padding: 1rem;
+  }
+
+  .hero-top-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  h1 {
+    font-size: clamp(1.4rem, 6vw, 2rem);
+  }
+
+  /* Cards de ação: coluna única */
+  .action-cards {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .action-card {
+    min-height: 80px;
+  }
+
+  /* Modal: ocupa quase toda a tela como bottom sheet */
+  .modal-backdrop {
+    padding: 0.35rem 0.35rem 0;
+    align-items: flex-end;
+  }
+
+  .modal-card {
+    width: min(100%, calc(100vw - 0.7rem));
+    max-width: calc(100vw - 0.7rem);
+    max-height: 94vh;
+    border-radius: 1.3rem 1.3rem 0 0;
+    margin: 0 auto;
+    padding: 1rem 0.85rem calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .modal-card-wide,
+  .modal-card-xl {
+    width: min(100%, calc(100vw - 0.7rem));
+    max-width: calc(100vw - 0.7rem);
+  }
+
+  /* Cabeçalho do modal: quebra para não comprimir */
+  .modal-head {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .modal-head h2 {
+    font-size: 1.3rem;
+  }
+
+  .modal-head .panel-sub,
+  #report-mode-note {
+    word-break: break-word;
+  }
+
+  /* Forms internos dos modais */
+  .studies-form-wrap,
+  .studies-list-wrap,
+  .access-form,
+  .access-users-box {
+    padding: 0.65rem;
+  }
+
+  /* Botões de ação lado a lado → coluna em telas pequenas */
+  .access-form-actions {
+    flex-direction: column;
+  }
+
+  .study-item-actions {
+    flex-direction: column;
+  }
+
+  /* Saída do relatório: menos altura mínima */
+  #report-output {
+    min-height: 260px;
+  }
+
+  /* Listas com scroll: menos altura máxima */
+  .studies-list,
+  .access-users-list,
+  .visitantes-list {
+    max-height: 45vh;
+  }
+
+  /* Alertas: campo de obs menor */
+  .alert-obs-input {
+    width: 90px;
+  }
+
+  /* Tracking: menos gap */
+  .tracking-stats-row {
+    gap: 0.8rem;
+  }
+
+  /* Auth screen */
+  .auth-screen {
+    margin-top: 3vh;
+  }
+
+  /* Home cards: sempre coluna única */
+  .home-cards {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stat cards: mantém 2 colunas mas menor */
+  .stats {
+    gap: 0.6rem;
+  }
+
+  .stat-card strong {
+    font-size: 1.7rem;
+  }
 }
 
 

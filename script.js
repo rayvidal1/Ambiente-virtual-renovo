@@ -340,6 +340,7 @@ function switchVisitorTab(tab) {
   if (panelFirst) panelFirst.hidden = tab !== "first";
   if (panelReturning) panelReturning.hidden = tab !== "returning";
 }
+window.switchVisitorTab = switchVisitorTab;
 
 function bindAppEvents() {
   createCellCard?.addEventListener("click", () => {
@@ -867,10 +868,6 @@ function bindAppEvents() {
     attendanceList.querySelectorAll('input[name="presentMemberIds"]').forEach((checkbox) => {
       checkbox.checked = false;
     });
-  });
-
-  document.querySelectorAll(".visitor-tab-btn").forEach((btn) => {
-    btn.addEventListener("click", () => switchVisitorTab(btn.dataset.tab));
   });
 
   document.getElementById("visitor-panel-first")?.addEventListener("change", (e) => {

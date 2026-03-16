@@ -681,7 +681,8 @@ h1 {
 }
 
 .visitante-recurring,
-.visitante-member-badge {
+.visitante-member-badge,
+.visitante-cell-badge {
   display: inline-flex;
   align-items: center;
   width: fit-content;
@@ -699,6 +700,11 @@ h1 {
 .visitante-member-badge {
   background: rgba(45, 138, 94, 0.12);
   color: #2d6a4f;
+}
+
+.visitante-cell-badge {
+  background: rgba(72, 94, 144, 0.12);
+  color: #43557c;
 }
 
 .visitante-actions {

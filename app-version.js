@@ -1,3 +1,3 @@
 (function (globalScope) {
-  globalScope.RENOVO_APP_VERSION = "2026-03-16-i";
+  globalScope.RENOVO_APP_VERSION = "2026-03-16-j";
 })(typeof self !== "undefined" ? self : globalThis);

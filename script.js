@@ -905,7 +905,18 @@ function bindAppEvents() {
       const how  = (panel.querySelector(".visitor-add-how")?.value || "").trim();
       const phone = (panel.querySelector(".visitor-add-phone")?.value || "").trim();
       if (!name) { panel.querySelector(".visitor-add-name")?.focus(); return; }
-      const entry = { id: Date.now().toString(), name, how, phone, address: "", context: "celula", registeredAt: new Date().toISOString() };
+      const currentCell = getCellById(reportCellSelect?.value || "");
+      const entry = {
+        id: Date.now().toString(),
+        name,
+        how,
+        phone,
+        address: "",
+        context: "celula",
+        cellId: currentCell?.id || "",
+        cellName: currentCell?.name || "",
+        registeredAt: new Date().toISOString(),
+      };
       const list = loadVisitantesPub();
       list.push(entry);
       saveVisitantesPub(list);
@@ -3809,9 +3820,18 @@ function drawReportChart(present, absent, visitors) {
 function renderFirstVisitList() {
   const panel = document.getElementById("visitor-panel-first");
   if (!panel) return;
+  const selectedCellId = String(reportCellSelect?.value || "").trim();
+  const recurringMap = buildRecurringVisitorsMap();
+  if (!selectedCellId) {
+    panel.innerHTML = '<p class="visitor-empty-note">Selecione uma celula para ver os visitantes vinculados.</p>';
+    return;
+  }
   const cutoff = Date.now() - 60 * 24 * 60 * 60 * 1000;
   const all = loadVisitantesPub().filter((v) => {
     if (v.context && v.context !== "celula") return false;
+    const meta = resolveVisitorCellMeta(v, recurringMap);
+    if (meta.cellId && meta.cellId !== selectedCellId) return false;
+    if (!meta.cellId) return false;
     if (!v.registeredAt) return true;
     return new Date(v.registeredAt).getTime() > cutoff;
   });
@@ -3948,6 +3968,7 @@ function renderVisitantesList() {
 
   list.innerHTML = filtered.map((v) => {
     const date = v.registeredAt ? new Date(v.registeredAt).toLocaleDateString("pt-BR") : "";
+    const cellMeta = resolveVisitorCellMeta(v, recurringMap);
     const recurring = recurringMap.get(normalizeName(v.name));
     const recurringCell = recurring?.cell || null;
     const recurringCount = recurring?.count || 0;
@@ -3975,6 +3996,7 @@ function renderVisitantesList() {
             ${v.phone ? `<span>📞 ${escapeHtml(v.phone)}</span>` : ""}
             ${v.address ? `<span>📍 ${escapeHtml(v.address)}</span>` : ""}
             ${date ? `<span class="visitante-date">${date}</span>` : ""}
+            ${cellMeta.cellName ? `<span class="visitante-cell-badge">${escapeHtml(cellMeta.cellName)}</span>` : ""}
             ${recurringMeta}
             ${memberBadge}
           </span>
@@ -4034,6 +4056,33 @@ function buildRecurringVisitorsMap() {
   });
 
   return recurringMap;
+}
+
+function resolveVisitorCellMeta(visitor, recurringMap) {
+  const directCellId = String(visitor?.cellId || "").trim();
+  const directCellName = String(visitor?.cellName || "").trim();
+
+  if (directCellId) {
+    const linkedCell = getCellById(directCellId);
+    return {
+      cellId: directCellId,
+      cellName: linkedCell?.name || directCellName,
+    };
+  }
+
+  if (directCellName) {
+    const linkedCell = state.cells.find((cell) => normalizeName(cell.name) === normalizeName(directCellName));
+    return {
+      cellId: linkedCell?.id || "",
+      cellName: linkedCell?.name || directCellName,
+    };
+  }
+
+  const recurring = (recurringMap || buildRecurringVisitorsMap()).get(normalizeName(visitor?.name));
+  return {
+    cellId: recurring?.cell?.id || "",
+    cellName: recurring?.cell?.name || "",
+  };
 }
 
 function convertRecurringVisitorToMember(visitorId) {

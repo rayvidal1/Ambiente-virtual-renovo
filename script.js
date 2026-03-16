@@ -7,7 +7,7 @@ const ALERTS_KEY = "renovo_alerts_v1";
 const MANAGEABLE_ROLES = ["leader", "coordinator", "pastor", "admin"];
 
 // Inicializados de forma assíncrona em bootstrapApp()
-let state = { cells: [], reports: [], studies: [], lastReportId: null };
+let state = { cells: [], reports: [], studies: [], lastReportId: null, updatedAt: null };
 let users = [];
 let session = null;
 
@@ -1228,6 +1228,7 @@ async function bootstrapApp() {
     state.cells = [];
     state.reports = [];
     state.lastReportId = null;
+    state.updatedAt = new Date().toISOString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     if (window.fsSaveState) window.fsSaveState(state);
     localStorage.setItem("renovo_reset_v1", "done");
@@ -1246,25 +1247,21 @@ async function bootstrapApp() {
 
     // Estado (células, relatórios, estudos)
     if (fsData.state) {
-      const raw = fsData.state;
-      const cells = Array.isArray(raw.cells) ? raw.cells.map(normalizeCell).filter(Boolean) : [];
-      const reports = Array.isArray(raw.reports) ? raw.reports.map(normalizeReport).filter(Boolean) : [];
-      const studies = Array.isArray(raw.studies) ? raw.studies.map(normalizeStudy).filter(Boolean) : [];
-      // Restaura imagens e PDFs do localStorage local
-      try {
-        const imgStore = JSON.parse(localStorage.getItem(LOCAL_IMAGES_KEY) || "{}");
-        const pdfStore = JSON.parse(localStorage.getItem(LOCAL_PDFS_KEY) || "{}");
-        state.cells = cells;
-        state.reports = reports.map((r) => Object.assign({}, r, { images: imgStore[r.id] || [] }));
-        state.studies = studies.map((s) => Object.assign({}, s, { pdfDataUrl: pdfStore[s.id] || "" }));
-        state.lastReportId = typeof raw.lastReportId === "string" ? raw.lastReportId : null;
-      } catch (_) {
-        state.cells = cells;
-        state.reports = reports;
-        state.studies = studies;
-        state.lastReportId = typeof raw.lastReportId === "string" ? raw.lastReportId : null;
+      const localState = loadState();
+      const remoteState = hydrateStateSnapshot(fsData.state);
+      const useRemote = getStateUpdatedAt(remoteState) >= getStateUpdatedAt(localState);
+      const chosenState = useRemote ? remoteState : localState;
+
+      state.cells = chosenState.cells;
+      state.reports = chosenState.reports;
+      state.studies = chosenState.studies;
+      state.lastReportId = chosenState.lastReportId;
+      state.updatedAt = chosenState.updatedAt;
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stripStateForStorage(state)));
+      if (!useRemote && window.fsSaveState) {
+        window.fsSaveState(state);
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } else {
       // Firebase vazio — carrega localStorage e faz upload imediato para o Firestore
       const cached = loadState();
@@ -1272,6 +1269,7 @@ async function bootstrapApp() {
       state.reports = cached.reports;
       state.studies = cached.studies;
       state.lastReportId = cached.lastReportId;
+      state.updatedAt = cached.updatedAt;
       // Migração: sobe dados locais para o Firestore
       if (window.fsSaveState) window.fsSaveState(state);
     }
@@ -1303,6 +1301,7 @@ async function bootstrapApp() {
     state.reports = cached.reports;
     state.studies = cached.studies;
     state.lastReportId = cached.lastReportId;
+    state.updatedAt = cached.updatedAt;
     users = loadUsers();
   }
 
@@ -2868,6 +2867,7 @@ function loadState() {
     reports: [],
     studies: [],
     lastReportId: null,
+    updatedAt: null,
   };
 
   try {
@@ -2891,6 +2891,7 @@ function loadState() {
       ? parsed.studies.map((study) => normalizeStudy(study)).filter(Boolean)
       : [];
     const lastReportId = typeof parsed.lastReportId === "string" ? parsed.lastReportId : null;
+    const updatedAt = typeof parsed.updatedAt === "string" ? parsed.updatedAt : null;
 
     // Restaura imagens e PDFs do armazenamento local separado
     try {
@@ -2901,9 +2902,10 @@ function loadState() {
         reports: reports.map((r) => Object.assign({}, r, { images: imgStore[r.id] || r.images || [] })),
         studies: studies.map((s) => Object.assign({}, s, { pdfDataUrl: pdfStore[s.id] || s.pdfDataUrl || "" })),
         lastReportId,
+        updatedAt,
       };
     } catch (_) {
-      return { cells, reports, studies, lastReportId };
+      return { cells, reports, studies, lastReportId, updatedAt };
     }
   } catch {
     return fallback;
@@ -2911,25 +2913,62 @@ function loadState() {
 }
 
 function saveState(nextState) {
+  const stampedState = Object.assign({}, nextState, {
+    updatedAt: new Date().toISOString(),
+  });
+  state.updatedAt = stampedState.updatedAt;
+
   // Salva imagens e PDFs separadamente (não cabem no localStorage principal nem no Firestore)
   try {
     const imgStore = {};
     const pdfStore = {};
-    (nextState.reports || []).forEach((r) => { if (r.images && r.images.length) imgStore[r.id] = r.images; });
-    (nextState.studies || []).forEach((s) => { if (s.pdfDataUrl) pdfStore[s.id] = s.pdfDataUrl; });
+    (stampedState.reports || []).forEach((r) => { if (r.images && r.images.length) imgStore[r.id] = r.images; });
+    (stampedState.studies || []).forEach((s) => { if (s.pdfDataUrl) pdfStore[s.id] = s.pdfDataUrl; });
     localStorage.setItem(LOCAL_IMAGES_KEY, JSON.stringify(imgStore));
     localStorage.setItem(LOCAL_PDFS_KEY, JSON.stringify(pdfStore));
   } catch (_) {}
 
   // Salva estado sem imagens/PDFs no localStorage principal (evita quota exceeded)
-  const stripped = {
+  const stripped = stripStateForStorage(stampedState);
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped)); } catch (_) {}
+  if (window.fsSaveState) window.fsSaveState(stampedState);
+}
+
+function stripStateForStorage(nextState) {
+  return {
     cells: nextState.cells,
     reports: (nextState.reports || []).map((r) => Object.assign({}, r, { images: [] })),
     studies: (nextState.studies || []).map((s) => Object.assign({}, s, { pdfDataUrl: "" })),
     lastReportId: nextState.lastReportId,
+    updatedAt: nextState.updatedAt || null,
   };
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped)); } catch (_) {}
-  if (window.fsSaveState) window.fsSaveState(nextState);
+}
+
+function hydrateStateSnapshot(raw) {
+  const cells = Array.isArray(raw?.cells) ? raw.cells.map(normalizeCell).filter(Boolean) : [];
+  const reports = Array.isArray(raw?.reports) ? raw.reports.map(normalizeReport).filter(Boolean) : [];
+  const studies = Array.isArray(raw?.studies) ? raw.studies.map(normalizeStudy).filter(Boolean) : [];
+  const updatedAt = typeof raw?.updatedAt === "string" ? raw.updatedAt : null;
+  const lastReportId = typeof raw?.lastReportId === "string" ? raw.lastReportId : null;
+
+  try {
+    const imgStore = JSON.parse(localStorage.getItem(LOCAL_IMAGES_KEY) || "{}");
+    const pdfStore = JSON.parse(localStorage.getItem(LOCAL_PDFS_KEY) || "{}");
+    return {
+      cells,
+      reports: reports.map((r) => Object.assign({}, r, { images: imgStore[r.id] || [] })),
+      studies: studies.map((s) => Object.assign({}, s, { pdfDataUrl: pdfStore[s.id] || "" })),
+      lastReportId,
+      updatedAt,
+    };
+  } catch (_) {
+    return { cells, reports, studies, lastReportId, updatedAt };
+  }
+}
+
+function getStateUpdatedAt(snapshot) {
+  const time = new Date(snapshot?.updatedAt || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
 }
 
 function normalizeCell(cell) {

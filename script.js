@@ -4096,6 +4096,28 @@ function renderCoordinatorPanel() {
     </div>`;
   }).join("");
 
+  const cutoff60 = Date.now() - 60 * 24 * 60 * 60 * 1000;
+  const allVisitantes = loadVisitantesPub()
+    .filter((v) => !v.registeredAt || new Date(v.registeredAt).getTime() > cutoff60)
+    .sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
+
+  const visitantesByCelula = allVisitantes.filter((v) => !v.context || v.context === "celula");
+  const visitantesByCulto  = allVisitantes.filter((v) => v.context === "culto");
+
+  const renderVisitanteRows = (list) => list.length === 0
+    ? `<p class="empty">Nenhum visitante nos últimos 60 dias.</p>`
+    : `<div class="tracking-member-list">` + list.map((v) => `
+        <div class="tracking-member-row">
+          <div>
+            <strong>${escapeHtml(v.name)}</strong>
+            ${v.age ? `<span class="tracking-badge tracking-badge-neutral">${escapeHtml(v.age)}</span>` : ""}
+          </div>
+          <div style="font-size:0.78rem;color:var(--ink-soft)">
+            ${v.phone ? `📞 ${escapeHtml(v.phone)}` : ""}
+            ${v.address ? ` · 📍 ${escapeHtml(v.address)}` : ""}
+          </div>
+        </div>`).join("") + `</div>`;
+
   trackingSection.innerHTML = `
     <h2 class="tracking-title">Acompanhamento de celulas</h2>
     <div class="tracking-grid">
@@ -4106,6 +4128,14 @@ function renderCoordinatorPanel() {
       <div class="tracking-card tracking-card-full">
         <h3 class="tracking-card-title">Alertas de ausencia ${activeAlerts.length > 0 ? `<span class="alert-count">${activeAlerts.length}</span>` : ""}</h3>
         ${alertItems ? `<div class="alert-list">${alertItems}</div>` : `<p class="empty">Nenhum alerta ativo no momento.</p>`}
+      </div>
+      <div class="tracking-card tracking-card-full">
+        <h3 class="tracking-card-title">Visitantes de célula <span class="alert-count" style="background:var(--brand)">${visitantesByCelula.length}</span></h3>
+        ${renderVisitanteRows(visitantesByCelula)}
+      </div>
+      <div class="tracking-card tracking-card-full">
+        <h3 class="tracking-card-title">Visitantes de culto <span class="alert-count" style="background:var(--brand)">${visitantesByCulto.length}</span></h3>
+        ${renderVisitanteRows(visitantesByCulto)}
       </div>
     </div>`;
 }

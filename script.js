@@ -403,6 +403,7 @@ function bindAppEvents() {
   });
 
   document.getElementById("visitantes-search")?.addEventListener("input", () => renderVisitantesList());
+  document.getElementById("visitantes-cell-filter")?.addEventListener("change", () => renderVisitantesList());
 
   document.getElementById("copy-visitantes-link")?.addEventListener("click", () => {
     const url = location.origin + location.pathname.replace("index.html", "") + "visitantes.html";
@@ -1738,6 +1739,7 @@ function render() {
   renderStats();
   renderMemberCellOptions();
   renderReportCellOptions();
+  renderVisitantesCellFilterOptions();
   applyInitialReportContext();
   renderCells();
   cleanupOldVisitantes();
@@ -2923,6 +2925,32 @@ function loadState() {
   }
 }
 
+function renderVisitantesCellFilterOptions() {
+  const select = document.getElementById("visitantes-cell-filter");
+  if (!select) {
+    return;
+  }
+
+  const previousValue = String(select.value || "");
+  const options = state.cells
+    .slice()
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
+    .map((cell) => `<option value="${escapeHtml(cell.id)}">${escapeHtml(cell.name)}</option>`)
+    .join("");
+
+  select.innerHTML = `
+    <option value="">Todas as celulas</option>
+    <option value="__unlinked__">Sem celula vinculada</option>
+    ${options}
+  `;
+
+  const hasPrevious =
+    previousValue === "" ||
+    previousValue === "__unlinked__" ||
+    state.cells.some((cell) => cell.id === previousValue);
+  select.value = hasPrevious ? previousValue : "";
+}
+
 function saveState(nextState) {
   const stampedState = Object.assign({}, nextState, {
     updatedAt: new Date().toISOString(),
@@ -3947,6 +3975,7 @@ function renderVisitantesList() {
   const list = document.getElementById("visitantes-list");
   const countEl = document.getElementById("visitantes-count");
   const search = (document.getElementById("visitantes-search")?.value || "").trim().toLowerCase();
+  const selectedCellFilter = String(document.getElementById("visitantes-cell-filter")?.value || "").trim();
   const canConvert = hasPermission("manageMembers");
   const canDelete = hasPermission("manageAccess");
   const recurringMap = buildRecurringVisitorsMap();
@@ -3954,9 +3983,23 @@ function renderVisitantesList() {
   let entries = loadVisitantesPub();
   entries = entries.slice().sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
 
-  const filtered = search
-    ? entries.filter((v) => (v.name || "").toLowerCase().includes(search))
-    : entries;
+  const filtered = entries.filter((v) => {
+    const matchesSearch = !search || (v.name || "").toLowerCase().includes(search);
+    if (!matchesSearch) {
+      return false;
+    }
+
+    if (!selectedCellFilter) {
+      return true;
+    }
+
+    const cellMeta = resolveVisitorCellMeta(v, recurringMap);
+    if (selectedCellFilter === "__unlinked__") {
+      return !cellMeta.cellId;
+    }
+
+    return cellMeta.cellId === selectedCellFilter;
+  });
 
   if (countEl) countEl.textContent = `${filtered.length} visitante(s)`;
   if (!list) return;

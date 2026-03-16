@@ -888,6 +888,19 @@ function bindAppEvents() {
   document.getElementById("visitor-panel-first")?.addEventListener("click", (e) => {
     const panel = document.getElementById("visitor-panel-first");
     if (!panel) return;
+    if (e.target.closest(".visitor-first-mark-all")) {
+      const cutoff = Date.now() - 60 * 24 * 60 * 60 * 1000;
+      const all = loadVisitantesPub().filter((v) => !v.registeredAt || new Date(v.registeredAt).getTime() > cutoff);
+      const allChecked = all.every((v) => currentFirstVisits.some((f) => f.name === v.name));
+      if (allChecked) {
+        currentFirstVisits = [];
+      } else {
+        all.forEach((v) => { if (!currentFirstVisits.some((f) => f.name === v.name)) currentFirstVisits.push({ name: v.name, how: v.how || "", address: v.address || "", phone: v.phone || "" }); });
+      }
+      renderFirstVisitList();
+      updateVisitorTabBadges();
+      return;
+    }
     if (e.target.closest(".visitor-add-trigger")) {
       const form = panel.querySelector(".visitor-add-form");
       if (form) { form.hidden = false; panel.querySelector(".visitor-add-name")?.focus(); }
@@ -923,13 +936,27 @@ function bindAppEvents() {
     }
   });
 
+  document.getElementById("visitor-panel-returning")?.addEventListener("click", (e) => {
+    if (!e.target.closest(".visitor-returning-mark-all")) return;
+    const cutoff = Date.now() - 45 * 24 * 60 * 60 * 1000;
+    const all = loadVisitantesPub().filter((v) => !v.registeredAt || new Date(v.registeredAt).getTime() > cutoff);
+    const allChecked = all.every((v) => currentReturningVisits.some((r) => r.name === v.name));
+    if (allChecked) {
+      currentReturningVisits = [];
+    } else {
+      all.forEach((v) => { if (!currentReturningVisits.some((r) => r.name === v.name)) currentReturningVisits.push({ name: v.name, how: v.how || "", address: v.address || "", phone: v.phone || "" }); });
+    }
+    renderReturningVisitList();
+    updateVisitorTabBadges();
+  });
+
   document.getElementById("visitor-panel-returning")?.addEventListener("change", (e) => {
     const cb = e.target.closest(".visitor-returning-check");
     if (!cb) return;
     const name = cb.dataset.name;
     if (cb.checked) {
       if (!currentReturningVisits.some((v) => v.name === name)) {
-        currentReturningVisits.push({ name, how: "", address: "", phone: "" });
+        currentReturningVisits.push({ name, how: cb.dataset.how || "", address: "", phone: cb.dataset.phone || "" });
       }
     } else {
       currentReturningVisits = currentReturningVisits.filter((v) => v.name !== name);
@@ -3760,9 +3787,13 @@ function renderFirstVisitList() {
     if (!v.registeredAt) return true;
     return new Date(v.registeredAt).getTime() > cutoff;
   });
+  const allChecked = all.length > 0 && all.every((v) => currentFirstVisits.some((f) => f.name === v.name));
+  const markAllBtn = all.length > 0
+    ? `<div class="visitor-mark-row"><button type="button" class="ghost-btn small-btn visitor-first-mark-all">${allChecked ? "Limpar todos" : "Marcar todos"}</button></div>`
+    : "";
   const listHtml = all.length === 0
     ? '<p class="visitor-empty-note">Nenhum visitante cadastrado. Adicione abaixo.</p>'
-    : '<div class="visitor-check-list">' + all.map((v) => {
+    : markAllBtn + '<div class="visitor-check-list">' + all.map((v) => {
         const checked = currentFirstVisits.some((f) => f.name === v.name);
         return `<label class="visitor-check-item${checked ? " checked" : ""}">
           <input type="checkbox" class="visitor-first-check"
@@ -3798,24 +3829,35 @@ function renderFirstVisitList() {
 function renderReturningVisitList() {
   const panel = document.getElementById("visitor-panel-returning");
   if (!panel) return;
-  const cellId = reportCellSelect?.value;
-  const all = getPastVisitorNames(cellId);
+  const cutoff = Date.now() - 45 * 24 * 60 * 60 * 1000;
+  const all = loadVisitantesPub().filter((v) => {
+    if (!v.registeredAt) return true;
+    return new Date(v.registeredAt).getTime() > cutoff;
+  });
   if (all.length === 0) {
-    panel.innerHTML = '<p class="visitor-empty-note">Nenhum visitante recorrente encontrado.</p>';
+    panel.innerHTML = '<p class="visitor-empty-note">Nenhum visitante cadastrado nos últimos 45 dias.</p>';
     return;
   }
-  panel.innerHTML = '<div class="visitor-check-list">' + all.map((v) => {
-    const checked = currentReturningVisits.some((r) => r.name === v.name);
-    return `<label class="visitor-check-item${checked ? " checked" : ""}">
-      <input type="checkbox" class="visitor-returning-check"
-        data-name="${escapeHtml(v.name)}"
-        ${checked ? "checked" : ""}/>
-      <div class="visitor-check-info">
-        <span class="visitor-check-name">${escapeHtml(v.name)}</span>
-        ${v.phone ? `<span class="visitor-check-meta">📞 ${escapeHtml(v.phone)}</span>` : ""}
-      </div>
-    </label>`;
-  }).join("") + '</div>';
+  const allChecked = all.every((v) => currentReturningVisits.some((r) => r.name === v.name));
+  panel.innerHTML =
+    `<div class="visitor-mark-row">
+      <button type="button" class="ghost-btn small-btn visitor-returning-mark-all">${allChecked ? "Limpar todos" : "Marcar todos"}</button>
+    </div>` +
+    '<div class="visitor-check-list">' + all.map((v) => {
+      const checked = currentReturningVisits.some((r) => r.name === v.name);
+      return `<label class="visitor-check-item${checked ? " checked" : ""}">
+        <input type="checkbox" class="visitor-returning-check"
+          data-name="${escapeHtml(v.name)}"
+          data-how="${escapeHtml(v.how || "")}"
+          data-phone="${escapeHtml(v.phone || "")}"
+          ${checked ? "checked" : ""}/>
+        <div class="visitor-check-info">
+          <span class="visitor-check-name">${escapeHtml(v.name)}</span>
+          ${v.phone ? `<span class="visitor-check-meta">📞 ${escapeHtml(v.phone)}</span>` : ""}
+          ${v.address ? `<span class="visitor-check-meta">📍 ${escapeHtml(v.address)}</span>` : ""}
+        </div>
+      </label>`;
+    }).join("") + '</div>';
 }
 
 function getPastVisitorNames(cellId) {

@@ -2214,6 +2214,12 @@ button:hover {
   margin: 0;
 }
 
+.visitor-mark-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.25rem 0 0.1rem;
+}
+
 .visitor-add-row {
   padding: 0.5rem 0 0.25rem;
 }

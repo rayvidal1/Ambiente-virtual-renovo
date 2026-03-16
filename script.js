@@ -319,6 +319,7 @@ function bindAuthEvents() {
     const list = loadVisitantesPub();
     list.push(entry);
     saveVisitantesPub(list);
+    renderCultoVisitorsList();
     e.target.hidden = true;
     const success = document.getElementById("visitor-reg-success");
     if (success) success.hidden = false;
@@ -1351,6 +1352,31 @@ function showVisitorFormScreen() {
   if (form) { form.reset(); form.hidden = false; }
   if (success) success.hidden = true;
   if (err) err.hidden = true;
+  renderCultoVisitorsList();
+}
+
+function renderCultoVisitorsList() {
+  const el = document.getElementById("culto-visitors-list");
+  if (!el) return;
+  const cutoff = Date.now() - 60 * 24 * 60 * 60 * 1000;
+  const list = loadVisitantesPub()
+    .filter((v) => v.context === "culto" && (!v.registeredAt || new Date(v.registeredAt).getTime() > cutoff))
+    .sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
+  if (list.length === 0) {
+    el.innerHTML = '<p style="font-size:0.82rem;color:var(--ink-soft);margin:0">Nenhum visitante registrado nos últimos 60 dias.</p>';
+    return;
+  }
+  el.innerHTML = list.map((v) => `
+    <div class="tracking-member-row">
+      <div>
+        <strong>${escapeHtml(v.name)}</strong>
+        ${v.age ? `<span class="tracking-badge tracking-badge-neutral">${escapeHtml(v.age)}</span>` : ""}
+      </div>
+      <div style="font-size:0.78rem;color:var(--ink-soft)">
+        ${v.phone ? `📞 ${escapeHtml(v.phone)}` : ""}
+        ${v.address ? ` · 📍 ${escapeHtml(v.address)}` : ""}
+      </div>
+    </div>`).join("");
 }
 
 function showAppScreen() {
@@ -4096,25 +4122,6 @@ function renderCoordinatorPanel() {
     </div>`;
   }).join("");
 
-  const cutoff60 = Date.now() - 60 * 24 * 60 * 60 * 1000;
-  const visitantesCulto = loadVisitantesPub()
-    .filter((v) => v.context === "culto" && (!v.registeredAt || new Date(v.registeredAt).getTime() > cutoff60))
-    .sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
-
-  const cultoRows = visitantesCulto.length === 0
-    ? `<p class="empty">Nenhum visitante de culto nos últimos 60 dias.</p>`
-    : `<div class="tracking-member-list">` + visitantesCulto.map((v) => `
-        <div class="tracking-member-row">
-          <div>
-            <strong>${escapeHtml(v.name)}</strong>
-            ${v.age ? `<span class="tracking-badge tracking-badge-neutral">${escapeHtml(v.age)}</span>` : ""}
-          </div>
-          <div style="font-size:0.78rem;color:var(--ink-soft)">
-            ${v.phone ? `📞 ${escapeHtml(v.phone)}` : ""}
-            ${v.address ? ` · 📍 ${escapeHtml(v.address)}` : ""}
-          </div>
-        </div>`).join("") + `</div>`;
-
   trackingSection.innerHTML = `
     <h2 class="tracking-title">Acompanhamento de celulas</h2>
     <div class="tracking-grid">
@@ -4125,10 +4132,6 @@ function renderCoordinatorPanel() {
       <div class="tracking-card tracking-card-full">
         <h3 class="tracking-card-title">Alertas de ausencia ${activeAlerts.length > 0 ? `<span class="alert-count">${activeAlerts.length}</span>` : ""}</h3>
         ${alertItems ? `<div class="alert-list">${alertItems}</div>` : `<p class="empty">Nenhum alerta ativo no momento.</p>`}
-      </div>
-      <div class="tracking-card tracking-card-full">
-        <h3 class="tracking-card-title">Visitantes de culto <span class="alert-count" style="background:var(--brand)">${visitantesCulto.length}</span></h3>
-        ${cultoRows}
       </div>
     </div>`;
 }

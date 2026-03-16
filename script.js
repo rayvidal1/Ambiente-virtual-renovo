@@ -888,6 +888,44 @@ function bindAppEvents() {
     updateVisitorTabBadges();
   });
 
+  document.getElementById("visitor-panel-first")?.addEventListener("click", (e) => {
+    const panel = document.getElementById("visitor-panel-first");
+    if (!panel) return;
+    if (e.target.closest(".visitor-add-trigger")) {
+      const form = panel.querySelector(".visitor-add-form");
+      if (form) { form.hidden = false; panel.querySelector(".visitor-add-name")?.focus(); }
+      return;
+    }
+    if (e.target.closest(".visitor-add-cancel-btn")) {
+      const form = panel.querySelector(".visitor-add-form");
+      if (form) {
+        form.hidden = true;
+        panel.querySelector(".visitor-add-name").value = "";
+        panel.querySelector(".visitor-add-how").value = "";
+        panel.querySelector(".visitor-add-phone").value = "";
+      }
+      return;
+    }
+    if (e.target.closest(".visitor-add-save-btn")) {
+      const form = panel.querySelector(".visitor-add-form");
+      if (!form) return;
+      const name = (panel.querySelector(".visitor-add-name")?.value || "").trim();
+      const how  = (panel.querySelector(".visitor-add-how")?.value || "").trim();
+      const phone = (panel.querySelector(".visitor-add-phone")?.value || "").trim();
+      if (!name) { panel.querySelector(".visitor-add-name")?.focus(); return; }
+      const entry = { id: Date.now().toString(), name, how, phone, address: "", registeredAt: new Date().toISOString() };
+      const list = loadVisitantesPub();
+      list.push(entry);
+      saveVisitantesPub(list);
+      if (!currentFirstVisits.some((v) => v.name === name)) {
+        currentFirstVisits.push({ name, how, address: "", phone });
+      }
+      renderFirstVisitList();
+      updateVisitorTabBadges();
+      return;
+    }
+  });
+
   document.getElementById("visitor-panel-returning")?.addEventListener("change", (e) => {
     const cb = e.target.closest(".visitor-returning-check");
     if (!cb) return;
@@ -3725,26 +3763,39 @@ function renderFirstVisitList() {
     if (!v.registeredAt) return true;
     return new Date(v.registeredAt).getTime() > cutoff;
   });
-  if (all.length === 0) {
-    panel.innerHTML = '<p class="visitor-empty-note">Nenhum visitante cadastrado nos últimos 60 dias.</p>';
-    return;
-  }
-  panel.innerHTML = '<div class="visitor-check-list">' + all.map((v) => {
-    const checked = currentFirstVisits.some((f) => f.name === v.name);
-    return `<label class="visitor-check-item${checked ? " checked" : ""}">
-      <input type="checkbox" class="visitor-first-check"
-        data-name="${escapeHtml(v.name)}"
-        data-how="${escapeHtml(v.how || "")}"
-        data-address="${escapeHtml(v.address || "")}"
-        data-phone="${escapeHtml(v.phone || "")}"
-        ${checked ? "checked" : ""}/>
-      <div class="visitor-check-info">
-        <span class="visitor-check-name">${escapeHtml(v.name)}</span>
-        ${v.phone ? `<span class="visitor-check-meta">📞 ${escapeHtml(v.phone)}</span>` : ""}
-        ${v.address ? `<span class="visitor-check-meta">📍 ${escapeHtml(v.address)}</span>` : ""}
+  const listHtml = all.length === 0
+    ? '<p class="visitor-empty-note">Nenhum visitante cadastrado. Adicione abaixo.</p>'
+    : '<div class="visitor-check-list">' + all.map((v) => {
+        const checked = currentFirstVisits.some((f) => f.name === v.name);
+        return `<label class="visitor-check-item${checked ? " checked" : ""}">
+          <input type="checkbox" class="visitor-first-check"
+            data-name="${escapeHtml(v.name)}"
+            data-how="${escapeHtml(v.how || "")}"
+            data-address="${escapeHtml(v.address || "")}"
+            data-phone="${escapeHtml(v.phone || "")}"
+            ${checked ? "checked" : ""}/>
+          <div class="visitor-check-info">
+            <span class="visitor-check-name">${escapeHtml(v.name)}</span>
+            ${v.phone ? `<span class="visitor-check-meta">📞 ${escapeHtml(v.phone)}</span>` : ""}
+            ${v.address ? `<span class="visitor-check-meta">📍 ${escapeHtml(v.address)}</span>` : ""}
+          </div>
+        </label>`;
+      }).join("") + '</div>';
+  panel.innerHTML = listHtml + `
+    <div class="visitor-add-row">
+      <button type="button" class="ghost-btn small-btn visitor-add-trigger">+ Adicionar visitante</button>
+      <div class="visitor-add-form" hidden>
+        <div class="visitor-form-fields">
+          <input class="visitor-add-name" placeholder="Nome *" />
+          <input class="visitor-add-how" placeholder="Como chegou *" />
+          <input class="visitor-add-phone" placeholder="Telefone (opcional)" />
+        </div>
+        <div class="visitor-form-actions">
+          <button type="button" class="visitor-add-save-btn">Salvar</button>
+          <button type="button" class="ghost-btn visitor-add-cancel-btn">Cancelar</button>
+        </div>
       </div>
-    </label>`;
-  }).join("") + '</div>';
+    </div>`;
 }
 
 function renderReturningVisitList() {

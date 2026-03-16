@@ -2214,6 +2214,50 @@ button:hover {
   margin: 0;
 }
 
+.visitor-add-row {
+  padding: 0.5rem 0 0.25rem;
+}
+
+.visitor-add-form {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.visitor-add-form .visitor-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.visitor-add-form input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  background: var(--surface);
+  color: var(--ink);
+  box-sizing: border-box;
+}
+
+.visitor-add-form .visitor-form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.visitor-add-form .visitor-add-save-btn {
+  flex: 1;
+  padding: 0.45rem;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
 @media (max-width: 600px) {
   .tracking-grid   { grid-template-columns: 1fr; }
   .alert-obs-input { width: 110px; }

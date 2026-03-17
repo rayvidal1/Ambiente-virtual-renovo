@@ -79,6 +79,7 @@ const saveAccessButton = document.getElementById("save-access-button");
 const cancelAccessEditButton = document.getElementById("cancel-access-edit");
 const accessRoleSelect = accessForm?.elements?.namedItem("role");
 const accessAssignedCellInput = accessForm?.elements?.namedItem("assignedCellName");
+const accessScopeCellNamesInput = accessForm?.elements?.namedItem("scopeCellNames");
 const studyForm = document.getElementById("study-form");
 const studiesList = document.getElementById("studies-list");
 const studiesCount = document.getElementById("studies-count");
@@ -469,6 +470,7 @@ function bindAppEvents() {
     const confirmPassword = String(formData.get("confirmPassword") || "");
     const role = sanitizeManagedRole(formData.get("role"));
     const assignedCellName = String(formData.get("assignedCellName") || "").trim();
+    const scopeCellNames = parseScopeCellNames(formData.get("scopeCellNames"));
     const isEditing = Boolean(userId);
 
     if (!name || !username) {
@@ -478,6 +480,10 @@ function bindAppEvents() {
 
     if (role === "leader" && !assignedCellName) {
       setAccessFeedback("Informe a celula vinculada para o lider.");
+      return;
+    }
+    if (role === "coordinator" && scopeCellNames.length === 0) {
+      setAccessFeedback("Informe as celulas supervisionadas para o coordenador.");
       return;
     }
 
@@ -520,6 +526,7 @@ function bindAppEvents() {
       existingUser.username = username;
       existingUser.role = role;
       existingUser.assignedCellName = role === "leader" ? assignedCellName : "";
+      existingUser.scopeCellNames = role === "coordinator" ? scopeCellNames : [];
       existingUser.updatedAt = new Date().toISOString();
       if (password) {
         existingUser.password = password;
@@ -565,6 +572,7 @@ function bindAppEvents() {
       password,
       role,
       assignedCellName: role === "leader" ? assignedCellName : "",
+      scopeCellNames: role === "coordinator" ? scopeCellNames : [],
       createdAt: new Date().toISOString(),
     };
     users.push(newUser);
@@ -809,6 +817,9 @@ function bindAppEvents() {
 
     const cell = getCellById(cellId);
     if (!cell) {
+      return;
+    }
+    if (session?.role === "coordinator" && !getAccessibleCells().some((entry) => entry.id === cellId)) {
       return;
     }
 
@@ -1320,6 +1331,7 @@ async function bootstrapApp() {
 
   ensureDefaultUsers();
   try { runInitialSeedOnce(); } catch (e) { console.warn("[seed] erro:", e); }
+  try { ensureMinistryStructure(); } catch (e) { console.warn("[structure] erro:", e); }
   session = loadSession();
   hideLoadingScreen();
   initializeApp();
@@ -1344,6 +1356,115 @@ function runInitialSeedOnce() {
 
   seedInitialDataIfEmpty();
   localStorage.setItem(INITIAL_SEED_MARKER_KEY, "done");
+}
+
+function ensureMinistryStructure() {
+  const cellDefs = [
+    { name: "Amarela", leader: "Letícia" },
+    { name: "Rosa", leader: "Alex e Ariane", aliases: ["Alex e Ariane"] },
+    { name: "Cinza", leader: "Jander e Aline" },
+    { name: "Preta", leader: "Filipe e Sabrina" },
+    { name: "Branca", leader: "Joana" },
+    { name: "Laranja", leader: "Fernando e Elioneide" },
+    { name: "Visão de Águia", leader: "Chirlene" },
+    { name: "Lilás", leader: "Karina e Jeniffer" },
+    { name: "Vinho", leader: "Jhonatan e Marilene" },
+    { name: "Azul", leader: "Francinaldo e Alexandre" },
+    { name: "Logos", leader: "Thiago" },
+    { name: "GET", leader: "Miguel e Raíssa" },
+    { name: "Vermelha", leader: "Bruno e Kamila" },
+    { name: "Verde", leader: "Evelyn" },
+    { name: "Ekballo", leader: "Pedro e Clara Vitória" },
+    { name: "Peregrinos", leader: "Izabella e Sara" },
+  ];
+
+  const supervisorDefs = [
+    { name: "Eudoxia (Neta)", username: "irma.neta", scopeCellNames: ["Amarela", "Rosa", "Cinza", "Preta"] },
+    { name: "Anélia", username: "anelia", scopeCellNames: ["Branca", "Laranja", "Visão de Águia"] },
+    { name: "Elvis", username: "elvis", scopeCellNames: ["Lilás", "Vinho", "Azul", "Logos", "GET"] },
+    { name: "Adlaine", username: "adelaine", scopeCellNames: ["Lilás", "Vinho", "Azul", "Logos", "GET"] },
+    { name: "Bruno", username: "bruno", scopeCellNames: ["Vermelha", "Verde", "Ekballo", "Peregrinos"] },
+    { name: "Kamila", username: "kamila", scopeCellNames: ["Vermelha", "Verde", "Ekballo", "Peregrinos"] },
+  ];
+
+  let stateChanged = false;
+  let usersChanged = false;
+
+  cellDefs.forEach((definition) => {
+    const aliases = [definition.name, ...(definition.aliases || [])];
+    const existingCell = state.cells.find((cell) =>
+      aliases.some((alias) => normalizeName(cell.name) === normalizeName(alias))
+    );
+
+    if (!existingCell) {
+      state.cells.push({
+        id: createId(),
+        name: definition.name,
+        neighborhood: "Sem endereco",
+        meetingDay: "Nao definido",
+        meetingTime: "20:00",
+        leader: definition.leader,
+        members: [],
+        createdAt: new Date().toISOString(),
+      });
+      stateChanged = true;
+      return;
+    }
+
+    if (normalizeName(existingCell.name) !== normalizeName(definition.name)) {
+      existingCell.name = definition.name;
+      stateChanged = true;
+    }
+    if (definition.leader && existingCell.leader !== definition.leader) {
+      existingCell.leader = definition.leader;
+      stateChanged = true;
+    }
+  });
+
+  supervisorDefs.forEach((definition) => {
+    const existingUser = users.find((user) => normalizeUsername(user.username) === normalizeUsername(definition.username));
+    if (!existingUser) {
+      users.push({
+        id: createId(),
+        name: definition.name,
+        username: definition.username,
+        password: "123456",
+        role: "coordinator",
+        assignedCellName: "",
+        scopeCellNames: definition.scopeCellNames.slice(),
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+      });
+      usersChanged = true;
+      return;
+    }
+
+    const nextScope = parseScopeCellNames(definition.scopeCellNames);
+    const currentScope = getManagedUserScopeCellNames(existingUser);
+    if (existingUser.name !== definition.name) {
+      existingUser.name = definition.name;
+      usersChanged = true;
+    }
+    if (existingUser.role !== "coordinator") {
+      existingUser.role = "coordinator";
+      usersChanged = true;
+    }
+    if (existingUser.assignedCellName) {
+      existingUser.assignedCellName = "";
+      usersChanged = true;
+    }
+    if (currentScope.join("|") !== nextScope.join("|")) {
+      existingUser.scopeCellNames = nextScope;
+      usersChanged = true;
+    }
+  });
+
+  if (stateChanged) {
+    saveState(state);
+  }
+  if (usersChanged) {
+    saveUsers(users);
+  }
 }
 
 function initializeApp() {
@@ -1465,17 +1586,81 @@ function sanitizeManagedRole(value) {
   return MANAGEABLE_ROLES.includes(role) ? role : "leader";
 }
 
+function parseScopeCellNames(value) {
+  const source = Array.isArray(value) ? value : String(value || "").split(/[\n,;]+/);
+  const uniqueNames = [];
+  const seen = new Set();
+
+  source.forEach((entry) => {
+    const name = String(entry || "").trim();
+    const key = normalizeName(name);
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    uniqueNames.push(name);
+  });
+
+  return uniqueNames;
+}
+
+function getManagedUserScopeCellNames(user) {
+  if (!user) {
+    return [];
+  }
+
+  const role = sanitizeManagedRole(user.role);
+  if (role === "leader") {
+    const assignedCellName = String(user.assignedCellName || "").trim();
+    return assignedCellName ? [assignedCellName] : [];
+  }
+
+  if (role === "coordinator") {
+    const scopedCells = parseScopeCellNames(user.scopeCellNames);
+    if (scopedCells.length) {
+      return scopedCells;
+    }
+    const legacyAssignedCell = String(user.assignedCellName || "").trim();
+    return legacyAssignedCell ? [legacyAssignedCell] : [];
+  }
+
+  return [];
+}
+
+function formatManagedUserScope(user) {
+  if (!user) {
+    return "Escopo: -";
+  }
+
+  if (user.role === "leader") {
+    return `Celula vinculada: ${user.assignedCellName || "-"}`;
+  }
+
+  if (user.role === "coordinator") {
+    const scopedCells = getManagedUserScopeCellNames(user);
+    return `Celulas supervisionadas: ${scopedCells.length ? scopedCells.join(", ") : "-"}`;
+  }
+
+  return "Escopo: acesso geral";
+}
+
 function syncAccessFormRoleFields() {
-  if (!accessAssignedCellInput || !accessRoleSelect) {
+  if (!accessAssignedCellInput || !accessScopeCellNamesInput || !accessRoleSelect) {
     return;
   }
 
   const role = sanitizeManagedRole(accessRoleSelect.value);
   const isLeader = role === "leader";
+  const isCoordinator = role === "coordinator";
   accessAssignedCellInput.disabled = !isLeader;
   accessAssignedCellInput.required = isLeader;
+  accessScopeCellNamesInput.disabled = !isCoordinator;
+  accessScopeCellNamesInput.required = isCoordinator;
   if (!isLeader) {
     accessAssignedCellInput.value = "";
+  }
+  if (!isCoordinator) {
+    accessScopeCellNamesInput.value = "";
   }
 }
 
@@ -1512,6 +1697,7 @@ function fillAccessFormForEdit(user) {
   accessForm.elements.namedItem("confirmPassword").value = "";
   accessForm.elements.namedItem("role").value = sanitizeManagedRole(user.role);
   accessForm.elements.namedItem("assignedCellName").value = user.assignedCellName || "";
+  accessForm.elements.namedItem("scopeCellNames").value = getManagedUserScopeCellNames(user).join("\n");
   syncAccessFormRoleFields();
 
   if (saveAccessButton) {
@@ -1545,7 +1731,7 @@ function renderAccessUsers() {
   accessUsersList.innerHTML = usersSorted
     .map((user) => {
       const roleLabel = ROLE_LABELS[user.role] || user.role;
-      const cellLabel = user.role === "leader" ? user.assignedCellName || "-" : "-";
+      const scopeLabel = formatManagedUserScope(user);
       const isCurrentSessionUser = session?.id === user.id;
       const canDelete = !isCurrentSessionUser && !(roleHasPermission(user.role, "manageAccess") && managerUsersCount <= 1);
 
@@ -1556,7 +1742,7 @@ function renderAccessUsers() {
             <p class="access-user-role">${escapeHtml(roleLabel)}</p>
           </div>
           <p class="access-user-meta">Usuario: ${escapeHtml(user.username)}</p>
-          <p class="access-user-meta">Celula vinculada: ${escapeHtml(cellLabel)}</p>
+          <p class="access-user-meta">${escapeHtml(scopeLabel)}</p>
           <div class="access-user-actions">
             <button type="button" class="ghost-btn tiny-btn" data-user-action="edit" data-user-id="${escapeHtml(user.id)}">Editar</button>
             <button type="button" class="ghost-btn tiny-btn danger-btn" data-user-action="delete" data-user-id="${escapeHtml(user.id)}" ${
@@ -1789,10 +1975,10 @@ function renderAccessControl() {
       : isPastorJudson
         ? `Leitura de relatorios + gestao completa de acessos (ultimos ${REPORT_AVERAGE_DAYS} dias).`
       : session.role === "coordinator"
-        ? `Acesso de coordenador: leitura de relatorios, historico e graficos (ultimos ${REPORT_AVERAGE_DAYS} dias).`
-      : hasPermission("manageAccess")
-        ? "Acesso administrativo total liberado (equivalente ao Pastor)."
-        : "Acesso conforme seu nivel de permissao.";
+        ? `Acesso de coordenador restrito as celulas: ${getManagedUserScopeCellNames(session).join(", ") || "-"}.`
+        : hasPermission("manageAccess")
+          ? "Acesso administrativo total liberado (equivalente ao Pastor)."
+          : "Acesso conforme seu nivel de permissao.";
 
   if (statsSection) {
     statsSection.hidden = isLeader;
@@ -1854,14 +2040,16 @@ function renderAccessControl() {
   }
 }
 function renderStats() {
-  totalCells.textContent = String(state.cells.length);
-  const membersCount = state.cells.reduce((acc, cell) => acc + cell.members.length, 0);
+  const visibleCells = getAccessibleCells();
+  totalCells.textContent = String(visibleCells.length);
+  const membersCount = visibleCells.reduce((acc, cell) => acc + cell.members.length, 0);
   totalMembers.textContent = String(membersCount);
 }
 
 function renderMemberCellOptions() {
   const previousValue = memberCellSelect.value;
-  if (state.cells.length === 0) {
+  const cellsForMembers = session?.role === "coordinator" ? getAccessibleCells() : state.cells;
+  if (cellsForMembers.length === 0) {
     memberCellSelect.innerHTML = '<option value="">Cadastre uma celula primeiro</option>';
     memberCellSelect.disabled = true;
     return;
@@ -1870,11 +2058,11 @@ function renderMemberCellOptions() {
   memberCellSelect.disabled = false;
   memberCellSelect.innerHTML =
     '<option value="">Selecione...</option>' +
-    state.cells
+    cellsForMembers
       .map((cell) => `<option value="${cell.id}">${escapeHtml(cell.name)} - ${escapeHtml(cell.neighborhood)}</option>`)
       .join("");
 
-  if (state.cells.some((cell) => cell.id === previousValue)) {
+  if (cellsForMembers.some((cell) => cell.id === previousValue)) {
     memberCellSelect.value = previousValue;
   } else {
     memberCellSelect.value = "";
@@ -1918,7 +2106,7 @@ function renderReportCellOptions() {
 }
 
 function renderCells() {
-  const visibleCells = session?.role === "leader" ? getAccessibleCells() : state.cells;
+  const visibleCells = getAccessibleCells();
   const canDeleteCell = hasPermission("deleteCell");
 
   if (visibleCells.length === 0) {
@@ -2044,7 +2232,7 @@ function renderLatestReport() {
 }
 
 function getVisibleReportsPool() {
-  if (session?.role === "leader") {
+  if (session?.role === "leader" || session?.role === "coordinator") {
     const accessibleIds = new Set(getAccessibleCells().map((cell) => cell.id));
     return state.reports.filter((report) => accessibleIds.has(report.cellId));
   }
@@ -2528,16 +2716,21 @@ function deleteCellAndRelated(cellId) {
 }
 
 function getAccessibleCells() {
-  if (!session || session.role !== "leader") {
-    return state.cells;
-  }
-
-  const assignedName = String(session.assignedCellName || "").trim();
-  if (!assignedName) {
+  if (!session) {
     return [];
   }
 
-  return state.cells.filter((cell) => normalizeName(cell.name) === normalizeName(assignedName));
+  if (session.role !== "leader" && session.role !== "coordinator") {
+    return state.cells;
+  }
+
+  const scopedNames = getManagedUserScopeCellNames(session);
+  if (!scopedNames.length) {
+    return [];
+  }
+
+  const allowedNames = new Set(scopedNames.map((name) => normalizeName(name)));
+  return state.cells.filter((cell) => allowedNames.has(normalizeName(cell.name)));
 }
 
 function autoOpenLeaderReportModal() {
@@ -2774,6 +2967,7 @@ function buildSessionFromUser(user) {
     name: user.name,
     role: user.role,
     assignedCellName: user.assignedCellName || "",
+    scopeCellNames: getManagedUserScopeCellNames(user),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -2846,7 +3040,8 @@ function normalizeUser(user) {
     username,
     password,
     role,
-    assignedCellName: role === "leader" ? String(user.assignedCellName || "").trim() : "",
+    assignedCellName: role === "leader" || role === "coordinator" ? String(user.assignedCellName || "").trim() : "",
+    scopeCellNames: role === "coordinator" ? parseScopeCellNames(user.scopeCellNames) : [],
     createdAt: user.createdAt || new Date().toISOString(),
     updatedAt: user.updatedAt || null,
   };
@@ -2954,7 +3149,8 @@ function renderVisitantesCellFilterOptions() {
   }
 
   const previousValue = String(select.value || "");
-  const options = state.cells
+  const visibleCells = session?.role === "coordinator" ? getAccessibleCells() : state.cells;
+  const options = visibleCells
     .slice()
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
     .map((cell) => `<option value="${escapeHtml(cell.id)}">${escapeHtml(cell.name)}</option>`)
@@ -2969,7 +3165,7 @@ function renderVisitantesCellFilterOptions() {
   const hasPrevious =
     previousValue === "" ||
     previousValue === "__unlinked__" ||
-    state.cells.some((cell) => cell.id === previousValue);
+    visibleCells.some((cell) => cell.id === previousValue);
   select.value = hasPrevious ? previousValue : "";
 }
 
@@ -4001,11 +4197,17 @@ function renderVisitantesList() {
   const canConvert = hasPermission("manageMembers");
   const canDelete = hasPermission("manageAccess");
   const recurringMap = buildRecurringVisitorsMap();
+  const scopedCellIds = session?.role === "coordinator" ? new Set(getAccessibleCells().map((cell) => cell.id)) : null;
 
   let entries = loadVisitantesPub();
   entries = entries.slice().sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
 
   const filtered = entries.filter((v) => {
+    const cellMeta = resolveVisitorCellMeta(v, recurringMap);
+    if (scopedCellIds && !scopedCellIds.has(cellMeta.cellId)) {
+      return false;
+    }
+
     const matchesSearch = !search || (v.name || "").toLowerCase().includes(search);
     if (!matchesSearch) {
       return false;
@@ -4015,7 +4217,6 @@ function renderVisitantesList() {
       return true;
     }
 
-    const cellMeta = resolveVisitorCellMeta(v, recurringMap);
     if (selectedCellFilter === "__unlinked__") {
       return !cellMeta.cellId;
     }
@@ -4159,6 +4360,11 @@ function convertRecurringVisitorToMember(visitorId) {
   const recurring = buildRecurringVisitorsMap().get(normalizeName(visitor.name));
   if (!recurring?.cell) {
     window.alert("Este visitante ainda nao possui recorrencia suficiente em uma celula.");
+    return;
+  }
+
+  if (session?.role === "coordinator" && !getAccessibleCells().some((entry) => entry.id === recurring.cell.id)) {
+    window.alert("Voce so pode converter visitantes das celulas sob sua supervisao.");
     return;
   }
 
@@ -4350,9 +4556,11 @@ function renderLeaderPanel() {
 }
 
 function renderCoordinatorPanel() {
-  const activeAlerts = loadAlerts().filter((a) => a.status !== "resolved");
+  const accessibleCells = getAccessibleCells();
+  const accessibleIds = new Set(accessibleCells.map((cell) => cell.id));
+  const activeAlerts = loadAlerts().filter((a) => a.status !== "resolved" && accessibleIds.has(a.cellId));
 
-  const cellCards = state.cells.map((cell) => {
+  const cellCards = accessibleCells.map((cell) => {
     const latestReport = state.reports
       .filter((r) => r.cellId === cell.id)
       .sort((a, b) => parseReportDateToTime(b.date) - parseReportDateToTime(a.date))[0] || null;

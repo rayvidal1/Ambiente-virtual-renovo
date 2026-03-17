@@ -5,6 +5,7 @@ const LOCAL_IMAGES_KEY = "renovo_images_v1";
 const LOCAL_PDFS_KEY = "renovo_pdfs_v1";
 const ALERTS_KEY = "renovo_alerts_v1";
 const INITIAL_SEED_MARKER_KEY = "renovo_seed_v2_done";
+const CINZA_IMPORT_MARKER_KEY = "renovo_cinza_reports_v2_done";
 const MANAGEABLE_ROLES = ["leader", "coordinator", "pastor", "admin"];
 
 // Inicializados de forma assíncrona em bootstrapApp()
@@ -1345,6 +1346,7 @@ async function bootstrapApp() {
   ensureDefaultUsers();
   try { runInitialSeedOnce(); } catch (e) { console.warn("[seed] erro:", e); }
   try { ensureMinistryStructure(); } catch (e) { console.warn("[structure] erro:", e); }
+  try { ensureCinzaReportsImport(); } catch (e) { console.warn("[cinza-import] erro:", e); }
   try { syncAbsenceAlertsWithReports(state); } catch (e) { console.warn("[alerts] erro:", e); }
   session = loadSession();
   hideLoadingScreen();
@@ -1479,6 +1481,130 @@ function ensureMinistryStructure() {
   if (usersChanged) {
     saveUsers(users);
   }
+}
+
+function ensureCinzaReportsImport() {
+  if (localStorage.getItem(CINZA_IMPORT_MARKER_KEY) === "done") {
+    return;
+  }
+
+  const cinzaCell = state.cells.find((cell) => normalizeName(cell.name) === normalizeName("Cinza"));
+  if (!cinzaCell) {
+    localStorage.setItem(CINZA_IMPORT_MARKER_KEY, "done");
+    return;
+  }
+
+  let changed = false;
+  const latestCinzaMembers = [
+    "Jander", "Aline", "Amanda Rayssa", "Amanda", "Daniel", "Mariana", "Ray",
+    "Mayara", "Samuel", "Luiz", "Manu", "Liz", "Rebeca",
+  ];
+  const memberNames = new Set((cinzaCell.members || []).map((member) => normalizeName(member.name)));
+  latestCinzaMembers.forEach((name) => {
+    if (memberNames.has(normalizeName(name))) {
+      return;
+    }
+    cinzaCell.members.push({ id: createId(), name, phone: "" });
+    memberNames.add(normalizeName(name));
+    changed = true;
+  });
+
+  const reportDefs = [
+    {
+      date: "2026-01-12",
+      host: "Luiz e Manu",
+      present: ["Jander", "Aline", "Luiz", "Manu", "Gabriel"],
+      visitorsCount: 2,
+      newVisitorsCount: 2,
+      returningVisitorsCount: 0,
+      communionMinutes: 0,
+      visitors: [],
+    },
+    {
+      date: "2026-01-19",
+      host: "Luiz e Manu",
+      present: ["Luiz", "Manu", "Rebeca", "Jander", "Aline", "Mariana"],
+      visitorsCount: 3,
+      newVisitorsCount: 3,
+      returningVisitorsCount: 0,
+      communionMinutes: 0,
+      visitors: [
+        { name: "Ray", how: "", address: "", phone: "" },
+        { name: "Mayara", how: "", address: "", phone: "" },
+        { name: "Amanda Rayssa", how: "", address: "", phone: "" },
+      ],
+    },
+    {
+      date: "2026-01-23",
+      host: "Luiz e Manu",
+      present: ["Aline", "Jander", "Mariana", "Mayara", "Ana", "Luiz", "Manu", "Ray"],
+      visitorsCount: 0,
+      newVisitorsCount: 0,
+      returningVisitorsCount: 0,
+      communionMinutes: 0,
+      visitors: [],
+    },
+    {
+      date: "2026-01-26",
+      host: "Luiz e Manu",
+      present: ["Aline", "Jander", "Luiz", "Manu", "Ray", "Mayara"],
+      visitorsCount: 1,
+      newVisitorsCount: 1,
+      returningVisitorsCount: 0,
+      communionMinutes: 0,
+      visitors: [
+        { name: "Samuel", how: "", address: "", phone: "" },
+      ],
+    },
+    {
+      date: "2026-02-09",
+      host: "Luiz e Manu",
+      present: ["Jander", "Aline", "Amanda Rayssa", "Amanda", "Daniel", "Ray", "Mayara", "Mariana", "Luiz", "Manu", "Samuel"],
+      visitorsCount: 0,
+      newVisitorsCount: 0,
+      returningVisitorsCount: 0,
+      communionMinutes: 0,
+      visitors: [],
+    },
+  ];
+
+  reportDefs.forEach((definition) => {
+    const presentMemberIds = cinzaCell.members
+      .filter((member) => definition.present.some((name) => normalizeName(name) === normalizeName(member.name)))
+      .map((member) => member.id);
+
+    const existingReport = state.reports.find((report) => report.cellId === cinzaCell.id && report.date === definition.date);
+    const nextReport = {
+      id: existingReport?.id || createId(),
+      cellId: cinzaCell.id,
+      date: definition.date,
+      leaders: "Jander e Aline",
+      coLeaders: "",
+      host: definition.host,
+      address: "",
+      presentMemberIds,
+      visitorsCount: definition.visitorsCount,
+      visitorNames: definition.visitors.map((visitor) => visitor.name),
+      visitorDetails: definition.visitors,
+      newVisitorsCount: definition.newVisitorsCount,
+      returningVisitorsCount: definition.returningVisitorsCount,
+      communionMinutes: definition.communionMinutes,
+      createdAt: existingReport?.createdAt || new Date(`${definition.date}T20:00:00`).toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (existingReport) {
+      Object.assign(existingReport, nextReport);
+    } else {
+      state.reports.push(nextReport);
+    }
+    changed = true;
+  });
+
+  if (changed) {
+    saveState(state);
+  }
+  localStorage.setItem(CINZA_IMPORT_MARKER_KEY, "done");
 }
 
 function initializeApp() {

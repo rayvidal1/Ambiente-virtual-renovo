@@ -478,6 +478,11 @@ function bindAppEvents() {
       return;
     }
 
+    if (!canCurrentSessionAssignRole(role)) {
+      setAccessFeedback("Somente admin pode criar ou promover outro usuario para admin.");
+      return;
+    }
+
     if (role === "leader" && !assignedCellName) {
       setAccessFeedback("Informe a celula vinculada para o lider.");
       return;
@@ -491,6 +496,10 @@ function bindAppEvents() {
       const existingUser = users.find((entry) => entry.id === userId);
       if (!existingUser) {
         setAccessFeedback("Usuario nao encontrado.");
+        return;
+      }
+      if (!canCurrentSessionManageUser(existingUser)) {
+        setAccessFeedback("Somente admin pode gerenciar contas admin.");
         return;
       }
 
@@ -601,6 +610,10 @@ function bindAppEvents() {
     const user = users.find((entry) => entry.id === userId);
     if (!user) {
       setAccessFeedback("Usuario nao encontrado.");
+      return;
+    }
+    if (!canCurrentSessionManageUser(user)) {
+      setAccessFeedback("Somente admin pode gerenciar contas admin.");
       return;
     }
 
@@ -1645,12 +1658,48 @@ function formatManagedUserScope(user) {
   return "Escopo: acesso geral";
 }
 
+function canCurrentSessionAssignRole(role) {
+  if (!session || !hasPermission("manageAccess")) {
+    return false;
+  }
+
+  const normalizedRole = sanitizeManagedRole(role);
+  if (normalizedRole === "admin") {
+    return session.role === "admin";
+  }
+
+  return true;
+}
+
+function canCurrentSessionManageUser(user) {
+  if (!user || !session || !hasPermission("manageAccess")) {
+    return false;
+  }
+
+  if (sanitizeManagedRole(user.role) === "admin" && session.role !== "admin") {
+    return false;
+  }
+
+  return true;
+}
+
 function syncAccessFormRoleFields() {
   if (!accessAssignedCellInput || !accessScopeCellNamesInput || !accessRoleSelect) {
     return;
   }
 
-  const role = sanitizeManagedRole(accessRoleSelect.value);
+  let role = sanitizeManagedRole(accessRoleSelect.value);
+  const canAssignAdmin = session?.role === "admin";
+  const adminOption = accessRoleSelect.querySelector('option[value="admin"]');
+  if (adminOption) {
+    adminOption.hidden = !canAssignAdmin;
+    adminOption.disabled = !canAssignAdmin;
+  }
+  if (role === "admin" && !canAssignAdmin) {
+    accessRoleSelect.value = "pastor";
+    role = "pastor";
+  }
+
   const isLeader = role === "leader";
   const isCoordinator = role === "coordinator";
   accessAssignedCellInput.disabled = !isLeader;
@@ -1734,7 +1783,11 @@ function renderAccessUsers() {
       const roleLabel = ROLE_LABELS[user.role] || user.role;
       const scopeLabel = formatManagedUserScope(user);
       const isCurrentSessionUser = session?.id === user.id;
-      const canDelete = !isCurrentSessionUser && !(roleHasPermission(user.role, "manageAccess") && managerUsersCount <= 1);
+      const canManageUser = canCurrentSessionManageUser(user);
+      const canDelete =
+        canManageUser &&
+        !isCurrentSessionUser &&
+        !(roleHasPermission(user.role, "manageAccess") && countManagerUsers() <= 1);
 
       return `
         <article class="access-user-item">
@@ -1745,7 +1798,9 @@ function renderAccessUsers() {
           <p class="access-user-meta">Usuario: ${escapeHtml(user.username)}</p>
           <p class="access-user-meta">${escapeHtml(scopeLabel)}</p>
           <div class="access-user-actions">
-            <button type="button" class="ghost-btn tiny-btn" data-user-action="edit" data-user-id="${escapeHtml(user.id)}">Editar</button>
+            <button type="button" class="ghost-btn tiny-btn" data-user-action="edit" data-user-id="${escapeHtml(user.id)}" ${
+              canManageUser ? "" : "disabled"
+            }>Editar</button>
             <button type="button" class="ghost-btn tiny-btn danger-btn" data-user-action="delete" data-user-id="${escapeHtml(user.id)}" ${
               canDelete ? "" : "disabled"
             }>Excluir</button>

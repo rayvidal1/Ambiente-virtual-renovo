@@ -1256,6 +1256,16 @@ function bindAppEvents() {
     const obsInput = item.querySelector(".alert-obs-input");
     if (statusSelect && obsInput) handleAlertAction(alertId, statusSelect.value, obsInput.value);
   });
+
+  trackingSection?.addEventListener("change", (e) => {
+    const statusSelect = e.target.closest(".alert-status-select");
+    if (!statusSelect || session?.role !== "coordinator" || statusSelect.value !== "resolved") return;
+    const item = statusSelect.closest(".alert-item");
+    if (!item) return;
+    const obsInput = item.querySelector(".alert-obs-input");
+    const alertId = statusSelect.dataset.alertId;
+    handleAlertAction(alertId, statusSelect.value, obsInput ? obsInput.value : "");
+  });
 }
 
 async function bootstrapApp() {

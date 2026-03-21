@@ -1248,7 +1248,7 @@ function bindAppEvents() {
 
   trackingSection?.addEventListener("click", (e) => {
     const saveBtn = e.target.closest("[data-alert-save]");
-    if (!saveBtn || session?.role !== "coordinator") return;
+    if (!saveBtn || !canManageAbsenceAlerts()) return;
     const alertId = saveBtn.dataset.alertSave;
     const item = saveBtn.closest(".alert-item");
     if (!item) return;
@@ -1259,7 +1259,7 @@ function bindAppEvents() {
 
   trackingSection?.addEventListener("change", (e) => {
     const statusSelect = e.target.closest(".alert-status-select");
-    if (!statusSelect || session?.role !== "coordinator" || statusSelect.value !== "resolved") return;
+    if (!statusSelect || !canManageAbsenceAlerts() || statusSelect.value !== "resolved") return;
     const item = statusSelect.closest(".alert-item");
     if (!item) return;
     const obsInput = item.querySelector(".alert-obs-input");
@@ -4685,20 +4685,23 @@ function syncAbsenceAlertsWithReports(snapshot) {
         continue;
       }
 
-      const activeAlert = alerts.find(
-        (alert) => alert.memberId === member.id && alert.cellId === cell.id && alert.status !== "resolved"
+      const existingAlert = alerts.find(
+        (alert) => alert.memberId === member.id && alert.cellId === cell.id
       );
+      const shouldReopenResolved =
+        existingAlert?.status === "resolved" && consecutive > parseNonNegativeInt(existingAlert.consecutiveAbsences);
+      const nextStatus = shouldReopenResolved ? "pending" : (existingAlert?.status || "pending");
 
       nextAlerts.push({
-        id: activeAlert?.id || createId(),
+        id: existingAlert?.id || createId(),
         cellId: cell.id,
         cellName: cell.name,
         memberId: member.id,
         memberName: member.name,
         consecutiveAbsences: consecutive,
-        status: activeAlert?.status || "pending",
-        observation: activeAlert?.observation || "",
-        createdAt: activeAlert?.createdAt || new Date().toISOString(),
+        status: nextStatus,
+        observation: existingAlert?.observation || "",
+        createdAt: existingAlert?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
     }
@@ -4709,6 +4712,10 @@ function syncAbsenceAlertsWithReports(snapshot) {
 
 function processAbsenceAlerts() {
   syncAbsenceAlertsWithReports(state);
+}
+
+function canManageAbsenceAlerts() {
+  return ["coordinator", "pastor", "admin"].includes(String(session?.role || ""));
 }
 
 function handleAlertAction(alertId, status, observation) {

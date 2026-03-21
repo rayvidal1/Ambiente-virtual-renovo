@@ -622,7 +622,8 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", async () => {
           try {
-            const registration = await navigator.serviceWorker.register("./service-worker.js");
+            const swUrl = "./service-worker.js?v=" + encodeURIComponent(window.RENOVO_APP_VERSION || "dev");
+            const registration = await navigator.serviceWorker.register(swUrl);
             registration.update().catch(() => {});
             window.setTimeout(() => {
               registration.update().catch(() => {});

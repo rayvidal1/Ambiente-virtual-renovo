@@ -1,6 +1,5 @@
-importScripts("./app-version.js");
-
-const CACHE_NAME = "renovo-static-" + String(self.RENOVO_APP_VERSION || "dev");
+const APP_VERSION = "2026-03-21-j";
+const CACHE_NAME = "renovo-static-" + APP_VERSION;
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -20,7 +19,11 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll(APP_SHELL.map((url) => new Request(url, { cache: "reload" })))
+    )
+  );
   self.skipWaiting();
 });
 
@@ -74,7 +77,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(request, { ignoreSearch: isSameOrigin }).then((cached) => {
+    caches.match(request).then((cached) => {
       if (cached) return cached;
 
       return fetch(request)
@@ -90,7 +93,7 @@ self.addEventListener("fetch", (event) => {
             return Response.error();
           }
 
-          return caches.match(request, { ignoreSearch: true }).then((asset) => asset || Response.error());
+          return caches.match(request).then((asset) => asset || Response.error());
         });
     })
   );

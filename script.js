@@ -1,14 +1,21 @@
 ﻿const STORAGE_KEY = "renovo_celulas_v1";
 const SESSION_STORAGE_KEY = "renovo_session_v1";
 const USERS_STORAGE_KEY = "renovo_users_v1";
+const LOCAL_IMAGES_KEY = "renovo_images_v1";
+const LOCAL_PDFS_KEY = "renovo_pdfs_v1";
+const ALERTS_KEY = "renovo_alerts_v1";
+const INITIAL_SEED_MARKER_KEY = "renovo_seed_v2_done";
+const CINZA_IMPORT_MARKER_KEY = "renovo_cinza_reports_v2_done";
 const MANAGEABLE_ROLES = ["leader", "coordinator", "pastor", "admin"];
 
-const state = loadState();
-let users = loadUsers();
-ensureDefaultUsers();
-let session = loadSession();
+// Inicializados de forma assíncrona em bootstrapApp()
+let state = { cells: [], reports: [], studies: [], lastReportId: null, updatedAt: null };
+let users = [];
+let session = null;
 
 const authScreen = document.getElementById("auth-screen");
+const homeScreen = document.getElementById("home-screen");
+const visitorFormScreen = document.getElementById("visitor-form-screen");
 const appShell = document.getElementById("app-shell");
 const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
@@ -32,7 +39,7 @@ const generateReportButton = document.getElementById("generate-report-btn");
 const cellsList = document.getElementById("cells-list");
 const totalCells = document.getElementById("total-cells");
 const totalMembers = document.getElementById("total-members");
-const reportDateInput = reportForm.elements.namedItem("date");
+const reportDateInput = reportForm?.elements?.namedItem("date");
 const statsSection = document.querySelector(".stats");
 const reportModeNote = document.getElementById("report-mode-note");
 const reportHistoryList = document.getElementById("report-history-list");
@@ -47,18 +54,24 @@ const addMemberCard = document.getElementById("add-member-card");
 const viewCellsCard = document.getElementById("view-cells-card");
 const weeklyReportCard = document.getElementById("weekly-report-card");
 const manageAccessCard = document.getElementById("manage-access-card");
+const viewVisitantesCard = document.getElementById("view-visitantes-card");
+const viewStudiesCard = document.getElementById("view-studies-card");
 
 const cellModal = document.getElementById("cell-modal");
 const memberModal = document.getElementById("member-modal");
 const cellsModal = document.getElementById("cells-modal");
 const reportModal = document.getElementById("report-modal");
 const accessModal = document.getElementById("access-modal");
+const visitantesModal = document.getElementById("visitantes-modal");
+const studiesModal = document.getElementById("studies-modal");
 
 const closeCellModalButton = document.getElementById("close-cell-modal");
 const closeMemberModalButton = document.getElementById("close-member-modal");
 const closeCellsModalButton = document.getElementById("close-cells-modal");
 const closeReportModalButton = document.getElementById("close-report-modal");
 const closeAccessModalButton = document.getElementById("close-access-modal");
+const closeVisitantesModalButton = document.getElementById("close-visitantes-modal");
+const closeStudiesModalButton = document.getElementById("close-studies-modal");
 
 const accessForm = document.getElementById("access-form");
 const accessUsersList = document.getElementById("access-users-list");
@@ -67,12 +80,23 @@ const saveAccessButton = document.getElementById("save-access-button");
 const cancelAccessEditButton = document.getElementById("cancel-access-edit");
 const accessRoleSelect = accessForm?.elements?.namedItem("role");
 const accessAssignedCellInput = accessForm?.elements?.namedItem("assignedCellName");
+const accessScopeCellNamesInput = accessForm?.elements?.namedItem("scopeCellNames");
+const studyForm = document.getElementById("study-form");
+const studiesList = document.getElementById("studies-list");
+const studiesCount = document.getElementById("studies-count");
+const studyFeedback = document.getElementById("study-feedback");
+const saveStudyButton = document.getElementById("save-study-button");
+const cancelStudyEditButton = document.getElementById("cancel-study-edit");
+const studiesFormWrap = document.getElementById("studies-form-wrap");
+const trackingSection = document.getElementById("tracking-section");
 
 const accessBadge = document.getElementById("access-badge");
 const accessNote = document.getElementById("access-note");
 
 let hasAppliedInitialReportContext = false;
 let hasAutoOpenedLeaderReport = false;
+let currentFirstVisits = [];
+let currentImages = [];
 let prevCellIds = new Set();
 const collapsedCellIds = new Set();
 
@@ -92,6 +116,8 @@ const ROLE_PERMISSIONS = {
   viewCells: ["coordinator", "pastor", "admin"],
   deleteCell: ["admin"],
   manageAccess: ["pastor", "admin"],
+  viewStudies: ["leader", "coordinator", "pastor", "admin"],
+  manageStudies: ["pastor", "admin"],
 };
 
 const ICONS = {
@@ -115,14 +141,22 @@ const ICONS = {
   blackHeart: "\u{1F5A4}",
 };
 
-seedInitialDataIfEmpty();
 if (session) {
   ensureLeaderCellForSession();
 }
 
-bindAuthEvents();
-bindAppEvents();
-initializeApp();
+try {
+  bindAuthEvents();
+  bindAppEvents();
+  bootstrapApp();
+} catch (error) {
+  console.error("[Renovo] Falha na inicializacao:", error);
+  if (typeof window !== "undefined" && typeof window.__renovoShowLoadingDebug === "function") {
+    window.__renovoShowLoadingDebug(
+      "Erro de inicializacao: " + (error?.message || String(error || "falha desconhecida"))
+    );
+  }
+}
 
 function bindAuthEvents() {
   toggleRegisterFormButton?.addEventListener("click", () => {
@@ -133,6 +167,15 @@ function bindAuthEvents() {
 
   registerRoleSelect?.addEventListener("change", syncRegisterFormRoleFields);
   syncRegisterFormRoleFields();
+
+  const togglePasswordBtn = document.getElementById("toggle-password");
+  const passwordInput = loginForm?.querySelector('input[name="password"]');
+  togglePasswordBtn?.addEventListener("click", () => {
+    const showing = passwordInput.type === "text";
+    passwordInput.type = showing ? "password" : "text";
+    togglePasswordBtn.classList.toggle("eye-visible", !showing);
+    togglePasswordBtn.setAttribute("aria-label", showing ? "Mostrar senha" : "Ocultar senha");
+  });
 
   loginForm?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -154,7 +197,7 @@ function bindAuthEvents() {
     hasAppliedInitialReportContext = false;
     hasAutoOpenedLeaderReport = false;
     ensureLeaderCellForSession();
-    showAppScreen();
+    showHomeScreen();
     render();
     loginForm.reset();
     if (registerForm) {
@@ -212,7 +255,7 @@ function bindAuthEvents() {
     hasAppliedInitialReportContext = false;
     hasAutoOpenedLeaderReport = false;
     ensureLeaderCellForSession();
-    showAppScreen();
+    showHomeScreen();
     render();
     registerForm.reset();
     registerForm.hidden = true;
@@ -231,6 +274,65 @@ function bindAuthEvents() {
       registerForm.hidden = true;
     }
     setAuthFeedback("");
+  });
+
+  // Home screen
+  document.getElementById("home-logout-button")?.addEventListener("click", () => {
+    session = null;
+    clearSession();
+    hasAppliedInitialReportContext = false;
+    hasAutoOpenedLeaderReport = false;
+    showAuthScreen();
+    loginForm.reset();
+    setAuthFeedback("");
+  });
+
+  document.getElementById("go-to-celulas")?.addEventListener("click", () => {
+    showAppScreen();
+  });
+
+  document.getElementById("go-to-visitor-form")?.addEventListener("click", () => {
+    showVisitorFormScreen();
+  });
+
+  document.getElementById("visitor-form-back")?.addEventListener("click", () => {
+    showHomeScreen();
+  });
+
+  // Visitor registration inline form
+  document.getElementById("visitor-reg-form-inline")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const name = String(fd.get("name") || "").trim();
+    const errEl = document.getElementById("visitor-reg-inline-error");
+    if (!name) {
+      if (errEl) { errEl.textContent = "Por favor, informe o nome."; errEl.hidden = false; }
+      return;
+    }
+    if (errEl) errEl.hidden = true;
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name,
+      context: "culto",
+      address : String(fd.get("address") || "").trim(),
+      age     : String(fd.get("age")     || "").trim(),
+      phone   : String(fd.get("phone")   || "").trim(),
+      registeredAt: new Date().toISOString(),
+    };
+    const list = loadVisitantesPub();
+    list.push(entry);
+    saveVisitantesPub(list);
+    renderCultoVisitorsList();
+    e.target.hidden = true;
+    const success = document.getElementById("visitor-reg-success");
+    if (success) success.hidden = false;
+  });
+
+  document.getElementById("visitor-reg-new-btn")?.addEventListener("click", () => {
+    const form = document.getElementById("visitor-reg-form-inline");
+    const success = document.getElementById("visitor-reg-success");
+    if (form) { form.reset(); form.hidden = false; }
+    if (success) success.hidden = true;
   });
 }
 function bindAppEvents() {
@@ -264,9 +366,11 @@ function bindAppEvents() {
     applyInitialReportContext();
     loadSavedReportIfExists();
     renderAttendanceList();
+    renderFirstVisitList();
     renderLatestReport();
     renderReportHistory();
     applyReportMode();
+    if (generateReportButton) generateReportButton.textContent = "Gerar relatorio";
     openModal(reportModal);
   });
 
@@ -279,13 +383,59 @@ function bindAppEvents() {
     openModal(accessModal);
   });
 
+  viewStudiesCard?.addEventListener("click", () => {
+    if (!hasPermission("viewStudies")) {
+      return;
+    }
+    resetStudyForm();
+    renderStudies();
+    openModal(studiesModal);
+  });
+
   closeCellModalButton?.addEventListener("click", () => closeModal(cellModal));
   closeMemberModalButton?.addEventListener("click", () => closeModal(memberModal));
   closeCellsModalButton?.addEventListener("click", () => closeModal(cellsModal));
   closeReportModalButton?.addEventListener("click", () => closeModal(reportModal));
   closeAccessModalButton?.addEventListener("click", () => closeModal(accessModal));
+  closeVisitantesModalButton?.addEventListener("click", () => closeModal(visitantesModal));
+  closeStudiesModalButton?.addEventListener("click", () => closeModal(studiesModal));
 
-  [cellModal, memberModal, cellsModal, reportModal, accessModal].forEach((modal) => {
+  viewVisitantesCard?.addEventListener("click", () => {
+    renderVisitantesList();
+    openModal(visitantesModal);
+  });
+
+  document.getElementById("visitantes-search")?.addEventListener("input", () => renderVisitantesList());
+  document.getElementById("visitantes-cell-filter")?.addEventListener("change", () => renderVisitantesList());
+
+  document.getElementById("copy-visitantes-link")?.addEventListener("click", () => {
+    const url = location.origin + location.pathname.replace("index.html", "") + "visitantes.html";
+    navigator.clipboard?.writeText(url).then(() => {
+      const btn = document.getElementById("copy-visitantes-link");
+      if (btn) { btn.textContent = "Link copiado!"; setTimeout(() => { btn.textContent = "Copiar link publico"; }, 2000); }
+    });
+  });
+
+  document.getElementById("visitantes-list")?.addEventListener("click", (e) => {
+    const convertBtn = e.target.closest(".visitante-convert-btn");
+    if (convertBtn) {
+      if (!hasPermission("manageMembers")) return;
+      const id = convertBtn.dataset.id;
+      if (!id) return;
+      convertRecurringVisitorToMember(id);
+      return;
+    }
+
+    const deleteBtn = e.target.closest(".visitante-delete-btn");
+    if (!deleteBtn || !hasPermission("manageAccess")) return;
+    const id = deleteBtn.dataset.id;
+    if (!id) return;
+    const list = loadVisitantesPub().filter((v) => v.id !== id);
+    saveVisitantesPub(list);
+    renderVisitantesList();
+  });
+
+  [cellModal, memberModal, cellsModal, reportModal, accessModal, visitantesModal, studiesModal].forEach((modal) => {
     modal?.addEventListener("click", (event) => {
       if (event.target === modal) {
         closeModal(modal);
@@ -321,6 +471,7 @@ function bindAppEvents() {
     const confirmPassword = String(formData.get("confirmPassword") || "");
     const role = sanitizeManagedRole(formData.get("role"));
     const assignedCellName = String(formData.get("assignedCellName") || "").trim();
+    const scopeCellNames = parseScopeCellNames(formData.get("scopeCellNames"));
     const isEditing = Boolean(userId);
 
     if (!name || !username) {
@@ -328,8 +479,17 @@ function bindAppEvents() {
       return;
     }
 
+    if (!canCurrentSessionAssignRole(role)) {
+      setAccessFeedback("Somente admin pode criar ou promover outro usuario para admin.");
+      return;
+    }
+
     if (role === "leader" && !assignedCellName) {
       setAccessFeedback("Informe a celula vinculada para o lider.");
+      return;
+    }
+    if (role === "coordinator" && scopeCellNames.length === 0) {
+      setAccessFeedback("Informe as celulas supervisionadas para o coordenador.");
       return;
     }
 
@@ -337,6 +497,10 @@ function bindAppEvents() {
       const existingUser = users.find((entry) => entry.id === userId);
       if (!existingUser) {
         setAccessFeedback("Usuario nao encontrado.");
+        return;
+      }
+      if (!canCurrentSessionManageUser(existingUser)) {
+        setAccessFeedback("Somente admin pode gerenciar contas admin.");
         return;
       }
 
@@ -372,6 +536,7 @@ function bindAppEvents() {
       existingUser.username = username;
       existingUser.role = role;
       existingUser.assignedCellName = role === "leader" ? assignedCellName : "";
+      existingUser.scopeCellNames = role === "coordinator" ? scopeCellNames : [];
       existingUser.updatedAt = new Date().toISOString();
       if (password) {
         existingUser.password = password;
@@ -417,6 +582,7 @@ function bindAppEvents() {
       password,
       role,
       assignedCellName: role === "leader" ? assignedCellName : "",
+      scopeCellNames: role === "coordinator" ? scopeCellNames : [],
       createdAt: new Date().toISOString(),
     };
     users.push(newUser);
@@ -445,6 +611,10 @@ function bindAppEvents() {
     const user = users.find((entry) => entry.id === userId);
     if (!user) {
       setAccessFeedback("Usuario nao encontrado.");
+      return;
+    }
+    if (!canCurrentSessionManageUser(user)) {
+      setAccessFeedback("Somente admin pode gerenciar contas admin.");
       return;
     }
 
@@ -480,7 +650,138 @@ function bindAppEvents() {
     }
   });
 
-  cellForm.addEventListener("submit", (event) => {
+  cancelStudyEditButton?.addEventListener("click", () => {
+    resetStudyForm();
+    setStudyFeedback("");
+  });
+
+  studyForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!hasPermission("manageStudies")) {
+      return;
+    }
+
+    const formData = new FormData(studyForm);
+    const studyId = String(formData.get("studyId") || "").trim();
+    const title = String(formData.get("title") || "").trim();
+    const description = String(formData.get("description") || "").trim();
+    const pdfUrl = String(formData.get("pdfUrl") || "").trim();
+    const pdfFile = formData.get("pdfFile");
+
+    if (!title) {
+      setStudyFeedback("Informe o título do estudo.");
+      return;
+    }
+
+    const editingStudy = studyId ? state.studies.find((entry) => entry.id === studyId) : null;
+    const hasExistingPdf = Boolean(editingStudy?.pdfUrl || editingStudy?.pdfDataUrl);
+    const hasNewFile = pdfFile instanceof File && pdfFile.size > 0;
+
+    if (!hasNewFile && !pdfUrl && !hasExistingPdf) {
+      setStudyFeedback("Informe um link de PDF ou envie um arquivo PDF.");
+      return;
+    }
+
+    let pdfDataUrl = editingStudy?.pdfDataUrl || "";
+    if (hasNewFile) {
+      if (pdfFile.type && pdfFile.type !== "application/pdf") {
+        setStudyFeedback("Envie apenas arquivo PDF.");
+        return;
+      }
+
+      if (pdfFile.size > 1_800_000) {
+        setStudyFeedback("PDF muito grande para salvar localmente. Use até 1,8 MB.");
+        return;
+      }
+
+      try {
+        pdfDataUrl = await readFileAsDataUrl(pdfFile);
+      } catch {
+        setStudyFeedback("Erro ao ler o arquivo PDF.");
+        return;
+      }
+    }
+
+    if (studyId && editingStudy) {
+      editingStudy.title = title;
+      editingStudy.description = description;
+      editingStudy.pdfUrl = pdfUrl;
+      editingStudy.pdfDataUrl = pdfDataUrl;
+      editingStudy.updatedAt = new Date().toISOString();
+      editingStudy.updatedBy = session?.name || session?.username || "Sistema";
+      setStudyFeedback("Estudo atualizado.");
+    } else {
+      state.studies.unshift({
+        id: createId(),
+        title,
+        description,
+        pdfUrl,
+        pdfDataUrl,
+        createdAt: new Date().toISOString(),
+        createdBy: session?.name || session?.username || "Sistema",
+        updatedAt: null,
+        updatedBy: null,
+      });
+      setStudyFeedback("Estudo publicado.");
+    }
+
+    persistAndRender();
+    renderStudies();
+    resetStudyForm();
+  });
+
+  studiesList?.addEventListener("click", (event) => {
+    const clickTarget = event.target;
+    if (!(clickTarget instanceof Element)) {
+      return;
+    }
+
+    const actionButton = clickTarget.closest("button[data-study-action]");
+    if (!actionButton) {
+      return;
+    }
+
+    const studyId = String(actionButton.dataset.studyId || "");
+    const action = String(actionButton.dataset.studyAction || "");
+    const study = state.studies.find((entry) => entry.id === studyId);
+    if (!study) {
+      return;
+    }
+
+    if (action === "open") {
+      openStudyPdf(study);
+      return;
+    }
+
+    if (!hasPermission("manageStudies")) {
+      return;
+    }
+
+    if (action === "edit") {
+      fillStudyFormForEdit(study);
+      setStudyFeedback("");
+      return;
+    }
+
+    if (action === "delete") {
+      const shouldDelete =
+        typeof window !== "undefined" && typeof window.confirm === "function"
+          ? window.confirm(`Deseja excluir o estudo "${study.title}"?`)
+          : true;
+      if (!shouldDelete) {
+        return;
+      }
+
+      state.studies = state.studies.filter((entry) => entry.id !== study.id);
+      persistAndRender();
+      renderStudies();
+      resetStudyForm();
+      setStudyFeedback("Estudo excluído.");
+    }
+  });
+
+  cellForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!hasPermission("createCell")) {
       return;
@@ -513,7 +814,7 @@ function bindAppEvents() {
     renderAttendanceList();
   });
 
-  memberForm.addEventListener("submit", (event) => {
+  memberForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!hasPermission("manageMembers")) {
       return;
@@ -530,6 +831,9 @@ function bindAppEvents() {
 
     const cell = getCellById(cellId);
     if (!cell) {
+      return;
+    }
+    if (session?.role === "coordinator" && !getAccessibleCells().some((entry) => entry.id === cellId)) {
       return;
     }
 
@@ -549,7 +853,7 @@ function bindAppEvents() {
     }
   });
 
-  reportCellSelect.addEventListener("change", () => {
+  reportCellSelect?.addEventListener("change", () => {
     loadSavedReportIfExists();
     renderAttendanceList();
     renderLatestReport();
@@ -560,7 +864,7 @@ function bindAppEvents() {
     applyReportMode();
   });
 
-  reportDateInput.addEventListener("change", () => {
+  reportDateInput?.addEventListener("change", () => {
     loadSavedReportIfExists();
     renderAttendanceList();
     renderLatestReport();
@@ -571,7 +875,7 @@ function bindAppEvents() {
     applyReportMode();
   });
 
-  markAllAttendanceButton.addEventListener("click", () => {
+  markAllAttendanceButton?.addEventListener("click", () => {
     if (!hasPermission("submitReports")) {
       return;
     }
@@ -580,7 +884,7 @@ function bindAppEvents() {
     });
   });
 
-  clearAttendanceButton.addEventListener("click", () => {
+  clearAttendanceButton?.addEventListener("click", () => {
     if (!hasPermission("submitReports")) {
       return;
     }
@@ -589,7 +893,120 @@ function bindAppEvents() {
     });
   });
 
-  reportForm.addEventListener("submit", (event) => {
+  document.getElementById("visitor-panel-first")?.addEventListener("change", (e) => {
+    const cb = e.target.closest(".visitor-first-check");
+    if (!cb) return;
+    const name = cb.dataset.name;
+    if (cb.checked) {
+      if (!currentFirstVisits.some((v) => v.name === name)) {
+        currentFirstVisits.push({ name, how: cb.dataset.how || "", address: cb.dataset.address || "", phone: cb.dataset.phone || "" });
+      }
+    } else {
+      currentFirstVisits = currentFirstVisits.filter((v) => v.name !== name);
+    }
+    cb.closest(".visitor-check-item")?.classList.toggle("checked", cb.checked);
+  });
+
+  document.getElementById("visitor-panel-first")?.addEventListener("click", (e) => {
+    const panel = document.getElementById("visitor-panel-first");
+    if (!panel) return;
+    if (e.target.closest(".visitor-add-trigger")) {
+      const form = panel.querySelector(".visitor-add-form");
+      if (form) { form.hidden = false; panel.querySelector(".visitor-add-name")?.focus(); }
+      return;
+    }
+    if (e.target.closest(".visitor-add-cancel-btn")) {
+      const form = panel.querySelector(".visitor-add-form");
+      if (form) {
+        form.hidden = true;
+        panel.querySelector(".visitor-add-name").value = "";
+        panel.querySelector(".visitor-add-how").value = "";
+        panel.querySelector(".visitor-add-phone").value = "";
+      }
+      return;
+    }
+    if (e.target.closest(".visitor-add-save-btn")) {
+      const form = panel.querySelector(".visitor-add-form");
+      if (!form) return;
+      const name = (panel.querySelector(".visitor-add-name")?.value || "").trim();
+      const how  = (panel.querySelector(".visitor-add-how")?.value || "").trim();
+      const phone = (panel.querySelector(".visitor-add-phone")?.value || "").trim();
+      if (!name) { panel.querySelector(".visitor-add-name")?.focus(); return; }
+      const currentCell = getCellById(reportCellSelect?.value || "");
+      const entry = {
+        id: Date.now().toString(),
+        name,
+        how,
+        phone,
+        address: "",
+        context: "celula",
+        cellId: currentCell?.id || "",
+        cellName: currentCell?.name || "",
+        registeredAt: new Date().toISOString(),
+      };
+      const list = loadVisitantesPub();
+      list.push(entry);
+      saveVisitantesPub(list);
+      if (!currentFirstVisits.some((v) => v.name === name)) {
+        currentFirstVisits.push({ name, how, address: "", phone });
+      }
+      renderFirstVisitList();
+      return;
+    }
+  });
+
+  // Image upload events
+  const addImageBtn = document.getElementById("add-image-btn");
+  const imageFileInput = document.getElementById("image-file-input");
+  const imagesList = document.getElementById("images-list");
+  const MAX_IMAGES = 5;
+
+  addImageBtn?.addEventListener("click", () => {
+    if (currentImages.length >= MAX_IMAGES) return;
+    if (imageFileInput) imageFileInput.click();
+  });
+
+  imageFileInput?.addEventListener("change", () => {
+    const files = Array.from(imageFileInput.files || []);
+    let toRead = files.slice(0, MAX_IMAGES - currentImages.length);
+    let pending = toRead.length;
+    if (!pending) { imageFileInput.value = ""; return; }
+    toRead.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (currentImages.length < MAX_IMAGES) {
+          currentImages.push(e.target.result);
+        }
+        pending--;
+        if (pending === 0) {
+          imageFileInput.value = "";
+          renderImagesList();
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+
+  imagesList?.addEventListener("click", (e) => {
+    const removeBtn = e.target.closest(".image-remove-btn");
+    if (removeBtn) {
+      const idx = parseInt(removeBtn.dataset.index, 10);
+      if (!isNaN(idx)) {
+        currentImages.splice(idx, 1);
+        renderImagesList();
+      }
+      return;
+    }
+    const thumb = e.target.closest(".image-thumb");
+    if (thumb) openLightbox(thumb.src);
+  });
+
+  document.getElementById("report-images-gallery")?.addEventListener("click", (e) => {
+    const thumb = e.target.closest(".image-thumb");
+    if (thumb) openLightbox(thumb.src);
+  });
+
+  reportForm?.addEventListener("submit", (event) => {
     event.preventDefault();
 
     if (generateReportButton && generateReportButton.textContent === "Gerar novo relatorio") {
@@ -598,9 +1015,14 @@ function bindAppEvents() {
       reportCellSelect.value = currentCellId;
       reportDateInput.value = todayIsoDate();
       renderAttendanceList();
+      currentFirstVisits = [];
+      renderFirstVisitList();
+      currentImages = [];
+      renderImagesList();
       reportOutput.value = "";
       drawReportChart(0, 0, 0);
       renderReportHistory();
+      renderReportImages([]);
       generateReportButton.textContent = "Gerar relatorio";
       return;
     }
@@ -627,8 +1049,12 @@ function bindAppEvents() {
       return;
     }
 
-    const visitorNames = parseLines(formData.get("visitorNames"));
-    const visitorsCountInput = parseNonNegativeInt(formData.get("visitorsCount"));
+    const allCurrentVisitors = [
+      ...currentFirstVisits.map((v) => ({ ...v, visitType: "first" })),
+    ];
+    const visitorNames = allCurrentVisitors.map((v) => v.name);
+    const visitorsCountInput = allCurrentVisitors.length;
+    const visitorDetails = allCurrentVisitors.map((v) => ({ name: v.name, how: v.how || "", address: v.address || "", phone: v.phone || "", visitType: v.visitType }));
     const reportData = {
       id: createId(),
       cellId,
@@ -636,20 +1062,21 @@ function bindAppEvents() {
       leaders,
       coLeaders: String(formData.get("coLeaders") || "").trim(),
       host: String(formData.get("host") || "").trim(),
+      address: String(formData.get("address") || "").trim(),
+      newVisitorsCount: currentFirstVisits.length,
+      returningVisitorsCount: 0,
+      communionMinutes: parseNonNegativeInt(formData.get("communionMinutes")),
       presentMemberIds: Array.from(new Set(formData.getAll("presentMemberIds").map((value) => String(value)))),
-      visitorsCount: Math.max(visitorsCountInput, visitorNames.length),
+      visitorsCount: visitorsCountInput,
       visitorNames,
-      offering: parseNonNegativeNumber(formData.get("offering")),
-      foods: String(formData.get("foods") || "Nao").trim(),
-      snack: String(formData.get("snack") || "Nao").trim(),
-      discipleship: String(formData.get("discipleship") || "Nao").trim(),
-      visits: String(formData.get("visits") || "Nao").trim(),
-      conversions: parseNonNegativeInt(formData.get("conversions")),
+      visitorDetails,
+      images: currentImages.slice(),
       createdAt: new Date().toISOString(),
     };
 
     upsertReport(reportData);
     state.lastReportId = reportData.id;
+    try { processAbsenceAlerts(reportData, cell); } catch (_) {}
     persistAndRender();
 
     const presentIds = new Set(reportData.presentMemberIds);
@@ -659,6 +1086,8 @@ function bindAppEvents() {
     drawReportChart(presentCount, absentCount, reportData.visitorsCount);
     renderReportHistory();
     drawAverageCharts();
+    drawLineChart(cellId);
+    renderReportImages(reportData.images);
 
     if (generateReportButton) {
       generateReportButton.textContent = "Gerar novo relatorio";
@@ -668,6 +1097,21 @@ function bindAppEvents() {
   reportHistoryList?.addEventListener("click", (event) => {
     const clickTarget = event.target;
     if (!(clickTarget instanceof Element)) {
+      return;
+    }
+
+    // Apagar relatório (somente admin)
+    const deleteBtn = clickTarget.closest("button[data-delete-report-id]");
+    if (deleteBtn) {
+      const reportId = String(deleteBtn.dataset.deleteReportId || "");
+      const target = state.reports.find((r) => r.id === reportId);
+      if (!target) return;
+      const label = formatDateForReport(target.date);
+      if (!confirm(`Apagar o relatório de ${label}? Esta ação não pode ser desfeita.`)) return;
+      state.reports = state.reports.filter((r) => r.id !== reportId);
+      if (state.lastReportId === reportId) state.lastReportId = "";
+      saveState(state);
+      render();
       return;
     }
 
@@ -697,7 +1141,7 @@ function bindAppEvents() {
     applyReportMode();
   });
 
-  cellsList.addEventListener("click", (event) => {
+  cellsList?.addEventListener("click", (event) => {
     const clickTarget = event.target;
     if (!(clickTarget instanceof Element)) {
       return;
@@ -773,7 +1217,7 @@ function bindAppEvents() {
     card.classList.toggle("collapsed");
   });
 
-  copyReportButton.addEventListener("click", async () => {
+  copyReportButton?.addEventListener("click", async () => {
     const text = reportOutput.value.trim();
     if (!text) {
       return;
@@ -801,6 +1245,366 @@ function bindAppEvents() {
       fallback();
     }
   });
+
+  trackingSection?.addEventListener("click", (e) => {
+    const saveBtn = e.target.closest("[data-alert-save]");
+    if (!saveBtn || session?.role !== "coordinator") return;
+    const alertId = saveBtn.dataset.alertSave;
+    const item = saveBtn.closest(".alert-item");
+    if (!item) return;
+    const statusSelect = item.querySelector(".alert-status-select");
+    const obsInput = item.querySelector(".alert-obs-input");
+    if (statusSelect && obsInput) handleAlertAction(alertId, statusSelect.value, obsInput.value);
+  });
+}
+
+async function bootstrapApp() {
+  showLoadingScreen();
+
+  // One-time reset: apaga células e relatórios demo v1
+  if (!localStorage.getItem("renovo_reset_v1")) {
+    state.cells = [];
+    state.reports = [];
+    state.lastReportId = null;
+    state.updatedAt = new Date().toISOString();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (window.fsSaveState) window.fsSaveState(state);
+    localStorage.setItem("renovo_reset_v1", "done");
+  }
+
+  try {
+    const loadRemoteData =
+      typeof window.fsLoadAll === "function"
+        ? window.fsLoadAll()
+        : Promise.resolve({ state: null, users: null, visitantes: null });
+
+    const fsData = await Promise.race([
+      loadRemoteData,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+    ]);
+
+    // Estado (células, relatórios, estudos)
+    if (fsData.state) {
+      const localState = loadState();
+      const remoteState = hydrateStateSnapshot(fsData.state);
+      const useRemote = getStateUpdatedAt(remoteState) >= getStateUpdatedAt(localState);
+      const chosenState = useRemote ? remoteState : localState;
+
+      state.cells = chosenState.cells;
+      state.reports = chosenState.reports;
+      state.studies = chosenState.studies;
+      state.lastReportId = chosenState.lastReportId;
+      state.updatedAt = chosenState.updatedAt;
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stripStateForStorage(state)));
+      if (!useRemote && window.fsSaveState) {
+        window.fsSaveState(state);
+      }
+    } else {
+      // Firebase vazio — carrega localStorage e faz upload imediato para o Firestore
+      const cached = loadState();
+      state.cells = cached.cells;
+      state.reports = cached.reports;
+      state.studies = cached.studies;
+      state.lastReportId = cached.lastReportId;
+      state.updatedAt = cached.updatedAt;
+      // Migração: sobe dados locais para o Firestore
+      if (window.fsSaveState) window.fsSaveState(state);
+    }
+
+    // Usuários
+    if (fsData.users && fsData.users.length > 0) {
+      users = fsData.users.map(normalizeUser).filter(Boolean);
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    } else {
+      users = loadUsers();
+      // Migração: sobe usuários para o Firestore
+      if (window.fsSaveUsers) window.fsSaveUsers(users);
+    }
+
+    // Visitantes da igreja
+    if (Array.isArray(fsData.visitantes)) {
+      localStorage.setItem(VISITANTES_PUB_KEY, JSON.stringify(fsData.visitantes));
+    } else {
+      // Migração: sobe visitantes para o Firestore
+      const localVisitantes = loadVisitantesPub();
+      if (localVisitantes.length > 0 && window.fsSaveVisitantes) {
+        window.fsSaveVisitantes(localVisitantes);
+      }
+    }
+  } catch (_) {
+    // Fallback total para localStorage (offline)
+    const cached = loadState();
+    state.cells = cached.cells;
+    state.reports = cached.reports;
+    state.studies = cached.studies;
+    state.lastReportId = cached.lastReportId;
+    state.updatedAt = cached.updatedAt;
+    users = loadUsers();
+  }
+
+  ensureDefaultUsers();
+  try { runInitialSeedOnce(); } catch (e) { console.warn("[seed] erro:", e); }
+  try { ensureMinistryStructure(); } catch (e) { console.warn("[structure] erro:", e); }
+  try { ensureCinzaReportsImport(); } catch (e) { console.warn("[cinza-import] erro:", e); }
+  try { syncAbsenceAlertsWithReports(state); } catch (e) { console.warn("[alerts] erro:", e); }
+  session = loadSession();
+  hideLoadingScreen();
+  initializeApp();
+}
+
+function runInitialSeedOnce() {
+  if (localStorage.getItem(INITIAL_SEED_MARKER_KEY) === "done") {
+    return;
+  }
+
+  const hasExistingDomainData =
+    state.cells.length > 0 ||
+    state.reports.length > 0 ||
+    state.studies.length > 0 ||
+    loadVisitantesPub().length > 0 ||
+    users.some((user) => user?.role === "leader" || user?.role === "coordinator");
+
+  if (hasExistingDomainData) {
+    localStorage.setItem(INITIAL_SEED_MARKER_KEY, "done");
+    return;
+  }
+
+  seedInitialDataIfEmpty();
+  localStorage.setItem(INITIAL_SEED_MARKER_KEY, "done");
+}
+
+function ensureMinistryStructure() {
+  const cellDefs = [
+    { name: "Amarela", leader: "Letícia" },
+    { name: "Rosa", leader: "Alex e Ariane", aliases: ["Alex e Ariane"] },
+    { name: "Cinza", leader: "Jander e Aline" },
+    { name: "Preta", leader: "Filipe e Sabrina" },
+    { name: "Branca", leader: "Joana" },
+    { name: "Laranja", leader: "Fernando e Elioneide" },
+    { name: "Visão de Águia", leader: "Chirlene" },
+    { name: "Lilás", leader: "Karina e Jeniffer" },
+    { name: "Vinho", leader: "Jhonatan e Marilene" },
+    { name: "Azul", leader: "Francinaldo e Alexandre" },
+    { name: "Logos", leader: "Thiago" },
+    { name: "GET", leader: "Miguel e Raíssa" },
+    { name: "Vermelha", leader: "Bruno e Kamila" },
+    { name: "Verde", leader: "Evelyn" },
+    { name: "Ekballo", leader: "Pedro e Clara Vitória" },
+    { name: "Peregrinos", leader: "Izabella e Sara" },
+  ];
+
+  const supervisorDefs = [
+    { name: "Eudoxia (Neta)", username: "irma.neta", scopeCellNames: ["Amarela", "Rosa", "Cinza", "Preta"] },
+    { name: "Anélia", username: "anelia", scopeCellNames: ["Branca", "Laranja", "Visão de Águia"] },
+    { name: "Elvis", username: "elvis", scopeCellNames: ["Lilás", "Vinho", "Azul", "Logos", "GET"] },
+    { name: "Adlaine", username: "adelaine", scopeCellNames: ["Lilás", "Vinho", "Azul", "Logos", "GET"] },
+    { name: "Bruno", username: "bruno", scopeCellNames: ["Vermelha", "Verde", "Ekballo", "Peregrinos"] },
+    { name: "Kamila", username: "kamila", scopeCellNames: ["Vermelha", "Verde", "Ekballo", "Peregrinos"] },
+  ];
+
+  let stateChanged = false;
+  let usersChanged = false;
+
+  cellDefs.forEach((definition) => {
+    const aliases = [definition.name, ...(definition.aliases || [])];
+    const existingCell = state.cells.find((cell) =>
+      aliases.some((alias) => normalizeName(cell.name) === normalizeName(alias))
+    );
+
+    if (!existingCell) {
+      state.cells.push({
+        id: createId(),
+        name: definition.name,
+        neighborhood: "Sem endereco",
+        meetingDay: "Nao definido",
+        meetingTime: "20:00",
+        leader: definition.leader,
+        members: [],
+        createdAt: new Date().toISOString(),
+      });
+      stateChanged = true;
+      return;
+    }
+
+    if (normalizeName(existingCell.name) !== normalizeName(definition.name)) {
+      existingCell.name = definition.name;
+      stateChanged = true;
+    }
+    if (definition.leader && existingCell.leader !== definition.leader) {
+      existingCell.leader = definition.leader;
+      stateChanged = true;
+    }
+  });
+
+  supervisorDefs.forEach((definition) => {
+    const existingUser = users.find((user) => normalizeUsername(user.username) === normalizeUsername(definition.username));
+    if (!existingUser) {
+      users.push({
+        id: createId(),
+        name: definition.name,
+        username: definition.username,
+        password: "123456",
+        role: "coordinator",
+        assignedCellName: "",
+        scopeCellNames: definition.scopeCellNames.slice(),
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+      });
+      usersChanged = true;
+      return;
+    }
+
+    const nextScope = parseScopeCellNames(definition.scopeCellNames);
+    const currentScope = getManagedUserScopeCellNames(existingUser);
+    if (existingUser.name !== definition.name) {
+      existingUser.name = definition.name;
+      usersChanged = true;
+    }
+    if (existingUser.role !== "coordinator") {
+      existingUser.role = "coordinator";
+      usersChanged = true;
+    }
+    if (existingUser.assignedCellName) {
+      existingUser.assignedCellName = "";
+      usersChanged = true;
+    }
+    if (currentScope.join("|") !== nextScope.join("|")) {
+      existingUser.scopeCellNames = nextScope;
+      usersChanged = true;
+    }
+  });
+
+  if (stateChanged) {
+    saveState(state);
+  }
+  if (usersChanged) {
+    saveUsers(users);
+  }
+}
+
+function ensureCinzaReportsImport() {
+  if (localStorage.getItem(CINZA_IMPORT_MARKER_KEY) === "done") {
+    return;
+  }
+
+  const cinzaCell = state.cells.find((cell) => normalizeName(cell.name) === normalizeName("Cinza"));
+  if (!cinzaCell) {
+    localStorage.setItem(CINZA_IMPORT_MARKER_KEY, "done");
+    return;
+  }
+
+  let changed = false;
+  const latestCinzaMembers = [
+    "Jander", "Aline", "Amanda Rayssa", "Amanda", "Daniel", "Mariana", "Ray",
+    "Mayara", "Samuel", "Luiz", "Manu", "Liz", "Rebeca",
+  ];
+  const memberNames = new Set((cinzaCell.members || []).map((member) => normalizeName(member.name)));
+  latestCinzaMembers.forEach((name) => {
+    if (memberNames.has(normalizeName(name))) {
+      return;
+    }
+    cinzaCell.members.push({ id: createId(), name, phone: "" });
+    memberNames.add(normalizeName(name));
+    changed = true;
+  });
+
+  const reportDefs = [
+    {
+      date: "2026-01-12",
+      host: "Luiz e Manu",
+      present: ["Jander", "Aline", "Luiz", "Manu", "Gabriel"],
+      visitorsCount: 2,
+      newVisitorsCount: 2,
+      returningVisitorsCount: 0,
+      communionMinutes: 0,
+      visitors: [],
+    },
+    {
+      date: "2026-01-19",
+      host: "Luiz e Manu",
+      present: ["Luiz", "Manu", "Rebeca", "Jander", "Aline", "Mariana"],
+      visitorsCount: 3,
+      newVisitorsCount: 3,
+      returningVisitorsCount: 0,
+      communionMinutes: 0,
+      visitors: [
+        { name: "Ray", how: "", address: "", phone: "" },
+        { name: "Mayara", how: "", address: "", phone: "" },
+        { name: "Amanda Rayssa", how: "", address: "", phone: "" },
+      ],
+    },
+    {
+      date: "2026-01-23",
+      host: "Luiz e Manu",
+      present: ["Aline", "Jander", "Mariana", "Mayara", "Ana", "Luiz", "Manu", "Ray"],
+      visitorsCount: 0,
+      newVisitorsCount: 0,
+      returningVisitorsCount: 0,
+      communionMinutes: 0,
+      visitors: [],
+    },
+    {
+      date: "2026-01-26",
+      host: "Luiz e Manu",
+      present: ["Aline", "Jander", "Luiz", "Manu", "Ray", "Mayara"],
+      visitorsCount: 1,
+      newVisitorsCount: 1,
+      returningVisitorsCount: 0,
+      communionMinutes: 0,
+      visitors: [
+        { name: "Samuel", how: "", address: "", phone: "" },
+      ],
+    },
+    {
+      date: "2026-02-09",
+      host: "Luiz e Manu",
+      present: ["Jander", "Aline", "Amanda Rayssa", "Amanda", "Daniel", "Ray", "Mayara", "Mariana", "Luiz", "Manu", "Samuel"],
+      visitorsCount: 0,
+      newVisitorsCount: 0,
+      returningVisitorsCount: 0,
+      communionMinutes: 0,
+      visitors: [],
+    },
+  ];
+
+  reportDefs.forEach((definition) => {
+    const presentMemberIds = cinzaCell.members
+      .filter((member) => definition.present.some((name) => normalizeName(name) === normalizeName(member.name)))
+      .map((member) => member.id);
+
+    const existingReport = state.reports.find((report) => report.cellId === cinzaCell.id && report.date === definition.date);
+    const nextReport = {
+      id: existingReport?.id || createId(),
+      cellId: cinzaCell.id,
+      date: definition.date,
+      leaders: "Jander e Aline",
+      coLeaders: "",
+      host: definition.host,
+      address: "",
+      presentMemberIds,
+      visitorsCount: definition.visitorsCount,
+      visitorNames: definition.visitors.map((visitor) => visitor.name),
+      visitorDetails: definition.visitors,
+      newVisitorsCount: definition.newVisitorsCount,
+      returningVisitorsCount: definition.returningVisitorsCount,
+      communionMinutes: definition.communionMinutes,
+      createdAt: existingReport?.createdAt || new Date(`${definition.date}T20:00:00`).toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (existingReport) {
+      Object.assign(existingReport, nextReport);
+    } else {
+      state.reports.push(nextReport);
+    }
+    changed = true;
+  });
+
+  if (changed) {
+    saveState(state);
+  }
+  localStorage.setItem(CINZA_IMPORT_MARKER_KEY, "done");
 }
 
 function initializeApp() {
@@ -810,17 +1614,78 @@ function initializeApp() {
   }
 
   ensureLeaderCellForSession();
-  showAppScreen();
+  showHomeScreen();
   render();
+}
+
+function showLoadingScreen() {
+  const el = document.getElementById("loading-screen");
+  if (el) el.hidden = false;
+}
+
+function hideLoadingScreen() {
+  const el = document.getElementById("loading-screen");
+  if (el) el.hidden = true;
 }
 
 function showAuthScreen() {
   authScreen.hidden = false;
+  homeScreen.hidden = true;
+  visitorFormScreen.hidden = true;
   appShell.hidden = true;
+}
+
+function showHomeScreen() {
+  authScreen.hidden = true;
+  homeScreen.hidden = false;
+  visitorFormScreen.hidden = true;
+  appShell.hidden = true;
+  const nameEl = document.getElementById("home-username");
+  if (nameEl) nameEl.textContent = session?.name || session?.username || "";
+}
+
+function showVisitorFormScreen() {
+  authScreen.hidden = true;
+  homeScreen.hidden = true;
+  visitorFormScreen.hidden = false;
+  appShell.hidden = true;
+  const form = document.getElementById("visitor-reg-form-inline");
+  const success = document.getElementById("visitor-reg-success");
+  const err = document.getElementById("visitor-reg-inline-error");
+  if (form) { form.reset(); form.hidden = false; }
+  if (success) success.hidden = true;
+  if (err) err.hidden = true;
+  renderCultoVisitorsList();
+}
+
+function renderCultoVisitorsList() {
+  const el = document.getElementById("culto-visitors-list");
+  if (!el) return;
+  const cutoff = Date.now() - 60 * 24 * 60 * 60 * 1000;
+  const list = loadVisitantesPub()
+    .filter((v) => v.context === "culto" && (!v.registeredAt || new Date(v.registeredAt).getTime() > cutoff))
+    .sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
+  if (list.length === 0) {
+    el.innerHTML = '<p style="font-size:0.82rem;color:var(--ink-soft);margin:0">Nenhum visitante registrado nos últimos 60 dias.</p>';
+    return;
+  }
+  el.innerHTML = list.map((v) => `
+    <div class="tracking-member-row">
+      <div>
+        <strong>${escapeHtml(v.name)}</strong>
+        ${v.age ? `<span class="tracking-badge tracking-badge-neutral">${escapeHtml(v.age)}</span>` : ""}
+      </div>
+      <div style="font-size:0.78rem;color:var(--ink-soft)">
+        ${v.phone ? `📞 ${escapeHtml(v.phone)}` : ""}
+        ${v.address ? ` · 📍 ${escapeHtml(v.address)}` : ""}
+      </div>
+    </div>`).join("");
 }
 
 function showAppScreen() {
   authScreen.hidden = true;
+  homeScreen.hidden = true;
+  visitorFormScreen.hidden = true;
   appShell.hidden = false;
 }
 
@@ -849,22 +1714,129 @@ function setAccessFeedback(message) {
   accessFeedback.textContent = message || "";
 }
 
+function setStudyFeedback(message) {
+  if (!studyFeedback) {
+    return;
+  }
+  studyFeedback.textContent = message || "";
+}
+
 function sanitizeManagedRole(value) {
   const role = String(value || "leader").toLowerCase().trim();
   return MANAGEABLE_ROLES.includes(role) ? role : "leader";
 }
 
+function parseScopeCellNames(value) {
+  const source = Array.isArray(value) ? value : String(value || "").split(/[\n,;]+/);
+  const uniqueNames = [];
+  const seen = new Set();
+
+  source.forEach((entry) => {
+    const name = String(entry || "").trim();
+    const key = normalizeName(name);
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    uniqueNames.push(name);
+  });
+
+  return uniqueNames;
+}
+
+function getManagedUserScopeCellNames(user) {
+  if (!user) {
+    return [];
+  }
+
+  const role = sanitizeManagedRole(user.role);
+  if (role === "leader") {
+    const assignedCellName = String(user.assignedCellName || "").trim();
+    return assignedCellName ? [assignedCellName] : [];
+  }
+
+  if (role === "coordinator") {
+    const scopedCells = parseScopeCellNames(user.scopeCellNames);
+    if (scopedCells.length) {
+      return scopedCells;
+    }
+    const legacyAssignedCell = String(user.assignedCellName || "").trim();
+    return legacyAssignedCell ? [legacyAssignedCell] : [];
+  }
+
+  return [];
+}
+
+function formatManagedUserScope(user) {
+  if (!user) {
+    return "Escopo: -";
+  }
+
+  if (user.role === "leader") {
+    return `Celula vinculada: ${user.assignedCellName || "-"}`;
+  }
+
+  if (user.role === "coordinator") {
+    const scopedCells = getManagedUserScopeCellNames(user);
+    return `Celulas supervisionadas: ${scopedCells.length ? scopedCells.join(", ") : "-"}`;
+  }
+
+  return "Escopo: acesso geral";
+}
+
+function canCurrentSessionAssignRole(role) {
+  if (!session || !hasPermission("manageAccess")) {
+    return false;
+  }
+
+  const normalizedRole = sanitizeManagedRole(role);
+  if (normalizedRole === "admin") {
+    return session.role === "admin";
+  }
+
+  return true;
+}
+
+function canCurrentSessionManageUser(user) {
+  if (!user || !session || !hasPermission("manageAccess")) {
+    return false;
+  }
+
+  if (sanitizeManagedRole(user.role) === "admin" && session.role !== "admin") {
+    return false;
+  }
+
+  return true;
+}
+
 function syncAccessFormRoleFields() {
-  if (!accessAssignedCellInput || !accessRoleSelect) {
+  if (!accessAssignedCellInput || !accessScopeCellNamesInput || !accessRoleSelect) {
     return;
   }
 
-  const role = sanitizeManagedRole(accessRoleSelect.value);
+  let role = sanitizeManagedRole(accessRoleSelect.value);
+  const canAssignAdmin = session?.role === "admin";
+  const adminOption = accessRoleSelect.querySelector('option[value="admin"]');
+  if (adminOption) {
+    adminOption.hidden = !canAssignAdmin;
+    adminOption.disabled = !canAssignAdmin;
+  }
+  if (role === "admin" && !canAssignAdmin) {
+    accessRoleSelect.value = "pastor";
+    role = "pastor";
+  }
+
   const isLeader = role === "leader";
+  const isCoordinator = role === "coordinator";
   accessAssignedCellInput.disabled = !isLeader;
   accessAssignedCellInput.required = isLeader;
+  accessScopeCellNamesInput.disabled = !isCoordinator;
+  accessScopeCellNamesInput.required = isCoordinator;
   if (!isLeader) {
     accessAssignedCellInput.value = "";
+  }
+  if (!isCoordinator) {
+    accessScopeCellNamesInput.value = "";
   }
 }
 
@@ -901,6 +1873,7 @@ function fillAccessFormForEdit(user) {
   accessForm.elements.namedItem("confirmPassword").value = "";
   accessForm.elements.namedItem("role").value = sanitizeManagedRole(user.role);
   accessForm.elements.namedItem("assignedCellName").value = user.assignedCellName || "";
+  accessForm.elements.namedItem("scopeCellNames").value = getManagedUserScopeCellNames(user).join("\n");
   syncAccessFormRoleFields();
 
   if (saveAccessButton) {
@@ -934,9 +1907,13 @@ function renderAccessUsers() {
   accessUsersList.innerHTML = usersSorted
     .map((user) => {
       const roleLabel = ROLE_LABELS[user.role] || user.role;
-      const cellLabel = user.role === "leader" ? user.assignedCellName || "-" : "-";
+      const scopeLabel = formatManagedUserScope(user);
       const isCurrentSessionUser = session?.id === user.id;
-      const canDelete = !isCurrentSessionUser && !(roleHasPermission(user.role, "manageAccess") && managerUsersCount <= 1);
+      const canManageUser = canCurrentSessionManageUser(user);
+      const canDelete =
+        canManageUser &&
+        !isCurrentSessionUser &&
+        !(roleHasPermission(user.role, "manageAccess") && countManagerUsers() <= 1);
 
       return `
         <article class="access-user-item">
@@ -945,9 +1922,11 @@ function renderAccessUsers() {
             <p class="access-user-role">${escapeHtml(roleLabel)}</p>
           </div>
           <p class="access-user-meta">Usuario: ${escapeHtml(user.username)}</p>
-          <p class="access-user-meta">Celula vinculada: ${escapeHtml(cellLabel)}</p>
+          <p class="access-user-meta">${escapeHtml(scopeLabel)}</p>
           <div class="access-user-actions">
-            <button type="button" class="ghost-btn tiny-btn" data-user-action="edit" data-user-id="${escapeHtml(user.id)}">Editar</button>
+            <button type="button" class="ghost-btn tiny-btn" data-user-action="edit" data-user-id="${escapeHtml(user.id)}" ${
+              canManageUser ? "" : "disabled"
+            }>Editar</button>
             <button type="button" class="ghost-btn tiny-btn danger-btn" data-user-action="delete" data-user-id="${escapeHtml(user.id)}" ${
               canDelete ? "" : "disabled"
             }>Excluir</button>
@@ -960,6 +1939,148 @@ function renderAccessUsers() {
 
 function countManagerUsers() {
   return users.filter((user) => roleHasPermission(user.role, "manageAccess")).length;
+}
+
+function resetStudyForm() {
+  if (!studyForm) {
+    return;
+  }
+
+  studyForm.reset();
+  const studyIdField = studyForm.elements.namedItem("studyId");
+  if (studyIdField && "value" in studyIdField) {
+    studyIdField.value = "";
+  }
+
+  if (saveStudyButton) {
+    saveStudyButton.textContent = "Publicar estudo";
+  }
+  if (cancelStudyEditButton) {
+    cancelStudyEditButton.hidden = true;
+  }
+  setStudyFeedback("");
+}
+
+function fillStudyFormForEdit(study) {
+  if (!studyForm || !study) {
+    return;
+  }
+
+  const studyIdField = studyForm.elements.namedItem("studyId");
+  const titleField = studyForm.elements.namedItem("title");
+  const descriptionField = studyForm.elements.namedItem("description");
+  const pdfUrlField = studyForm.elements.namedItem("pdfUrl");
+  const pdfFileField = studyForm.elements.namedItem("pdfFile");
+
+  if (studyIdField && "value" in studyIdField) {
+    studyIdField.value = study.id;
+  }
+  if (titleField && "value" in titleField) {
+    titleField.value = study.title || "";
+  }
+  if (descriptionField && "value" in descriptionField) {
+    descriptionField.value = study.description || "";
+  }
+  if (pdfUrlField && "value" in pdfUrlField) {
+    pdfUrlField.value = study.pdfUrl || "";
+  }
+  if (pdfFileField && "value" in pdfFileField) {
+    pdfFileField.value = "";
+  }
+
+  if (saveStudyButton) {
+    saveStudyButton.textContent = "Atualizar estudo";
+  }
+  if (cancelStudyEditButton) {
+    cancelStudyEditButton.hidden = false;
+  }
+}
+
+function renderStudies() {
+  if (!studiesList) {
+    return;
+  }
+
+  const canManage = hasPermission("manageStudies");
+  if (studiesFormWrap) {
+    studiesFormWrap.hidden = !canManage;
+  }
+
+  const studies = Array.isArray(state.studies) ? [...state.studies] : [];
+  studies.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+  if (studiesCount) {
+    studiesCount.textContent = `${studies.length} estudo${studies.length === 1 ? "" : "s"}`;
+  }
+
+  if (!studies.length) {
+    studiesList.innerHTML = '<p class="empty">Nenhum estudo publicado ainda.</p>';
+    return;
+  }
+
+  studiesList.innerHTML = studies
+    .map((study) => {
+      const canOpen = Boolean(study.pdfUrl || study.pdfDataUrl);
+      const description = study.description
+        ? `<p class="study-item-desc">${escapeHtml(study.description)}</p>`
+        : "";
+      const createdBy = study.createdBy ? ` · por ${escapeHtml(study.createdBy)}` : "";
+      const when = formatDateForReport(String(study.createdAt || "").slice(0, 10));
+
+      return `
+        <article class="study-item">
+          <div class="study-item-main">
+            <h4>${escapeHtml(study.title)}</h4>
+            ${description}
+            <p class="study-item-meta">Publicado em ${escapeHtml(when)}${createdBy}</p>
+          </div>
+          <div class="study-item-actions">
+            <button
+              type="button"
+              class="ghost-btn tiny-btn"
+              data-study-action="open"
+              data-study-id="${escapeHtml(study.id)}"
+              ${canOpen ? "" : "disabled"}
+            >Abrir PDF</button>
+            ${
+              canManage
+                ? `<button type="button" class="ghost-btn tiny-btn" data-study-action="edit" data-study-id="${escapeHtml(study.id)}">Editar</button>
+                   <button type="button" class="ghost-btn tiny-btn danger-btn" data-study-action="delete" data-study-id="${escapeHtml(study.id)}">Excluir</button>`
+                : ""
+            }
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function openStudyPdf(study) {
+  const target = String(study?.pdfUrl || "").trim() || String(study?.pdfDataUrl || "").trim();
+  if (!target) {
+    setStudyFeedback("Este estudo nao possui PDF disponivel.");
+    return;
+  }
+
+  const opened = window.open(target, "_blank", "noopener,noreferrer");
+  if (opened) {
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.href = target;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.click();
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Falha ao ler arquivo"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function ensureCellForLeaderUser(user) {
@@ -984,7 +2105,7 @@ function ensureCellForLeaderUser(user) {
   state.cells.push({
     id: createId(),
     name: assignedCellName,
-    neighborhood: "Nao informado",
+    neighborhood: "Sem endereco",
     meetingDay: "Nao definido",
     meetingTime: "20:00",
     leader: user.name || "Lider",
@@ -1008,21 +2129,26 @@ function render() {
   renderStats();
   renderMemberCellOptions();
   renderReportCellOptions();
+  renderVisitantesCellFilterOptions();
   applyInitialReportContext();
   renderCells();
+  cleanupOldVisitantes();
   loadSavedReportIfExists();
   renderAttendanceList();
+  renderFirstVisitList();
   renderLatestReport();
   renderReportHistory();
   applyReportMode();
   renderAccessUsers();
+  renderStudies();
+  renderTrackingPanel();
   autoOpenLeaderReportModal();
 }
 
 function renderAccessControl() {
   const roleLabel = ROLE_LABELS[session.role] || ROLE_LABELS.leader;
   const isPastorJudson = session.role === "pastor" && normalizeUsername(session.username) === "pastor.judson";
-  accessBadge.textContent = isPastorJudson ? "Perfil ativo: Pastor Judson" : `Perfil ativo: ${roleLabel}`;
+  accessBadge.textContent = isPastorJudson ? `Pastor Judson · ${roleLabel}` : `${session.name} · ${roleLabel}`;
   const isLeader = session.role === "leader";
 
   accessNote.textContent =
@@ -1031,10 +2157,10 @@ function renderAccessControl() {
       : isPastorJudson
         ? `Leitura de relatorios + gestao completa de acessos (ultimos ${REPORT_AVERAGE_DAYS} dias).`
       : session.role === "coordinator"
-        ? `Acesso de coordenador: leitura de relatorios, historico e graficos (ultimos ${REPORT_AVERAGE_DAYS} dias).`
-      : hasPermission("manageAccess")
-        ? "Acesso administrativo total liberado (equivalente ao Pastor)."
-        : "Acesso conforme seu nivel de permissao.";
+        ? `Acesso de coordenador restrito as celulas: ${getManagedUserScopeCellNames(session).join(", ") || "-"}.`
+        : hasPermission("manageAccess")
+          ? "Acesso administrativo total liberado (equivalente ao Pastor)."
+          : "Acesso conforme seu nivel de permissao.";
 
   if (statsSection) {
     statsSection.hidden = isLeader;
@@ -1052,6 +2178,12 @@ function renderAccessControl() {
     }
     if (manageAccessCard) {
       manageAccessCard.hidden = true;
+    }
+    if (viewVisitantesCard) {
+      viewVisitantesCard.hidden = true;
+    }
+    if (viewStudiesCard) {
+      viewStudiesCard.hidden = !hasPermission("viewStudies");
     }
     if (weeklyReportCard) {
       weeklyReportCard.hidden = false;
@@ -1078,16 +2210,28 @@ function renderAccessControl() {
   if (manageAccessCard) {
     manageAccessCard.hidden = !hasPermission("manageAccess");
   }
+
+  if (viewStudiesCard) {
+    viewStudiesCard.hidden = !hasPermission("viewStudies");
+  }
+
+  // Visitantes card: visible for coordinator, pastor, admin
+  if (viewVisitantesCard) {
+    const canSee = session.role === "coordinator" || session.role === "pastor" || session.role === "admin";
+    viewVisitantesCard.hidden = !canSee;
+  }
 }
 function renderStats() {
-  totalCells.textContent = String(state.cells.length);
-  const membersCount = state.cells.reduce((acc, cell) => acc + cell.members.length, 0);
+  const visibleCells = getAccessibleCells();
+  totalCells.textContent = String(visibleCells.length);
+  const membersCount = visibleCells.reduce((acc, cell) => acc + cell.members.length, 0);
   totalMembers.textContent = String(membersCount);
 }
 
 function renderMemberCellOptions() {
   const previousValue = memberCellSelect.value;
-  if (state.cells.length === 0) {
+  const cellsForMembers = session?.role === "coordinator" ? getAccessibleCells() : state.cells;
+  if (cellsForMembers.length === 0) {
     memberCellSelect.innerHTML = '<option value="">Cadastre uma celula primeiro</option>';
     memberCellSelect.disabled = true;
     return;
@@ -1096,11 +2240,11 @@ function renderMemberCellOptions() {
   memberCellSelect.disabled = false;
   memberCellSelect.innerHTML =
     '<option value="">Selecione...</option>' +
-    state.cells
+    cellsForMembers
       .map((cell) => `<option value="${cell.id}">${escapeHtml(cell.name)} - ${escapeHtml(cell.neighborhood)}</option>`)
       .join("");
 
-  if (state.cells.some((cell) => cell.id === previousValue)) {
+  if (cellsForMembers.some((cell) => cell.id === previousValue)) {
     memberCellSelect.value = previousValue;
   } else {
     memberCellSelect.value = "";
@@ -1144,7 +2288,7 @@ function renderReportCellOptions() {
 }
 
 function renderCells() {
-  const visibleCells = session?.role === "leader" ? getAccessibleCells() : state.cells;
+  const visibleCells = getAccessibleCells();
   const canDeleteCell = hasPermission("deleteCell");
 
   if (visibleCells.length === 0) {
@@ -1241,6 +2385,8 @@ function renderLatestReport() {
     reportOutput.value = "";
     drawReportChart(0, 0, 0);
     drawAverageCharts();
+    drawLineChart(reportCellSelect.value);
+    renderReportImages([]);
     return;
   }
 
@@ -1250,14 +2396,12 @@ function renderLatestReport() {
     reportOutput.value = "";
     drawReportChart(0, 0, 0);
     drawAverageCharts();
+    drawLineChart(reportCellSelect.value);
+    renderReportImages([]);
     return;
   }
 
   state.lastReportId = selected.id;
-  if (reportDateInput.value !== selected.date) {
-    reportDateInput.value = selected.date;
-    loadSavedReportIfExists();
-  }
 
   reportOutput.value = buildReportText(selected, cell);
   const stats = getReportStats(selected);
@@ -1265,10 +2409,12 @@ function renderLatestReport() {
   const absent = stats.absent;
   drawReportChart(present, absent, selected.visitorsCount);
   drawAverageCharts();
+  drawLineChart(reportCellSelect.value);
+  renderReportImages(selected.images);
 }
 
 function getVisibleReportsPool() {
-  if (session?.role === "leader") {
+  if (session?.role === "leader" || session?.role === "coordinator") {
     const accessibleIds = new Set(getAccessibleCells().map((cell) => cell.id));
     return state.reports.filter((report) => accessibleIds.has(report.cellId));
   }
@@ -1347,20 +2493,24 @@ function loadSavedReportIfExists() {
     if (cell && leadersField && !leadersField.value) {
       leadersField.value = cell.leader || session?.name || "";
     }
+    currentFirstVisits = [];
+    renderFirstVisitList();
     return;
   }
 
   setFormFieldValue(reportForm, "leaders", report.leaders);
   setFormFieldValue(reportForm, "coLeaders", report.coLeaders);
   setFormFieldValue(reportForm, "host", report.host);
-  setFormFieldValue(reportForm, "visitorsCount", String(report.visitorsCount));
-  setFormFieldValue(reportForm, "conversions", String(report.conversions));
-  setFormFieldValue(reportForm, "offering", String(report.offering));
-  setFormFieldValue(reportForm, "foods", report.foods);
-  setFormFieldValue(reportForm, "snack", report.snack);
-  setFormFieldValue(reportForm, "discipleship", report.discipleship);
+  setFormFieldValue(reportForm, "address", report.address);
   setFormFieldValue(reportForm, "visits", report.visits);
-  setFormFieldValue(reportForm, "visitorNames", report.visitorNames.join("\n"));
+  setFormFieldValue(reportForm, "communionMinutes", report.communionMinutes ? String(report.communionMinutes) : "");
+  const savedDetails = Array.isArray(report.visitorDetails) && report.visitorDetails.length > 0
+    ? report.visitorDetails
+    : (Array.isArray(report.visitorNames) ? report.visitorNames.map((n) => ({ name: n, how: "", address: "", phone: "", visitType: "first" })) : []);
+  currentFirstVisits = savedDetails.map((v) => ({ name: String(v.name || ""), how: String(v.how || ""), address: String(v.address || ""), phone: String(v.phone || "") }));
+  renderFirstVisitList();
+  currentImages = Array.isArray(report.images) ? report.images.slice() : [];
+  renderImagesList();
   state.lastReportId = report.id;
 }
 
@@ -1384,14 +2534,10 @@ function applyReportMode() {
     "leaders",
     "coLeaders",
     "host",
+    "address",
     "visitorsCount",
-    "foods",
-    "snack",
-    "discipleship",
-    "visits",
     "visitorNames",
-    "offering",
-    "conversions",
+    "communionMinutes",
   ];
 
   reportForm?.classList.toggle("readonly", readOnly);
@@ -1430,6 +2576,14 @@ function applyReportMode() {
   if (generateReportButton) {
     generateReportButton.hidden = readOnly || !hasPermission("submitReports");
   }
+  const imagesSection = document.getElementById("report-images-section");
+  if (imagesSection) {
+    imagesSection.hidden = readOnly || !hasPermission("submitReports");
+  }
+
+  document.querySelectorAll(".visitor-first-check").forEach((cb) => {
+    cb.disabled = readOnly || !hasPermission("submitReports");
+  });
 }
 
 function renderReportHistory() {
@@ -1454,19 +2608,26 @@ function renderReportHistory() {
     state.lastReportId ||
     "";
 
+  const isAdmin = session?.role === "admin";
   reportHistoryList.innerHTML = reports
     .map((report) => {
       const stats = getReportStats(report);
       const isActive = report.id === activeId;
+      const deleteBtn = isAdmin
+        ? `<button type="button" class="report-delete-btn" data-delete-report-id="${escapeHtml(report.id)}" title="Apagar relatório">✕</button>`
+        : "";
       return `
-        <button
-          type="button"
-          class="history-item${isActive ? " active" : ""}"
-          data-report-id="${escapeHtml(report.id)}"
-        >
-          <strong>${escapeHtml(formatDateForReport(report.date))}</strong>
-          <small>Presentes ${stats.present} | Faltaram ${stats.absent} | Visitantes ${stats.visitors}</small>
-        </button>
+        <div class="history-item-row${isActive ? " active" : ""}">
+          <button
+            type="button"
+            class="history-item"
+            data-report-id="${escapeHtml(report.id)}"
+          >
+            <strong>${escapeHtml(formatDateForReport(report.date))}</strong>
+            <small>Presentes ${stats.present} | Faltaram ${stats.absent} | Visitantes ${stats.visitors}</small>
+          </button>
+          ${deleteBtn}
+        </div>
       `;
     })
     .join("");
@@ -1490,6 +2651,70 @@ function drawAverageCharts() {
     overallAverage.absent,
     overallAverage.visitors
   );
+}
+
+function drawLineChart(cellId) {
+  const canvas = document.getElementById("report-line-chart");
+  if (!canvas) return;
+
+  const pool = getVisibleReportsPool()
+    .filter((r) => r.cellId === cellId)
+    .sort((a, b) => parseReportDateToTime(a.date) - parseReportDateToTime(b.date));
+
+  const MAX_POINTS = 12;
+  const data = pool.slice(-MAX_POINTS).map((r) => {
+    const stats = getReportStats(r);
+    return { label: formatDateForReport(r.date).slice(0, 5), present: stats.present, absent: stats.absent, visitors: stats.visitors };
+  });
+
+  const wrap = document.getElementById("report-line-wrap");
+  if (data.length < 2) { if (wrap) wrap.hidden = true; return; }
+  if (wrap) wrap.hidden = false;
+
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  const pad = { top: 16, right: 12, bottom: 30, left: 28 };
+  const cW = W - pad.left - pad.right;
+  const cH = H - pad.top - pad.bottom;
+  const yMax = Math.max(...data.map((d) => Math.max(d.present, d.absent, d.visitors)), 1);
+  const n = data.length;
+  const toX = (i) => pad.left + (i / (n - 1)) * cW;
+  const toY = (v) => pad.top + (1 - v / yMax) * cH;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const drawLine = (getValue, color, fillAlpha) => {
+    ctx.beginPath();
+    data.forEach((d, i) => { const x = toX(i), y = toY(getValue(d)); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+    if (fillAlpha) {
+      ctx.lineTo(toX(n - 1), pad.top + cH);
+      ctx.lineTo(toX(0), pad.top + cH);
+      ctx.closePath();
+      ctx.fillStyle = color.replace(")", `,${fillAlpha})`).replace("rgb", "rgba");
+      ctx.fill();
+      ctx.beginPath();
+      data.forEach((d, i) => { const x = toX(i), y = toY(getValue(d)); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = color;
+    data.forEach((d, i) => { ctx.beginPath(); ctx.arc(toX(i), toY(getValue(d)), 3, 0, Math.PI * 2); ctx.fill(); });
+  };
+
+  drawLine((d) => d.present, "rgb(45,138,94)", 0.09);
+  drawLine((d) => d.absent, "rgb(192,57,43)", 0);
+  drawLine((d) => d.visitors, "rgb(41,128,185)", 0);
+
+  const step = n > 8 ? 2 : 1;
+  ctx.font = "9px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#4d5d54";
+  data.forEach((d, i) => { if (i % step === 0) ctx.fillText(d.label, toX(i), H - pad.bottom + 11); });
+
+  ctx.textAlign = "right";
+  ctx.fillText(String(yMax), pad.left - 3, pad.top + 4);
+  ctx.fillText("0", pad.left - 3, pad.top + cH + 4);
 }
 
 function getCutoffTimeForDays(days) {
@@ -1673,16 +2898,21 @@ function deleteCellAndRelated(cellId) {
 }
 
 function getAccessibleCells() {
-  if (!session || session.role !== "leader") {
-    return state.cells;
-  }
-
-  const assignedName = String(session.assignedCellName || "").trim();
-  if (!assignedName) {
+  if (!session) {
     return [];
   }
 
-  return state.cells.filter((cell) => normalizeName(cell.name) === normalizeName(assignedName));
+  if (session.role !== "leader" && session.role !== "coordinator") {
+    return state.cells;
+  }
+
+  const scopedNames = getManagedUserScopeCellNames(session);
+  if (!scopedNames.length) {
+    return [];
+  }
+
+  const allowedNames = new Set(scopedNames.map((name) => normalizeName(name)));
+  return state.cells.filter((cell) => allowedNames.has(normalizeName(cell.name)));
 }
 
 function autoOpenLeaderReportModal() {
@@ -1749,9 +2979,16 @@ function buildReportText(report, cell) {
     ? absentMembers.map((member, index) => `${index + 1}. ${member.name}`).join("\n")
     : "1. Nenhum faltou";
 
-  const visitorsLines = report.visitorNames.length
-    ? report.visitorNames.map((name, index) => `${index + 1}. ${name}`).join("\n")
-    : "Sem nomes informados.";
+  const visitorsLines = report.visitorDetails && report.visitorDetails.length
+    ? report.visitorDetails.map((v, i) => {
+        let line = `${i + 1}. ${v.name}${v.how ? ` — ${v.how}` : ""}`;
+        if (v.address) line += `\n   📍 ${v.address}`;
+        if (v.phone) line += `\n   📞 ${v.phone}`;
+        return line;
+      }).join("\n")
+    : report.visitorNames.length
+      ? report.visitorNames.map((name, i) => `${i + 1}. ${name}`).join("\n")
+      : "Sem nomes informados.";
 
   const totalPeople = presentMembers.length + report.visitorsCount;
 
@@ -1759,7 +2996,7 @@ function buildReportText(report, cell) {
 ${ICONS.calendar} Data: ${formatDateForReport(report.date)}
 ${ICONS.people} Lideres: ${report.leaders || "-"}
 ${ICONS.handshake} Co-lideres: ${report.coLeaders || "-"}
-${ICONS.house} Anfitriao(dono da casa): ${report.host || "-"}
+${ICONS.house} Anfitriao(dono da casa): ${report.host || "-"}${report.address ? `\n📍 Local: ${report.address}` : ""}
 ---
 ${ICONS.clipboard} MEMBROS DA CELULA (${members.length})
 
@@ -1781,13 +3018,8 @@ ${ICONS.summary} RESUMO GERAL
 ${ICONS.people} Total de membros: ${members.length}
 ${ICONS.present} Presentes: ${presentMembers.length}
 ${ICONS.visitors} Visitantes: ${report.visitorsCount}
-${ICONS.totalPeople} Total de pessoas: ${totalPeople}
-${ICONS.offering} Oferta: ${formatOffering(report.offering)}
-${ICONS.foods} Alimentos: ${report.foods}
-${ICONS.snack} Lanche: ${report.snack}
-${ICONS.discipleship} Discipulado: ${report.discipleship}
-${ICONS.visits} Visitas: ${report.visits}
-${ICONS.conversions} Conversoes: ${report.conversions}`;
+${ICONS.totalPeople} Total de pessoas: ${totalPeople}${report.communionMinutes > 0 ? `\n🍞 Tempo de comunhao: ${report.communionMinutes} min` : ""}${(report.newVisitorsCount || 0) > 0 ? `\n🆕 Visitantes novos: ${report.newVisitorsCount}` : ""}${(report.returningVisitorsCount || 0) > 0 ? `\n🔄 Visitantes retornaram: ${report.returningVisitorsCount}` : ""}
+`;
 }
 
 function resolveRoleSuffix(memberName, leaderNames, coLeaderNames) {
@@ -1893,7 +3125,7 @@ function closeModal(modal) {
     return;
   }
   modal.hidden = true;
-  const hasAnyOpenModal = [cellModal, memberModal, cellsModal, reportModal, accessModal].some(
+  const hasAnyOpenModal = [cellModal, memberModal, cellsModal, reportModal, accessModal, visitantesModal, studiesModal].some(
     (item) => item && !item.hidden
   );
   if (!hasAnyOpenModal) {
@@ -1902,7 +3134,7 @@ function closeModal(modal) {
 }
 
 function closeAllModals() {
-  [cellModal, memberModal, cellsModal, reportModal, accessModal].forEach((modal) => {
+  [cellModal, memberModal, cellsModal, reportModal, accessModal, visitantesModal, studiesModal].forEach((modal) => {
     if (modal) {
       modal.hidden = true;
     }
@@ -1917,6 +3149,7 @@ function buildSessionFromUser(user) {
     name: user.name,
     role: user.role,
     assignedCellName: user.assignedCellName || "",
+    scopeCellNames: getManagedUserScopeCellNames(user),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -1967,6 +3200,7 @@ function loadUsers() {
 
 function saveUsers(nextUsers) {
   localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(nextUsers));
+  if (window.fsSaveUsers) window.fsSaveUsers(nextUsers);
 }
 
 function normalizeUser(user) {
@@ -1988,7 +3222,8 @@ function normalizeUser(user) {
     username,
     password,
     role,
-    assignedCellName: role === "leader" ? String(user.assignedCellName || "").trim() : "",
+    assignedCellName: role === "leader" || role === "coordinator" ? String(user.assignedCellName || "").trim() : "",
+    scopeCellNames: role === "coordinator" ? parseScopeCellNames(user.scopeCellNames) : [],
     createdAt: user.createdAt || new Date().toISOString(),
     updatedAt: user.updatedAt || null,
   };
@@ -2007,17 +3242,6 @@ function ensureDefaultUsers() {
     });
   }
 
-  if (!users.some((entry) => normalizeUsername(entry.username) === "lider.cinza")) {
-    users.push({
-      id: "leader-cinza",
-      name: "Lider da Celula Cinza",
-      username: "lider.cinza",
-      password: "123456",
-      role: "leader",
-      assignedCellName: "Cinza",
-      createdAt: new Date().toISOString(),
-    });
-  }
 
   if (!users.some((entry) => normalizeUsername(entry.username) === "pastor.judson")) {
     users.push({
@@ -2053,7 +3277,9 @@ function loadState() {
   const fallback = {
     cells: [],
     reports: [],
+    studies: [],
     lastReportId: null,
+    updatedAt: null,
   };
 
   try {
@@ -2073,20 +3299,117 @@ function loadState() {
     const reports = Array.isArray(parsed.reports)
       ? parsed.reports.map((report) => normalizeReport(report)).filter(Boolean)
       : [];
+    const studies = Array.isArray(parsed.studies)
+      ? parsed.studies.map((study) => normalizeStudy(study)).filter(Boolean)
+      : [];
     const lastReportId = typeof parsed.lastReportId === "string" ? parsed.lastReportId : null;
+    const updatedAt = typeof parsed.updatedAt === "string" ? parsed.updatedAt : null;
 
-    return {
-      cells,
-      reports,
-      lastReportId,
-    };
+    // Restaura imagens e PDFs do armazenamento local separado
+    try {
+      const imgStore = JSON.parse(localStorage.getItem(LOCAL_IMAGES_KEY) || "{}");
+      const pdfStore = JSON.parse(localStorage.getItem(LOCAL_PDFS_KEY) || "{}");
+      return {
+        cells,
+        reports: reports.map((r) => Object.assign({}, r, { images: imgStore[r.id] || r.images || [] })),
+        studies: studies.map((s) => Object.assign({}, s, { pdfDataUrl: pdfStore[s.id] || s.pdfDataUrl || "" })),
+        lastReportId,
+        updatedAt,
+      };
+    } catch (_) {
+      return { cells, reports, studies, lastReportId, updatedAt };
+    }
   } catch {
     return fallback;
   }
 }
 
+function renderVisitantesCellFilterOptions() {
+  const select = document.getElementById("visitantes-cell-filter");
+  if (!select) {
+    return;
+  }
+
+  const previousValue = String(select.value || "");
+  const visibleCells = session?.role === "coordinator" ? getAccessibleCells() : state.cells;
+  const options = visibleCells
+    .slice()
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
+    .map((cell) => `<option value="${escapeHtml(cell.id)}">${escapeHtml(cell.name)}</option>`)
+    .join("");
+
+  select.innerHTML = `
+    <option value="">Todas as celulas</option>
+    <option value="__unlinked__">Sem celula vinculada</option>
+    ${options}
+  `;
+
+  const hasPrevious =
+    previousValue === "" ||
+    previousValue === "__unlinked__" ||
+    visibleCells.some((cell) => cell.id === previousValue);
+  select.value = hasPrevious ? previousValue : "";
+}
+
 function saveState(nextState) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+  const stampedState = Object.assign({}, nextState, {
+    updatedAt: new Date().toISOString(),
+  });
+  state.updatedAt = stampedState.updatedAt;
+
+  syncAbsenceAlertsWithReports(stampedState);
+
+  // Salva imagens e PDFs separadamente (não cabem no localStorage principal nem no Firestore)
+  try {
+    const imgStore = {};
+    const pdfStore = {};
+    (stampedState.reports || []).forEach((r) => { if (r.images && r.images.length) imgStore[r.id] = r.images; });
+    (stampedState.studies || []).forEach((s) => { if (s.pdfDataUrl) pdfStore[s.id] = s.pdfDataUrl; });
+    localStorage.setItem(LOCAL_IMAGES_KEY, JSON.stringify(imgStore));
+    localStorage.setItem(LOCAL_PDFS_KEY, JSON.stringify(pdfStore));
+  } catch (_) {}
+
+  // Salva estado sem imagens/PDFs no localStorage principal (evita quota exceeded)
+  const stripped = stripStateForStorage(stampedState);
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped)); } catch (_) {}
+  if (window.fsSaveState) window.fsSaveState(stampedState);
+}
+
+function stripStateForStorage(nextState) {
+  return {
+    cells: nextState.cells,
+    reports: (nextState.reports || []).map((r) => Object.assign({}, r, { images: [] })),
+    studies: (nextState.studies || []).map((s) => Object.assign({}, s, { pdfDataUrl: "" })),
+    lastReportId: nextState.lastReportId,
+    updatedAt: nextState.updatedAt || null,
+  };
+}
+
+function hydrateStateSnapshot(raw) {
+  const cells = Array.isArray(raw?.cells) ? raw.cells.map(normalizeCell).filter(Boolean) : [];
+  const reports = Array.isArray(raw?.reports) ? raw.reports.map(normalizeReport).filter(Boolean) : [];
+  const studies = Array.isArray(raw?.studies) ? raw.studies.map(normalizeStudy).filter(Boolean) : [];
+  const updatedAt = typeof raw?.updatedAt === "string" ? raw.updatedAt : null;
+  const lastReportId = typeof raw?.lastReportId === "string" ? raw.lastReportId : null;
+
+  try {
+    const imgStore = JSON.parse(localStorage.getItem(LOCAL_IMAGES_KEY) || "{}");
+    const pdfStore = JSON.parse(localStorage.getItem(LOCAL_PDFS_KEY) || "{}");
+    return {
+      cells,
+      reports: reports.map((r) => Object.assign({}, r, { images: imgStore[r.id] || [] })),
+      studies: studies.map((s) => Object.assign({}, s, { pdfDataUrl: pdfStore[s.id] || "" })),
+      lastReportId,
+      updatedAt,
+    };
+  } catch (_) {
+    return { cells, reports, studies, lastReportId, updatedAt };
+  }
+}
+
+function getStateUpdatedAt(snapshot) {
+  const time = new Date(snapshot?.updatedAt || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
 }
 
 function normalizeCell(cell) {
@@ -2097,7 +3420,7 @@ function normalizeCell(cell) {
   return {
     id: String(cell.id || createId()),
     name: String(cell.name || "").trim(),
-    neighborhood: String(cell.neighborhood || "Nao informado").trim(),
+    neighborhood: String(cell.neighborhood || "Sem endereco").trim(),
     meetingDay: String(cell.meetingDay || "Nao definido").trim(),
     meetingTime: String(cell.meetingTime || "20:00").trim(),
     leader: String(cell.leader || "").trim(),
@@ -2142,14 +3465,48 @@ function normalizeReport(report) {
     visitorNames: Array.isArray(report.visitorNames)
       ? report.visitorNames.map((name) => String(name).trim()).filter(Boolean)
       : [],
-    offering: parseNonNegativeNumber(report.offering),
-    foods: String(report.foods || "Nao").trim(),
-    snack: String(report.snack || "Nao").trim(),
-    discipleship: String(report.discipleship || "Nao").trim(),
-    visits: String(report.visits || "Nao").trim(),
-    conversions: parseNonNegativeInt(report.conversions),
+    visitorDetails: Array.isArray(report.visitorDetails)
+      ? report.visitorDetails.map((v) => ({ name: String(v?.name || "").trim(), how: String(v?.how || "").trim(), address: String(v?.address || "").trim(), phone: String(v?.phone || "").trim(), visitType: v?.visitType === "returning" ? "returning" : "first" })).filter((v) => v.name)
+      : [],
+    address: String(report.address || "").trim(),
+    newVisitorsCount: parseNonNegativeInt(report.newVisitorsCount),
+    returningVisitorsCount: parseNonNegativeInt(report.returningVisitorsCount),
+    communionMinutes:
+      parseNonNegativeInt(report.communionMinutes) ||
+      (Boolean(report.hadCommunion) ? 15 : 0),
+    images: Array.isArray(report.images) ? report.images.filter((s) => typeof s === "string" && s.startsWith("data:")) : [],
     createdAt: report.createdAt || new Date().toISOString(),
     updatedAt: report.updatedAt || null,
+  };
+}
+
+function normalizeStudy(study) {
+  if (!study || typeof study !== "object") {
+    return null;
+  }
+
+  const title = String(study.title || "").trim();
+  const description = String(study.description || "").trim();
+  const pdfUrl = String(study.pdfUrl || "").trim();
+  const pdfDataUrl =
+    typeof study.pdfDataUrl === "string" && study.pdfDataUrl.startsWith("data:application/pdf")
+      ? study.pdfDataUrl
+      : "";
+
+  if (!title || (!pdfUrl && !pdfDataUrl)) {
+    return null;
+  }
+
+  return {
+    id: String(study.id || createId()),
+    title,
+    description,
+    pdfUrl,
+    pdfDataUrl,
+    createdAt: study.createdAt || new Date().toISOString(),
+    createdBy: String(study.createdBy || "").trim(),
+    updatedAt: study.updatedAt || null,
+    updatedBy: study.updatedBy || null,
   };
 }
 
@@ -2175,7 +3532,7 @@ function ensureLeaderCellForSession() {
   state.cells.push({
     id: createId(),
     name: assignedCellName,
-    neighborhood: "Nao informado",
+    neighborhood: "Sem endereco",
     meetingDay: "Nao definido",
     meetingTime: "20:00",
     leader: session.name || "Lider",
@@ -2187,237 +3544,63 @@ function ensureLeaderCellForSession() {
 
 function seedInitialDataIfEmpty() {
   const mkMember = (name) => ({ id: createId(), name, phone: "" });
-
-  const cellDefs = [
-    {
-      name: "Preta",
-      meetingDay: "Terca",
-      leader: "Sabrina e Filipe",
-      members: [
-        "Filipe", "Sabrina", "Mikaelly", "Pedro", "Vitor", "Guilherme", "Ana",
-        "Eliel", "Ian Vieira", "Thifanny", "Danilo", "Soraia", "Josiel",
-        "Jonathan", "Mikael", "Deivid", "Rebeca", "Luiz Henrique", "Leo",
-        "Leticia", "Faby", "Andrey", "Dryka", "Sarah",
-      ],
-    },
-    {
-      name: "Vinho",
-      meetingDay: "Quinta",
-      leader: "Jonattham e Marilene",
-      members: [
-        "Jonattham", "Marilene", "Mikaelly", "Marcos", "Sabrina", "Gabriel",
-        "Marilda", "Estefanny", "Madalena", "Silvia", "Adriana", "Francisco", "Alzira",
-      ],
-    },
-    {
-      name: "Cinza",
-      meetingDay: "Quinta",
-      leader: "Jander e Aline",
-      members: [
-        "Jander", "Aline", "Amanda Rayssa", "Amanda", "Daniel", "Luiz",
-        "Manu", "Ray", "Mayara", "Ana", "Rebeca", "Liz", "Mariana",
-      ],
-    },
-    {
-      name: "Logos",
-      meetingDay: "Segunda",
-      leader: "Thiago e Augusto",
-      members: ["Thiago", "Augusto", "Rian", "Gustavo", "Leticia", "Mariana", "Jenny", "Phedro", "Raquel"],
-    },
-    {
-      name: "Alex e Ariane",
-      meetingDay: "Terca",
-      leader: "Alex e Ariane",
-      members: [
-        "Ariane", "Alex", "Karla", "Lara", "Vera", "Fiorella", "Luzimar",
-        "Murilo", "Karlen", "Missikely", "Dafynie", "Mayara", "Alessandro",
-      ],
-    },
-    {
-      name: "Karina e Jhennifer",
-      meetingDay: "Terca",
-      leader: "Karina e Jhennifer",
-      members: [
-        "Karina", "Jhennifer", "Lucas", "Renata", "Antonio", "Nazare",
-        "Rogerio", "Fabiana", "Eva", "Adlaine", "Renan", "Elvis", "Aparecida",
-        "Flavio", "Alice", "Gabriel", "Vitoria", "Iasmin", "Juliana", "Rose",
-      ],
-    },
-    {
-      name: "Visão de Águia",
-      meetingDay: "Segunda",
-      leader: "Chirlene",
-      members: ["Chirlene", "Kelma", "Marta", "Denise", "Viviane", "Mery", "Geisy", "Luiz", "Osmar", "Ezequiel", "Ney"],
-    },
-    {
-      name: "Verde",
-      meetingDay: "Terca",
-      leader: "Evelyn",
-      members: [
-        "Evelyn", "Raiane", "Alice", "Hatos", "Enzo", "Helloany", "Daniel",
-        "Ana Lu", "Gaby", "Sushinie", "Jefferson", "Jonas", "Shelcy", "Bruno", "Kamila", "Danilo",
-      ],
-    },
-    {
-      name: "Ekballo",
-      meetingDay: "Terca",
-      leader: "Vitória e Pedro",
-      members: [
-        "Igor", "Julya Maria", "Maria Eduarda", "Pedro", "Vitoria", "Wallafy",
-        "Yasmin", "Vitor Gabriel", "Manu", "Lindsay", "Ana Clara", "Fernanda",
-      ],
-    },
-    {
-      name: "Peregrinos",
-      meetingDay: "Quinta",
-      leader: "Isabella e Sarah",
-      members: ["Isabella", "Sarah", "Roberto", "Erick", "Isabelle", "Willian", "Elias", "Eloah"],
-    },
-  ];
-
   const now = new Date().toISOString();
 
-  let stateChanged = false;
-  for (const def of cellDefs) {
-    if (!state.cells.some((c) => normalizeName(c.name) === normalizeName(def.name))) {
-      state.cells.push({
-        id: createId(),
-        name: def.name,
-        neighborhood: "Nao informado",
-        meetingDay: def.meetingDay,
-        meetingTime: "20:00",
-        leader: def.leader,
-        members: def.members.map(mkMember),
-        createdAt: now,
-      });
-      stateChanged = true;
-    }
-  }
-
-  const cinzaCellForMembers = state.cells.find((c) => normalizeName(c.name) === "cinza");
-  if (cinzaCellForMembers) {
-    const cinzaRequiredMembers = [
-      "Jander",
-      "Aline",
-      "Amanda Rayssa",
-      "Amanda",
-      "Daniel",
-      "Luiz",
-      "Manu",
-      "Ray",
-      "Mayara",
-      "Ana",
-      "Rebeca",
-      "Liz",
-      "Mariana",
+  // ── Célula Branca ────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "branca")) {
+    const brancaMembers = [
+      "Joana", "Josué", "Vânia", "Vitória", "Cecília",
+      "Maria Alice", "Maria Lopes", "Elci", "Patrícia", "Conceição", "Cel", "Kelly",
     ];
-
-    const existingCinzaNames = new Set(cinzaCellForMembers.members.map((member) => normalizeName(member.name)));
-    for (const memberName of cinzaRequiredMembers) {
-      if (!existingCinzaNames.has(normalizeName(memberName))) {
-        cinzaCellForMembers.members.push(mkMember(memberName));
-        stateChanged = true;
-      }
-    }
-  }
-
-  const pretaCell = state.cells.find((c) => normalizeName(c.name) === "preta");
-  if (pretaCell && state.reports.length === 0) {
-    const presentNames = [
-      "Filipe", "Sabrina", "Mikael", "Ian Vieira", "Eliel", "Deivid",
-      "Jonathan", "Leo", "Leticia", "Vitor", "Guilherme", "Dryka", "Soraia", "Thifanny", "Mikaelly", "Ana",
-    ];
-    const presentMemberIds = pretaCell.members
-      .filter((member) => presentNames.some((name) => normalizeName(name) === normalizeName(member.name)))
-      .map((member) => member.id);
-    const initialReport = {
+    const brancaCell = {
       id: createId(),
-      cellId: pretaCell.id,
-      date: "2026-02-24",
-      leaders: "Sabrina e Filipe",
-      coLeaders: "Ian Vieira",
-      host: "Salipe",
+      name: "Branca",
+      neighborhood: "Sem endereco",
+      meetingDay: "Nao informado",
+      meetingTime: "20:00",
+      leader: "Joana",
+      members: brancaMembers.map(mkMember),
+      createdAt: now,
+    };
+    state.cells.push(brancaCell);
+
+    // Relatório 14/01/2026
+    const presentNames = ["Kelly", "Vitória", "Cecília", "Joana", "Cel", "Conceição", "Maria Lopes", "Maria Alice", "Vânia"];
+    const presentMemberIds = brancaCell.members
+      .filter((m) => presentNames.some((n) => normalizeName(n) === normalizeName(m.name)))
+      .map((m) => m.id);
+    state.reports.push({
+      id: createId(),
+      cellId: brancaCell.id,
+      date: "2026-01-14",
+      leaders: "Joana",
+      coLeaders: "Josué e Vânia",
+      host: "Vânia",
       presentMemberIds,
-      visitorsCount: 5,
+      visitorsCount: 3,
       visitorNames: [],
-      offering: 0,
-      foods: "Nao",
-      snack: "Nao",
-      discipleship: "Sim",
-      visits: "Sim",
-      conversions: 0,
-      createdAt: new Date("2026-02-24T22:00:00").toISOString(),
-    };
-    state.reports.push(initialReport);
-    state.lastReportId = initialReport.id;
-    stateChanged = true;
+      visitorDetails: [],
+      createdAt: new Date("2026-01-14T20:00:00").toISOString(),
+    });
+
+    // Relatório 20/01/2026
+    const brancaPresent2 = ["Kelly", "Vitória", "Cecília", "Joana", "Cel", "Conceição", "Maria Lopes", "Maria Alice", "Vânia"];
+    state.reports.push({
+      id: createId(), cellId: brancaCell.id, date: "2026-01-20",
+      leaders: "Joana", coLeaders: "Josué e Vânia", host: "Joana",
+      presentMemberIds: brancaCell.members.filter((m) => brancaPresent2.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 1, visitorNames: [], visitorDetails: [],
+      createdAt: new Date("2026-01-20T20:00:00").toISOString(),
+    });
   }
 
-  const cinzaCell = state.cells.find((c) => normalizeName(c.name) === "cinza");
-  const cinzaReportDate = "2026-01-23";
-  if (cinzaCell && !state.reports.some((r) => r.cellId === cinzaCell.id && r.date === cinzaReportDate)) {
-    const cinzaPresentNames = [
-      "Aline",
-      "Jander",
-      "Mariana",
-      "Mayara",
-      "Ana",
-      "Luiz",
-      "Manu",
-      "Ray",
-    ];
-
-    const cinzaPresentMemberIds = cinzaCell.members
-      .filter((member) => cinzaPresentNames.some((name) => normalizeName(name) === normalizeName(member.name)))
-      .map((member) => member.id);
-
-    const cinzaReport = {
-      id: createId(),
-      cellId: cinzaCell.id,
-      date: cinzaReportDate,
-      leaders: "Jander e Aline",
-      coLeaders: "",
-      host: "Luiz e Manu",
-      presentMemberIds: cinzaPresentMemberIds,
-      visitorsCount: 0,
-      visitorNames: [],
-      offering: 0,
-      foods: "Nao",
-      snack: "Nao",
-      discipleship: "Sim",
-      visits: "Nao",
-      conversions: 0,
-      createdAt: new Date("2026-01-23T22:00:00").toISOString(),
-    };
-
-    state.reports.push(cinzaReport);
-    stateChanged = true;
-  }
-
-  if (stateChanged) saveState(state);
-
-  const leaderDefs = [
-    { name: "Sabrina",   username: "sabrina.preta",        assignedCellName: "Preta" },
-    { name: "Filipe",    username: "filipe.preta",          assignedCellName: "Preta" },
-    { name: "Jonattham", username: "jonattham.vinho",       assignedCellName: "Vinho" },
-    { name: "Marilene",  username: "marilene.vinho",        assignedCellName: "Vinho" },
-    { name: "Jander",    username: "jander.cinza",          assignedCellName: "Cinza" },
-    { name: "Aline",     username: "aline.cinza",           assignedCellName: "Cinza" },
-    { name: "Thiago",    username: "thiago.logos",          assignedCellName: "Logos" },
-    { name: "Augusto",   username: "augusto.logos",         assignedCellName: "Logos" },
-    { name: "Alex",      username: "alex.celula",           assignedCellName: "Alex e Ariane" },
-    { name: "Ariane",    username: "ariane.celula",         assignedCellName: "Alex e Ariane" },
-    { name: "Karina",    username: "karina.celula",         assignedCellName: "Karina e Jhennifer" },
-    { name: "Jhennifer", username: "jhennifer.celula",      assignedCellName: "Karina e Jhennifer" },
-    { name: "Chirlene",  username: "chirlene.aguia",        assignedCellName: "Visão de Águia" },
-    { name: "Evelyn",    username: "evelyn.verde",          assignedCellName: "Verde" },
-    { name: "Vitória",   username: "vitoria.ekballo",       assignedCellName: "Ekballo" },
-    { name: "Pedro",     username: "pedro.ekballo",         assignedCellName: "Ekballo" },
-    { name: "Isabella",  username: "isabella.peregrinos",   assignedCellName: "Peregrinos" },
-    { name: "Sarah",     username: "sarah.peregrinos",      assignedCellName: "Peregrinos" },
+  // ── Líderes da Branca ────────────────────────────────────────────────────
+  const brancaLeaders = [
+    { name: "Joana",  username: "joana.branca"  },
+    { name: "Vânia",  username: "vania.branca"   },
+    { name: "Josué",  username: "josue.branca"   },
   ];
-
-  for (const def of leaderDefs) {
+  for (const def of brancaLeaders) {
     if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
       users.push({
         id: createId(),
@@ -2425,13 +3608,249 @@ function seedInitialDataIfEmpty() {
         username: def.username,
         password: "123456",
         role: "leader",
-        assignedCellName: def.assignedCellName,
+        assignedCellName: "Branca",
         createdAt: now,
         updatedAt: null,
       });
     }
   }
 
+  // ── Célula Cinza ─────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "cinza")) {
+    const cinzaMembers = [
+      "Jander", "Aline", "Manu", "Luiz", "Rebeca", "Gabriel",
+      "Amanda", "Daniel", "Liz", "Mariana", "Ray", "Mayara",
+    ];
+    const cinzaCell = {
+      id: createId(), name: "Cinza", neighborhood: "Sem endereco",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Jander e Aline",
+      members: cinzaMembers.map(mkMember), createdAt: now,
+    };
+    state.cells.push(cinzaCell);
+    const mkReport = (date, present, visitors, visitorDetails, host, coLeaders) => ({
+      id: createId(), cellId: cinzaCell.id, date,
+      leaders: "Jander e Aline", coLeaders: coLeaders || "", host: host || "Luiz e Manu",
+      presentMemberIds: cinzaCell.members.filter((m) => present.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: visitorDetails.length, visitorNames: visitorDetails.map(v => v.name), visitorDetails,
+      createdAt: new Date(`${date}T20:00:00`).toISOString(),
+    });
+    state.reports.push(mkReport("2026-01-12", ["Jander", "Aline", "Luiz", "Manu", "Gabriel"], [], "Luiz e Manu"));
+    state.reports.push(mkReport("2026-01-19", ["Luiz", "Manu", "Rebeca", "Jander", "Aline", "Mariana"],
+      [{ name: "Ray", how: "", address: "", phone: "" }, { name: "Mayara", how: "", address: "", phone: "" }, { name: "Amanda Rayssa", how: "", address: "", phone: "" }],
+      "Luiz e Manu"));
+    state.reports.push(mkReport("2026-01-26", ["Aline", "Jander", "Luiz", "Manu", "Ray", "Mayara"],
+      [{ name: "Samuel", how: "", address: "", phone: "" }],
+      "Luiz e Manu"));
+  } else {
+    // Migração: adiciona membros novos e relatórios que possam estar faltando
+    const cinzaCell = state.cells.find((c) => normalizeName(c.name) === "cinza");
+    if (cinzaCell) {
+      const extras = ["Liz", "Mariana", "Ray", "Mayara"];
+      const existingNames = new Set(cinzaCell.members.map((m) => normalizeName(m.name)));
+      for (const name of extras) {
+        if (!existingNames.has(normalizeName(name))) { cinzaCell.members.push(mkMember(name)); }
+      }
+      for (const { date, present, visitors, host } of [
+        { date: "2026-01-19", present: ["Luiz", "Manu", "Rebeca", "Jander", "Aline", "Mariana"], visitors: [{ name: "Ray", how: "", address: "", phone: "" }, { name: "Mayara", how: "", address: "", phone: "" }, { name: "Amanda Rayssa", how: "", address: "", phone: "" }], host: "Luiz e Manu" },
+        { date: "2026-01-26", present: ["Aline", "Jander", "Luiz", "Manu", "Ray", "Mayara"], visitors: [{ name: "Samuel", how: "", address: "", phone: "" }], host: "Luiz e Manu" },
+      ]) {
+        if (!state.reports.some((r) => r.cellId === cinzaCell.id && r.date === date)) {
+          state.reports.push({ id: createId(), cellId: cinzaCell.id, date, leaders: "Jander e Aline", coLeaders: "", host,
+            presentMemberIds: cinzaCell.members.filter((m) => present.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+            visitorsCount: visitors.length, visitorNames: visitors.map(v => v.name), visitorDetails: visitors,
+            createdAt: new Date(`${date}T20:00:00`).toISOString() });
+        }
+      }
+    }
+  }
+  const cinzaLeaders = [
+    { name: "Jander", username: "jander.cinza" },
+    { name: "Aline",  username: "aline.cinza"  },
+  ];
+  for (const def of cinzaLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Cinza", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // ── Célula Preta ──────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "preta")) {
+    const pretaMembers = [
+      "Filipe", "Sabrina", "Mikaelly", "Pedro", "Vitor", "Guilherme", "Ana", "Huggo",
+      "Ian Vieira", "Sthefany", "Danilo", "Davi", "Josiel", "Jhonatan", "Thifany",
+      "Deivid", "Rebeca", "Luiz Henrique", "Raissa", "Paulo Miguel", "Eliel", "Leo", "Mikael",
+    ];
+    const pretaCell = {
+      id: createId(), name: "Preta", neighborhood: "Sem endereco",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Sabrina e Filipe",
+      members: pretaMembers.map(mkMember), createdAt: now,
+    };
+    state.cells.push(pretaCell);
+    const pretaPresent = ["Filipe", "Sabrina", "Mikael", "Eliel", "Paulo Miguel", "Luiz Henrique", "Raissa", "Josiel", "Ian Vieira", "Guilherme", "Ana", "Deivid", "Vitor", "Rebeca", "Mikaelly"];
+    state.reports.push({
+      id: createId(), cellId: pretaCell.id, date: "2026-01-13",
+      leaders: "Sabrina e Filipe", coLeaders: "", host: "Salipe",
+      presentMemberIds: pretaCell.members.filter((m) => pretaPresent.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 6, visitorNames: [], visitorDetails: [],
+      createdAt: new Date("2026-01-13T20:00:00").toISOString(),
+    });
+  }
+  const pretaLeaders = [
+    { name: "Sabrina", username: "sabrina.preta" },
+    { name: "Filipe",  username: "filipe.preta"  },
+  ];
+  for (const def of pretaLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Preta", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // ── Célula Vinho ──────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "vinho")) {
+    const vinhoMembers = [
+      "Jonattham", "Marilene", "Mikaelly", "Marcos", "Sabrina", "Gabriel",
+      "Marilda", "Estefanny", "Madalena", "Silvia", "Adriana", "Francisco", "Alzira", "Kessio",
+    ];
+    const vinhoCell = {
+      id: createId(), name: "Vinho", neighborhood: "Sem endereco",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Jonattham e Marilene",
+      members: vinhoMembers.map(mkMember), createdAt: now,
+    };
+    state.cells.push(vinhoCell);
+    const vinhoPresent = ["Marilene", "Mikaelly", "Sabrina", "Marcos", "Alzira", "Adriana", "Kessio"];
+    state.reports.push({
+      id: createId(), cellId: vinhoCell.id, date: "2026-01-22",
+      leaders: "Jonattham e Marilene", coLeaders: "", host: "",
+      presentMemberIds: vinhoCell.members.filter((m) => vinhoPresent.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 4,
+      visitorNames: ["Barbara", "Letícia", "Gabriel", "Jennifer Vieira"],
+      visitorDetails: [
+        { name: "Barbara",        how: "", address: "", phone: "" },
+        { name: "Letícia",        how: "", address: "", phone: "" },
+        { name: "Gabriel",        how: "", address: "", phone: "" },
+        { name: "Jennifer Vieira",how: "", address: "", phone: "" },
+      ],
+      createdAt: new Date("2026-01-22T20:00:00").toISOString(),
+    });
+  }
+  const vinhoLeaders = [
+    { name: "Jonattham", username: "jonattham.vinho" },
+    { name: "Marilene",  username: "marilene.vinho"  },
+  ];
+  for (const def of vinhoLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Vinho", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // ── Remover célula Alex e Ariane se existir ──────────────────────────────
+  const arianeIdx = state.cells.findIndex((c) => normalizeName(c.name) === normalizeName("Alex e Ariane"));
+  if (arianeIdx !== -1) {
+    const arianeId = state.cells[arianeIdx].id;
+    state.cells.splice(arianeIdx, 1);
+    state.reports = state.reports.filter((r) => r.cellId !== arianeId);
+  }
+  users = users.filter((u) => !["alex.ariane", "ariane.ariane"].includes(normalizeUsername(u.username)));
+
+  // ── Célula Visão de Águia ─────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === normalizeName("Visão de Águia"))) {
+    const aguiaMembers = [
+      "Chirlene", "Kelma", "Marta", "Denise", "Viviane", "Mery",
+      "Geisy", "Luiz", "Osmar", "Ezequiel", "Ney",
+    ];
+    const aguiaCell = {
+      id: createId(), name: "Visão de Águia", neighborhood: "Sem endereco",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Chirlene",
+      members: aguiaMembers.map(mkMember), createdAt: now,
+    };
+    state.cells.push(aguiaCell);
+    const aguiaPresent = ["Chirlene", "Marta", "Kelma", "Geisy", "Ney", "Osmar"];
+    state.reports.push({
+      id: createId(), cellId: aguiaCell.id, date: "2026-01-27",
+      leaders: "Chirlene", coLeaders: "Marta e Kelma", host: "Chirlene",
+      presentMemberIds: aguiaCell.members.filter((m) => aguiaPresent.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 0, visitorNames: [], visitorDetails: [],
+      createdAt: new Date("2026-01-27T20:00:00").toISOString(),
+    });
+  }
+  const aguiaLeaders = [
+    { name: "Chirlene", username: "chirlene.aguia" },
+    { name: "Marta",    username: "marta.aguia"    },
+    { name: "Kelma",    username: "kelma.aguia"    },
+  ];
+  for (const def of aguiaLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Visão de Águia", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // ── Célula Amarela ────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "amarela")) {
+    const amarelaMembers = [
+      "Leticia", "Lucas", "Samuel", "Layanne", "Rosa", "Andreia",
+      "Bia", "Manu", "Tatiana", "Juliana", "Davi", "Guilherme",
+    ];
+    const amarelaCell = {
+      id: createId(), name: "Amarela", neighborhood: "Sem endereco",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Leticia",
+      members: amarelaMembers.map(mkMember), createdAt: now,
+    };
+    state.cells.push(amarelaCell);
+    const amarelaPresent = ["Leticia", "Samuel", "Juliana", "Davi", "Layanne"];
+    state.reports.push({
+      id: createId(), cellId: amarelaCell.id, date: "2026-01-31",
+      leaders: "Leticia", coLeaders: "Samuel e Layanne", host: "Dona Neuza",
+      presentMemberIds: amarelaCell.members.filter((m) => amarelaPresent.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 1,
+      visitorNames: ["Faby"],
+      visitorDetails: [{ name: "Faby", how: "", address: "", phone: "" }],
+      createdAt: new Date("2026-01-31T20:00:00").toISOString(),
+    });
+  }
+  const amarelaLeaders = [
+    { name: "Leticia", username: "leticia.amarela" },
+    { name: "Samuel",  username: "samuel.amarela"  },
+    { name: "Layanne", username: "layanne.amarela"  },
+  ];
+  for (const def of amarelaLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Amarela", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // ── Célula Verde ──────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "verde")) {
+    const verdeMembers = [
+      "Evelyn", "Raiane", "Alice", "Hatos", "Enzo", "Helloany",
+      "Daniel", "Ana Lu", "Gaby", "Sushinie", "Jefferson", "Jonas",
+      "Shelcy", "Bruno", "Kamila",
+    ];
+    const verdeCell = {
+      id: createId(), name: "Verde", neighborhood: "Sem endereco",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Evelyn",
+      members: verdeMembers.map(mkMember), createdAt: now,
+    };
+    state.cells.push(verdeCell);
+    const verdePresent = ["Raiane", "Alice", "Hatos", "Enzo", "Helloany", "Daniel", "Evelyn"];
+    state.reports.push({
+      id: createId(), cellId: verdeCell.id, date: "2026-01-27",
+      leaders: "Evelyn", coLeaders: "", host: "Helloany",
+      presentMemberIds: verdeCell.members.filter((m) => verdePresent.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 2,
+      visitorNames: ["Julya Maria", "Wallafy Danilo"],
+      visitorDetails: [
+        { name: "Julya Maria",   how: "", address: "", phone: "" },
+        { name: "Wallafy Danilo", how: "", address: "", phone: "" },
+      ],
+      createdAt: new Date("2026-01-27T20:00:00").toISOString(),
+    });
+  }
+  if (!users.some((u) => normalizeUsername(u.username) === "evelyn.verde")) {
+    users.push({ id: createId(), name: "Evelyn", username: "evelyn.verde", password: "123456", role: "leader", assignedCellName: "Verde", createdAt: now, updatedAt: null });
+  }
+
+
+  // ── Coordenadores ────────────────────────────────────────────────────────
   const coordinatorDefs = [
     { name: "Irmã Neta", username: "irma.neta" },
     { name: "Anelia",    username: "anelia"     },
@@ -2439,21 +3858,318 @@ function seedInitialDataIfEmpty() {
     { name: "Bruno",     username: "bruno"      },
     { name: "Gabriel",   username: "gabriel"    },
   ];
-
   for (const def of coordinatorDefs) {
     if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
-      users.push({
-        id: createId(),
-        name: def.name,
-        username: def.username,
-        password: "123456",
-        role: "coordinator",
-        assignedCellName: "",
-        createdAt: now,
-        updatedAt: null,
-      });
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "coordinator", assignedCellName: "", createdAt: now, updatedAt: null });
     }
   }
+
+  // ── Relatórios adicionais (migração) ─────────────────────────────────────
+  const addReport = (cellName, report) => {
+    const cell = state.cells.find((c) => normalizeName(c.name) === normalizeName(cellName));
+    if (!cell) return;
+    if (state.reports.some((r) => r.cellId === cell.id && r.date === report.date)) return;
+    const present = report.present || [];
+    state.reports.push({
+      id: createId(), cellId: cell.id, date: report.date,
+      leaders: report.leaders || "", coLeaders: report.coLeaders || "", host: report.host || "",
+      presentMemberIds: cell.members.filter((m) => present.some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: (report.visitors || []).length,
+      visitorNames: (report.visitors || []).map((v) => v.name),
+      visitorDetails: (report.visitors || []),
+      createdAt: new Date(`${report.date}T20:00:00`).toISOString(),
+    });
+  };
+
+  const addMembers = (cellName, names) => {
+    const cell = state.cells.find((c) => normalizeName(c.name) === normalizeName(cellName));
+    if (!cell) return;
+    const existing = new Set(cell.members.map((m) => normalizeName(m.name)));
+    for (const name of names) {
+      if (!existing.has(normalizeName(name))) { cell.members.push(mkMember(name)); existing.add(normalizeName(name)); }
+    }
+  };
+
+  // Preta 27/01
+  addReport("Preta", {
+    date: "2026-01-27", leaders: "Sabrina e Filipe", coLeaders: "", host: "Salipe",
+    present: ["Filipe", "Sabrina", "Mikael", "Ian Vieira", "Eliel", "Luiz Henrique", "Paulo Miguel", "Leo", "Jhonatan", "Mikaelly", "Ana", "Deivid"],
+    visitors: [],
+  });
+
+  // Branca 27/01
+  addReport("Branca", {
+    date: "2026-01-27", leaders: "Joana", coLeaders: "Josué e Vânia", host: "Joana",
+    present: ["Kelly", "Vitória", "Cecília", "Joana", "Cel", "Conceição", "Maria Lopes", "Maria Alice", "Vânia"],
+    visitors: [],
+  });
+
+  // Vinho 30/01
+  addReport("Vinho", {
+    date: "2026-01-30", leaders: "Jonattham e Marilene", coLeaders: "", host: "",
+    present: ["Marilene", "Jonattham", "Sabrina", "Marilda", "Kessio", "Adriana", "Silvia"],
+    visitors: [
+      { name: "Silva", how: "", address: "", phone: "" },
+      { name: "Luiza", how: "", address: "", phone: "" },
+      { name: "Net",   how: "", address: "", phone: "" },
+    ],
+  });
+
+  // Branca 03/02 — Tania é membro novo
+  addMembers("Branca", ["Tania"]);
+  addReport("Branca", {
+    date: "2026-02-03", leaders: "Joana", coLeaders: "Josué e Vânia", host: "Joana",
+    present: ["Kelly", "Vitória", "Cecília", "Joana", "Josué", "Conceição", "Maria Lopes", "Maria Alice", "Vânia", "Tania"],
+    visitors: [],
+  });
+
+  // Visão de Águia 03/02 — Merijane e Manu são membros novos
+  addMembers("Visão de Águia", ["Merijane", "Manu"]);
+  addReport("Visão de Águia", {
+    date: "2026-02-03", leaders: "Chirlene", coLeaders: "Kelma e Marta", host: "Chirlene",
+    present: ["Chirlene", "Kelma", "Merijane", "Denise"],
+    visitors: [
+      { name: "Geovazio", how: "", address: "", phone: "" },
+      { name: "Anali",    how: "", address: "", phone: "" },
+    ],
+  });
+
+  // Vinho 06/02
+  addReport("Vinho", {
+    date: "2026-02-06", leaders: "Jonattham e Marilene", coLeaders: "", host: "",
+    present: ["Marilene", "Jonattham", "Adriana", "Silvia", "Kessio"],
+    visitors: [],
+  });
+
+  // Preta 03/02 — novos membros: Thayssa, Leticia, Faby, Andrey, Dryka
+  addMembers("Preta", ["Thayssa", "Leticia", "Faby", "Andrey", "Dryka"]);
+  addReport("Preta", {
+    date: "2026-02-03", leaders: "Sabrina e Filipe", coLeaders: "", host: "Salipe",
+    present: ["Filipe", "Sabrina", "Mikael", "Ian Vieira", "Rebeca", "Luiz Henrique", "Paulo Miguel", "Leo", "Jhonatan", "Mikaelly", "Ana", "Deivid", "Leticia", "Vitor", "Danilo", "Faby", "Andrey", "Guilherme", "Dryka"],
+    visitors: [],
+  });
+
+  // Amarela 08/02
+  addReport("Amarela", {
+    date: "2026-02-08", leaders: "Leticia", coLeaders: "Samuel e Layanne", host: "Dona Neuza",
+    present: ["Leticia", "Samuel", "Rosa", "Bia"],
+    visitors: [
+      { name: "Paulo",     how: "", address: "", phone: "" },
+      { name: "Irmã Neta", how: "", address: "", phone: "" },
+      { name: "Karla",     how: "", address: "", phone: "" },
+      { name: "José",      how: "", address: "", phone: "" },
+      { name: "Geison",    how: "", address: "", phone: "" },
+    ],
+  });
+
+  // Cinza 09/02 — Amanda Rayssa e Samuel viram membros
+  addMembers("Cinza", ["Amanda Rayssa", "Samuel"]);
+  addReport("Cinza", {
+    date: "2026-02-09", leaders: "Jander e Aline", coLeaders: "", host: "Luiz e Manu",
+    present: ["Jander", "Aline", "Amanda Rayssa", "Amanda", "Daniel", "Ray", "Mayara", "Mariana", "Luiz", "Manu", "Samuel"],
+    visitors: [],
+  });
+
+  // ── Célula Peregrinos ─────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "peregrinos")) {
+    const peregrMems = ["Isabella", "Sarah", "Roberto", "Erick", "Isabelle", "Willian"];
+    const peregrCell = {
+      id: createId(), name: "Peregrinos", neighborhood: "Sem endereco",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Isabella e Sarah",
+      members: peregrMems.map(mkMember), createdAt: now,
+    };
+    state.cells.push(peregrCell);
+    state.reports.push({
+      id: createId(), cellId: peregrCell.id, date: "2026-01-06",
+      leaders: "Isabella e Sarah", coLeaders: "", host: "Lorena",
+      presentMemberIds: peregrCell.members.filter((m) => ["Isabella", "Sarah", "Roberto", "Willian", "Erick"].some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 4,
+      visitorNames: ["José", "Lorena", "Bruno", "Helloany"],
+      visitorDetails: [
+        { name: "José",     how: "", address: "", phone: "" },
+        { name: "Lorena",   how: "", address: "", phone: "" },
+        { name: "Bruno",    how: "", address: "", phone: "" },
+        { name: "Helloany", how: "", address: "", phone: "" },
+      ],
+      createdAt: new Date("2026-01-06T20:00:00").toISOString(),
+    });
+  }
+  const peregrLeaders = [
+    { name: "Isabella", username: "isabella.peregrinos" },
+    { name: "Sarah",    username: "sarah.peregrinos"    },
+  ];
+  for (const def of peregrLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Peregrinos", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // ── Célula Logos ──────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "logos")) {
+    const logosMems = ["Thiago", "Augusto", "Denis", "Gustavo", "Rian", "Letícia", "Mariana", "Jenny", "Phedro"];
+    const logosCell = {
+      id: createId(), name: "Logos", neighborhood: "Sem endereco",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Thiago e Augusto",
+      members: logosMems.map(mkMember), createdAt: now,
+    };
+    state.cells.push(logosCell);
+    state.reports.push({
+      id: createId(), cellId: logosCell.id, date: "2026-02-10",
+      leaders: "Thiago e Augusto", coLeaders: "", host: "Irmã Neta",
+      presentMemberIds: logosCell.members.filter((m) => ["Thiago", "Augusto", "Denis", "Rian", "Gustavo"].some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 4,
+      visitorNames: ["Davi", "Ney", "Endrew", "Lucas"],
+      visitorDetails: [
+        { name: "Davi",   how: "", address: "", phone: "" },
+        { name: "Ney",    how: "", address: "", phone: "" },
+        { name: "Endrew", how: "", address: "", phone: "" },
+        { name: "Lucas",  how: "", address: "", phone: "" },
+      ],
+      createdAt: new Date("2026-02-10T20:00:00").toISOString(),
+    });
+  }
+  const logosLeaders = [
+    { name: "Thiago",  username: "thiago.logos"  },
+    { name: "Augusto", username: "augusto.logos" },
+  ];
+  for (const def of logosLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Logos", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // Visão de Águia 10/02
+  addReport("Visão de Águia", {
+    date: "2026-02-10", leaders: "Chirlene", coLeaders: "Marta e Kelma", host: "Luiz e Chirlene",
+    present: ["Chirlene", "Marta", "Kelma", "Ney", "Luiz"],
+    visitors: [],
+  });
+
+  // Amarela 14/02
+  addReport("Amarela", {
+    date: "2026-02-14", leaders: "Leticia", coLeaders: "Samuel e Layanne", host: "Leticia",
+    present: ["Leticia", "Samuel", "Rosa", "Layanne", "Juliana", "Davi"],
+    visitors: [
+      { name: "Karla",     how: "", address: "", phone: "" },
+      { name: "Alexandre", how: "", address: "", phone: "" },
+      { name: "Chirlene",  how: "", address: "", phone: "" },
+    ],
+  });
+
+  // Branca 24/02 — Dyene novo membro
+  addMembers("Branca", ["Dyene"]);
+  addReport("Branca", {
+    date: "2026-02-24", leaders: "Joana", coLeaders: "Josué e Vânia", host: "Joana",
+    present: ["Joana", "Conceição", "Maria Lopes", "Dyene"],
+    visitors: [],
+  });
+
+  // ── Célula GET ────────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "get")) {
+    const getMems = ["Miguel", "Raíssa", "Hugo", "Thayssa", "Nicoly"];
+    const getCell = {
+      id: createId(), name: "GET", neighborhood: "Sem endereco",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Raíssa e Miguel",
+      members: getMems.map(mkMember), createdAt: now,
+    };
+    state.cells.push(getCell);
+    state.reports.push({
+      id: createId(), cellId: getCell.id, date: "2026-02-24",
+      leaders: "Raíssa e Miguel", coLeaders: "", host: "Miguel",
+      presentMemberIds: getCell.members.filter((m) => ["Miguel", "Raíssa", "Thayssa", "Nicoly"].some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 1, visitorNames: [], visitorDetails: [],
+      createdAt: new Date("2026-02-24T20:00:00").toISOString(),
+    });
+  }
+  const getLeaders = [
+    { name: "Raíssa", username: "raissa.get" },
+    { name: "Miguel", username: "miguel.get" },
+  ];
+  for (const def of getLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "GET", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // Preta 24/02 — Soraia novo membro
+  addMembers("Preta", ["Soraia"]);
+  addReport("Preta", {
+    date: "2026-02-24", leaders: "Sabrina e Filipe", coLeaders: "Ian Vieira", host: "Salipe",
+    present: ["Filipe", "Sabrina", "Mikael", "Ian Vieira", "Eliel", "Deivid", "Jhonatan", "Leo", "Leticia", "Vitor", "Guilherme", "Dryka", "Soraia", "Thifany", "Mikaelly"],
+    visitors: [],
+  });
+
+  // Cinza 23/01 — Ana novo membro
+  addMembers("Cinza", ["Ana"]);
+  addReport("Cinza", {
+    date: "2026-01-23", leaders: "Jander e Aline", coLeaders: "", host: "Luiz e Manu",
+    present: ["Aline", "Jander", "Mariana", "Mayara", "Ana", "Luiz", "Manu", "Ray"],
+    visitors: [],
+  });
+
+  // Verde 24/02 — Danilo novo membro
+  addMembers("Verde", ["Danilo"]);
+  addReport("Verde", {
+    date: "2026-02-24", leaders: "Evelyn", coLeaders: "", host: "Igreja",
+    present: ["Evelyn", "Hatos", "Helloany", "Danilo", "Enzo", "Raiane"],
+    visitors: [
+      { name: "Huna",     how: "", address: "", phone: "" },
+      { name: "João",     how: "", address: "", phone: "" },
+      { name: "Jordylan", how: "", address: "", phone: "" },
+      { name: "Anthony",  how: "", address: "", phone: "" },
+    ],
+  });
+
+  // ── Célula Ekballo ────────────────────────────────────────────────────────
+  if (!state.cells.some((c) => normalizeName(c.name) === "ekballo")) {
+    const ekballoMems = ["Igor", "Julya Maria", "Maria Eduarda", "Pedro", "Vitoria", "Wallafy", "Yasmin", "Vitor Gabriel", "Manu", "Lindsay", "Ana Clara", "Fernanda"];
+    const ekballoCell = {
+      id: createId(), name: "Ekballo", neighborhood: "Sem endereco",
+      meetingDay: "Nao definido", meetingTime: "20:00", leader: "Vitória e Pedro",
+      members: ekballoMems.map(mkMember), createdAt: now,
+    };
+    state.cells.push(ekballoCell);
+    state.reports.push({
+      id: createId(), cellId: ekballoCell.id, date: "2026-02-25",
+      leaders: "Vitória e Pedro", coLeaders: "", host: "",
+      presentMemberIds: ekballoCell.members.filter((m) => ["Igor", "Julya Maria", "Maria Eduarda", "Pedro", "Vitoria", "Wallafy"].some((n) => normalizeName(n) === normalizeName(m.name))).map((m) => m.id),
+      visitorsCount: 4,
+      visitorNames: ["Diego", "Weslem", "Weverton", "Ana Letícia"],
+      visitorDetails: [
+        { name: "Diego",       how: "", address: "", phone: "" },
+        { name: "Weslem",      how: "", address: "", phone: "" },
+        { name: "Weverton",    how: "", address: "", phone: "" },
+        { name: "Ana Letícia", how: "", address: "", phone: "" },
+      ],
+      createdAt: new Date("2026-02-25T20:00:00").toISOString(),
+    });
+  }
+  const ekballoLeaders = [
+    { name: "Vitória", username: "vitoria.ekballo" },
+    { name: "Pedro",   username: "pedro.ekballo"   },
+  ];
+  for (const def of ekballoLeaders) {
+    if (!users.some((u) => normalizeUsername(u.username) === def.username)) {
+      users.push({ id: createId(), name: def.name, username: def.username, password: "123456", role: "leader", assignedCellName: "Ekballo", createdAt: now, updatedAt: null });
+    }
+  }
+
+  // Peregrinos 27/02 — Elias e Eloah novos membros
+  addMembers("Peregrinos", ["Elias", "Eloah"]);
+  addReport("Peregrinos", {
+    date: "2026-02-27", leaders: "Isabella e Sarah", coLeaders: "", host: "Lorena",
+    present: ["Isabella", "Sarah", "Roberto", "Willian", "Elias", "Isabelle", "Eloah"],
+    visitors: [
+      { name: "José",     how: "", address: "", phone: "" },
+      { name: "Lorena",   how: "", address: "", phone: "" },
+      { name: "Bruno",    how: "", address: "", phone: "" },
+      { name: "Helloany", how: "", address: "", phone: "" },
+      { name: "Kamilla",  how: "", address: "", phone: "" },
+      { name: "Wallafy",  how: "", address: "", phone: "" },
+    ],
+  });
+
+  saveState(state);
 
   saveUsers(users);
 }
@@ -2531,6 +4247,69 @@ function drawReportChart(present, absent, visitors) {
     .join("");
 }
 
+function renderFirstVisitList() {
+  const panel = document.getElementById("visitor-panel-first");
+  if (!panel) return;
+  const selectedCellId = String(reportCellSelect?.value || "").trim();
+  const recurringMap = buildRecurringVisitorsMap();
+  if (!selectedCellId) {
+    panel.innerHTML = '<p class="visitor-empty-note">Selecione uma celula para ver os visitantes vinculados.</p>';
+    return;
+  }
+  const cutoff = Date.now() - 60 * 24 * 60 * 60 * 1000;
+  const all = loadVisitantesPub().filter((v) => {
+    if (v.context && v.context !== "celula") return false;
+    const meta = resolveVisitorCellMeta(v, recurringMap);
+    if (meta.cellId && meta.cellId !== selectedCellId) return false;
+    if (!meta.cellId) return false;
+    if (!v.registeredAt) return true;
+    return new Date(v.registeredAt).getTime() > cutoff;
+  });
+  const listHtml = all.length === 0
+    ? '<p class="visitor-empty-note">Nenhum visitante cadastrado. Adicione abaixo.</p>'
+    : '<div class="visitor-check-list">' + all.map((v) => {
+        const checked = currentFirstVisits.some((f) => f.name === v.name);
+        return `<label class="visitor-check-item${checked ? " checked" : ""}">
+          <input type="checkbox" class="visitor-first-check"
+            data-name="${escapeHtml(v.name)}"
+            data-how="${escapeHtml(v.how || "")}"
+            data-address="${escapeHtml(v.address || "")}"
+            data-phone="${escapeHtml(v.phone || "")}"
+            ${checked ? "checked" : ""}/>
+          <div class="visitor-check-info">
+            <span class="visitor-check-name">${escapeHtml(v.name)}</span>
+            ${v.phone ? `<span class="visitor-check-meta">📞 ${escapeHtml(v.phone)}</span>` : ""}
+            ${v.address ? `<span class="visitor-check-meta">📍 ${escapeHtml(v.address)}</span>` : ""}
+          </div>
+        </label>`;
+      }).join("") + '</div>';
+  panel.innerHTML = listHtml + `
+    <div class="visitor-add-row">
+      <button type="button" class="ghost-btn small-btn visitor-add-trigger">+ Adicionar visitante</button>
+      <div class="visitor-add-form" hidden>
+        <div class="visitor-form-fields">
+          <input class="visitor-add-name" placeholder="Nome *" />
+          <input class="visitor-add-how" placeholder="Como chegou *" />
+          <input class="visitor-add-phone" placeholder="Telefone (opcional)" />
+        </div>
+        <div class="visitor-form-actions">
+          <button type="button" class="visitor-add-save-btn">Salvar</button>
+          <button type="button" class="ghost-btn visitor-add-cancel-btn">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function cleanupOldVisitantes() {
+  const list = loadVisitantesPub();
+  const cutoff = Date.now() - 60 * 24 * 60 * 60 * 1000;
+  const cleaned = list.filter((v) => {
+    if (!v.registeredAt) return true;
+    return new Date(v.registeredAt).getTime() > cutoff;
+  });
+  if (cleaned.length !== list.length) saveVisitantesPub(cleaned);
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -2538,4 +4317,640 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function renderImagesList() {
+  const grid = document.getElementById("images-list");
+  const countLabel = document.getElementById("images-count-label");
+  const addBtn = document.getElementById("add-image-btn");
+  const MAX = 5;
+  if (countLabel) countLabel.textContent = currentImages.length > 0 ? `${currentImages.length}/${MAX}` : "";
+  if (addBtn) addBtn.hidden = currentImages.length >= MAX;
+  if (!grid) return;
+  if (currentImages.length === 0) { grid.innerHTML = ""; return; }
+  grid.innerHTML = currentImages.map((src, i) => `
+    <div class="image-thumb-wrap">
+      <img class="image-thumb" src="${src}" alt="Foto ${i + 1}" />
+      <button type="button" class="image-remove-btn" data-index="${i}" aria-label="Remover foto">✕</button>
+    </div>
+  `).join("");
+}
+
+function renderReportImages(images) {
+  const gallery = document.getElementById("report-images-gallery");
+  if (!gallery) return;
+  const list = Array.isArray(images) ? images.filter((s) => typeof s === "string" && s.startsWith("data:")) : [];
+  if (list.length === 0) { gallery.hidden = true; gallery.innerHTML = ""; return; }
+  gallery.hidden = false;
+  gallery.innerHTML = list.map((src, i) => `
+    <div class="image-thumb-wrap">
+      <img class="image-thumb" src="${src}" alt="Foto ${i + 1}" />
+      <a class="image-download-btn" href="${src}" download="foto-celula-${i + 1}.jpg" title="Baixar foto" aria-label="Baixar foto ${i + 1}">⬇</a>
+    </div>
+  `).join("");
+}
+
+function openLightbox(src) {
+  const overlay = document.createElement("div");
+  overlay.className = "img-lightbox";
+  const img = document.createElement("img");
+  img.src = src;
+  overlay.appendChild(img);
+  overlay.addEventListener("click", () => overlay.remove());
+  document.body.appendChild(overlay);
+}
+
+// ── Visitantes públicos ──────────────────────────────────────────────────────
+const VISITANTES_PUB_KEY = "renovo_visitantes_pub_v1";
+
+function loadVisitantesPub() {
+  try { return JSON.parse(localStorage.getItem(VISITANTES_PUB_KEY) || "[]"); }
+  catch { return []; }
+}
+
+function saveVisitantesPub(list) {
+  localStorage.setItem(VISITANTES_PUB_KEY, JSON.stringify(list));
+  if (window.fsSaveVisitantes) window.fsSaveVisitantes(list);
+}
+
+function renderVisitantesList() {
+  const list = document.getElementById("visitantes-list");
+  const countEl = document.getElementById("visitantes-count");
+  const search = (document.getElementById("visitantes-search")?.value || "").trim().toLowerCase();
+  const selectedCellFilter = String(document.getElementById("visitantes-cell-filter")?.value || "").trim();
+  const canConvert = hasPermission("manageMembers");
+  const canDelete = hasPermission("manageAccess");
+  const recurringMap = buildRecurringVisitorsMap();
+  const scopedCellIds = session?.role === "coordinator" ? new Set(getAccessibleCells().map((cell) => cell.id)) : null;
+
+  let entries = loadVisitantesPub();
+  entries = entries.slice().sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
+
+  const filtered = entries.filter((v) => {
+    const cellMeta = resolveVisitorCellMeta(v, recurringMap);
+    if (scopedCellIds && !scopedCellIds.has(cellMeta.cellId)) {
+      return false;
+    }
+
+    const matchesSearch = !search || (v.name || "").toLowerCase().includes(search);
+    if (!matchesSearch) {
+      return false;
+    }
+
+    if (!selectedCellFilter) {
+      return true;
+    }
+
+    if (selectedCellFilter === "__unlinked__") {
+      return !cellMeta.cellId;
+    }
+
+    return cellMeta.cellId === selectedCellFilter;
+  });
+
+  if (countEl) countEl.textContent = `${filtered.length} visitante(s)`;
+  if (!list) return;
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<p class="visitantes-empty">Nenhum visitante cadastrado ainda.</p>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map((v) => {
+    const date = v.registeredAt ? new Date(v.registeredAt).toLocaleDateString("pt-BR") : "";
+    const cellMeta = resolveVisitorCellMeta(v, recurringMap);
+    const recurring = recurringMap.get(normalizeName(v.name));
+    const recurringCell = recurring?.cell || null;
+    const recurringCount = recurring?.count || 0;
+    const isAlreadyMember =
+      recurringCell &&
+      recurringCell.members.some((member) => normalizeName(member.name) === normalizeName(v.name));
+    const recurringMeta = recurringCell
+      ? `<span class="visitante-recurring">${escapeHtml(recurringCell.name)} · ${recurringCount} visita(s)</span>`
+      : "";
+    const memberBadge = recurringCell && isAlreadyMember
+      ? `<span class="visitante-member-badge">Ja e membro em ${escapeHtml(recurringCell.name)}</span>`
+      : "";
+    const convertBtn = canConvert && recurringCell && !isAlreadyMember
+      ? `<button type="button" class="visitante-convert-btn ghost-btn small-btn" data-id="${v.id}">Tornar membro</button>`
+      : "";
+    const deleteBtn = canDelete
+      ? `<button type="button" class="visitante-delete-btn ghost-btn small-btn" data-id="${v.id}">Remover</button>`
+      : "";
+    return `
+      <div class="visitante-entry">
+        <div class="visitante-info">
+          <span class="visitante-name">${escapeHtml(v.name)}</span>
+          <span class="visitante-details">
+            ${v.age ? `<span>Idade: ${escapeHtml(v.age)}</span>` : ""}
+            ${v.phone ? `<span>📞 ${escapeHtml(v.phone)}</span>` : ""}
+            ${v.address ? `<span>📍 ${escapeHtml(v.address)}</span>` : ""}
+            ${date ? `<span class="visitante-date">${date}</span>` : ""}
+            ${cellMeta.cellName ? `<span class="visitante-cell-badge">${escapeHtml(cellMeta.cellName)}</span>` : ""}
+            ${recurringMeta}
+            ${memberBadge}
+          </span>
+        </div>
+        <div class="visitante-actions">
+          ${convertBtn}
+          ${deleteBtn}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function buildRecurringVisitorsMap() {
+  const visitMap = new Map();
+
+  state.reports.forEach((report) => {
+    if (!Array.isArray(report?.visitorDetails) || !report.cellId) {
+      return;
+    }
+
+    report.visitorDetails.forEach((visitor) => {
+      const key = normalizeName(visitor?.name);
+      if (!key) {
+        return;
+      }
+
+      const existing = visitMap.get(key) || new Map();
+      existing.set(report.cellId, (existing.get(report.cellId) || 0) + 1);
+      visitMap.set(key, existing);
+    });
+  });
+
+  const recurringMap = new Map();
+
+  visitMap.forEach((cellCounts, key) => {
+    let bestCellId = "";
+    let bestCount = 0;
+
+    cellCounts.forEach((count, cellId) => {
+      if (count > bestCount) {
+        bestCount = count;
+        bestCellId = cellId;
+      }
+    });
+
+    if (!bestCellId || bestCount < 2) {
+      return;
+    }
+
+    const cell = getCellById(bestCellId);
+    if (!cell) {
+      return;
+    }
+
+    recurringMap.set(key, { cell, count: bestCount });
+  });
+
+  return recurringMap;
+}
+
+function resolveVisitorCellMeta(visitor, recurringMap) {
+  const directCellId = String(visitor?.cellId || "").trim();
+  const directCellName = String(visitor?.cellName || "").trim();
+
+  if (directCellId) {
+    const linkedCell = getCellById(directCellId);
+    return {
+      cellId: directCellId,
+      cellName: linkedCell?.name || directCellName,
+    };
+  }
+
+  if (directCellName) {
+    const linkedCell = state.cells.find((cell) => normalizeName(cell.name) === normalizeName(directCellName));
+    return {
+      cellId: linkedCell?.id || "",
+      cellName: linkedCell?.name || directCellName,
+    };
+  }
+
+  const recurring = (recurringMap || buildRecurringVisitorsMap()).get(normalizeName(visitor?.name));
+  return {
+    cellId: recurring?.cell?.id || "",
+    cellName: recurring?.cell?.name || "",
+  };
+}
+
+function convertRecurringVisitorToMember(visitorId) {
+  const visitor = loadVisitantesPub().find((entry) => String(entry.id) === String(visitorId));
+  if (!visitor) {
+    return;
+  }
+
+  const recurring = buildRecurringVisitorsMap().get(normalizeName(visitor.name));
+  if (!recurring?.cell) {
+    window.alert("Este visitante ainda nao possui recorrencia suficiente em uma celula.");
+    return;
+  }
+
+  if (session?.role === "coordinator" && !getAccessibleCells().some((entry) => entry.id === recurring.cell.id)) {
+    window.alert("Voce so pode converter visitantes das celulas sob sua supervisao.");
+    return;
+  }
+
+  const cell = recurring.cell;
+  if (!Array.isArray(cell.members)) {
+    cell.members = [];
+  }
+
+  if (cell.members.some((member) => normalizeName(member.name) === normalizeName(visitor.name))) {
+    window.alert(`${visitor.name} ja esta cadastrado como membro em ${cell.name}.`);
+    renderVisitantesList();
+    return;
+  }
+
+  cell.members.push({
+    id: createId(),
+    name: String(visitor.name || "").trim(),
+    phone: String(visitor.phone || "").trim(),
+  });
+
+  saveState(state);
+  render();
+  renderVisitantesList();
+  window.alert(`${visitor.name} foi adicionado como membro da celula ${cell.name}.`);
+}
+
+// ── Modulo de acompanhamento ──────────────────────────────────────────────────
+
+function loadAlerts() {
+  try {
+    const raw = localStorage.getItem(ALERTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function saveAlerts(alerts) {
+  try { localStorage.setItem(ALERTS_KEY, JSON.stringify(Array.isArray(alerts) ? alerts : [])); } catch (_) {}
+}
+
+function computeHealthIndex(report, cell) {
+  let score = 0;
+  if (parseNonNegativeInt(report.newVisitorsCount) > 0) score += 2;
+  if (parseNonNegativeInt(report.returningVisitorsCount) > 0) score += 3;
+  const members = Array.isArray(cell?.members) ? cell.members.length : 0;
+  const present = Array.isArray(report.presentMemberIds) ? report.presentMemberIds.length : 0;
+  if (members > 0 && present / members >= 0.7) score += 2;
+  if (parseNonNegativeInt(report.communionMinutes) > 0) score += 1;
+  return Math.min(score, 8);
+}
+
+function computeHealthLabel(score) {
+  if (score <= 3) return { label: "Estagnada", tone: "danger" };
+  if (score <= 6) return { label: "Saudavel", tone: "warn" };
+  return { label: "Em crescimento", tone: "ok" };
+}
+
+function syncAbsenceAlertsWithReports(snapshot) {
+  const cells = Array.isArray(snapshot?.cells) ? snapshot.cells : [];
+  const reports = Array.isArray(snapshot?.reports) ? snapshot.reports : [];
+  const alerts = loadAlerts();
+  const nextAlerts = [];
+
+  for (const cell of cells) {
+    if (!cell || !Array.isArray(cell.members) || !cell.members.length) {
+      continue;
+    }
+
+    const cellReports = reports
+      .filter((report) => report.cellId === cell.id)
+      .sort((a, b) => parseReportDateToTime(b.date) - parseReportDateToTime(a.date));
+
+    if (!cellReports.length) {
+      continue;
+    }
+
+    for (const member of cell.members) {
+      let consecutive = 0;
+      for (const report of cellReports) {
+        if (new Set(report.presentMemberIds).has(member.id)) {
+          break;
+        }
+        consecutive++;
+      }
+
+      if (consecutive < 3) {
+        continue;
+      }
+
+      const activeAlert = alerts.find(
+        (alert) => alert.memberId === member.id && alert.cellId === cell.id && alert.status !== "resolved"
+      );
+
+      nextAlerts.push({
+        id: activeAlert?.id || createId(),
+        cellId: cell.id,
+        cellName: cell.name,
+        memberId: member.id,
+        memberName: member.name,
+        consecutiveAbsences: consecutive,
+        status: activeAlert?.status || "pending",
+        observation: activeAlert?.observation || "",
+        createdAt: activeAlert?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  saveAlerts(nextAlerts);
+}
+
+function processAbsenceAlerts() {
+  syncAbsenceAlertsWithReports(state);
+}
+
+function handleAlertAction(alertId, status, observation) {
+  const alerts = loadAlerts();
+  const alert = alerts.find((a) => a.id === alertId);
+  if (!alert) return;
+  alert.status = status;
+  alert.observation = String(observation || "").trim();
+  alert.updatedAt = new Date().toISOString();
+  saveAlerts(alerts);
+  renderTrackingPanel();
+}
+
+function renderTrackingPanel() {
+  if (!trackingSection || !session) {
+    if (trackingSection) trackingSection.hidden = true;
+    return;
+  }
+  const role = session.role;
+  if (role === "leader") {
+    trackingSection.hidden = false;
+    renderLeaderPanel();
+  } else if (role === "coordinator") {
+    trackingSection.hidden = false;
+    renderCoordinatorPanel();
+  } else if (role === "pastor" || role === "admin") {
+    trackingSection.hidden = false;
+    renderPastorPanel();
+  } else {
+    trackingSection.hidden = true;
+  }
+}
+
+function renderLeaderPanel() {
+  const cells = getAccessibleCells();
+  if (!cells.length) { trackingSection.innerHTML = ""; return; }
+  const cell = cells[0];
+  const cellReports = state.reports
+    .filter((r) => r.cellId === cell.id)
+    .sort((a, b) => parseReportDateToTime(b.date) - parseReportDateToTime(a.date));
+  const lastReport = cellReports[0] || null;
+  const presentIds = lastReport ? new Set(lastReport.presentMemberIds) : new Set();
+  const presentCount = cell.members.filter((m) => presentIds.has(m.id)).length;
+
+  const memberRows = cell.members.map((member) => {
+    let consecutive = 0;
+    for (const r of cellReports) {
+      if (new Set(r.presentMemberIds).has(member.id)) break;
+      consecutive++;
+    }
+    const present = presentIds.has(member.id);
+    const tone = present ? "ok" : consecutive >= 3 ? "danger" : consecutive > 0 ? "warn" : "neutral";
+    const label = present ? "Presente" : consecutive > 0 ? `${consecutive}ª falta` : "Sem registro";
+    return `<div class="tracking-member-row">
+      <span>${escapeHtml(member.name)}</span>
+      <span class="tracking-badge badge-${tone}">${label}</span>
+    </div>`;
+  }).join("");
+
+  const historyRows = cellReports.slice(0, 6).map((r) => {
+    const stats = getReportStats(r);
+    return `<div class="tracking-history-row">
+      <span>${escapeHtml(formatDateForReport(r.date))}</span>
+      <span>${stats.present} pres. · ${stats.absent} falt. · ${stats.visitors} vis.</span>
+    </div>`;
+  }).join("");
+
+  trackingSection.innerHTML = `
+    <h2 class="tracking-title">Acompanhamento</h2>
+    <div class="tracking-grid">
+      <div class="tracking-card">
+        <h3 class="tracking-card-title">Celula ${escapeHtml(cell.name)}</h3>
+        <div class="tracking-stats-row">
+          <div class="tracking-stat"><strong>${cell.members.length}</strong><span>Membros</span></div>
+          ${lastReport ? `
+          <div class="tracking-stat"><strong>${presentCount}</strong><span>Presentes</span></div>
+          <div class="tracking-stat"><strong>${cell.members.length - presentCount}</strong><span>Faltaram</span></div>` : ""}
+        </div>
+        ${lastReport
+          ? `<p class="tracking-meta">Ultimo relatorio: ${escapeHtml(formatDateForReport(lastReport.date))}</p>`
+          : `<p class="tracking-meta">Nenhum relatorio registrado ainda.</p>`}
+      </div>
+      <div class="tracking-card">
+        <h3 class="tracking-card-title">Presenca dos membros</h3>
+        <div class="tracking-member-list">${memberRows || `<p class="empty">Sem membros.</p>`}</div>
+      </div>
+      <div class="tracking-card">
+        <h3 class="tracking-card-title">Historico recente</h3>
+        <div class="tracking-history-list">${historyRows || `<p class="empty">Nenhum relatorio.</p>`}</div>
+      </div>
+    </div>`;
+}
+
+function renderCoordinatorPanel() {
+  const accessibleCells = getAccessibleCells();
+  const accessibleIds = new Set(accessibleCells.map((cell) => cell.id));
+  const activeAlerts = loadAlerts().filter((a) => a.status !== "resolved" && accessibleIds.has(a.cellId));
+
+  const cellCards = accessibleCells.map((cell) => {
+    const latestReport = state.reports
+      .filter((r) => r.cellId === cell.id)
+      .sort((a, b) => parseReportDateToTime(b.date) - parseReportDateToTime(a.date))[0] || null;
+    const score = latestReport ? computeHealthIndex(latestReport, cell) : null;
+    const { label, tone } = score !== null ? computeHealthLabel(score) : { label: "Sem dados", tone: "neutral" };
+    const cellAlertCount = activeAlerts.filter((a) => a.cellId === cell.id).length;
+    return `<div class="tracking-cell-row">
+      <div class="tracking-cell-info">
+        <strong>${escapeHtml(cell.name)}</strong>
+        <span>${cell.members.length} membros · ${latestReport ? escapeHtml(formatDateForReport(latestReport.date)) : "sem relatorio"}</span>
+      </div>
+      <div class="tracking-cell-right">
+        <span class="health-chip health-${tone}">${escapeHtml(label)} ${score !== null ? score + "/8" : ""}</span>
+        ${cellAlertCount > 0 ? `<span class="alert-count">${cellAlertCount}</span>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+
+  const alertItems = activeAlerts.map((alert) => {
+    const statusLabel = { pending: "Pendente", monitoring: "Em acompanhamento", resolved: "Resolvido" }[alert.status] || alert.status;
+    const statusTone = { pending: "danger", monitoring: "warn", resolved: "ok" }[alert.status] || "neutral";
+    return `<div class="alert-item">
+      <div class="alert-info">
+        <strong>${escapeHtml(alert.memberName)}</strong>
+        <span>${escapeHtml(alert.cellName)} · ${alert.consecutiveAbsences} faltas consecutivas</span>
+        ${alert.observation ? `<p class="alert-obs">${escapeHtml(alert.observation)}</p>` : ""}
+      </div>
+      <div class="alert-actions">
+        <span class="alert-status-chip status-${statusTone}">${statusLabel}</span>
+        <select class="alert-status-select" data-alert-id="${escapeHtml(alert.id)}">
+          <option value="pending" ${alert.status === "pending" ? "selected" : ""}>Pendente</option>
+          <option value="monitoring" ${alert.status === "monitoring" ? "selected" : ""}>Em acompanhamento</option>
+          <option value="resolved" ${alert.status === "resolved" ? "selected" : ""}>Resolvido</option>
+        </select>
+        <input type="text" class="alert-obs-input" placeholder="Observacao..." value="${escapeHtml(alert.observation || "")}" />
+        <button type="button" class="ghost-btn tiny-btn" data-alert-save="${escapeHtml(alert.id)}">Salvar</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  trackingSection.innerHTML = `
+    <h2 class="tracking-title">Acompanhamento de celulas</h2>
+    <div class="tracking-grid">
+      <div class="tracking-card tracking-card-full">
+        <h3 class="tracking-card-title">Saude das celulas</h3>
+        <div class="tracking-cell-list">${cellCards || `<p class="empty">Nenhuma celula cadastrada.</p>`}</div>
+      </div>
+      <div class="tracking-card tracking-card-full">
+        <h3 class="tracking-card-title">Alertas de ausencia ${activeAlerts.length > 0 ? `<span class="alert-count">${activeAlerts.length}</span>` : ""}</h3>
+        ${alertItems ? `<div class="alert-list">${alertItems}</div>` : `<p class="empty">Nenhum alerta ativo no momento.</p>`}
+      </div>
+    </div>`;
+}
+
+function renderPastorPanel() {
+  const now = new Date();
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label: d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "") + " " + String(d.getFullYear()).slice(2),
+      visitors: 0,
+      totalPresent: 0,
+      totalPossible: 0,
+      healthSum: 0,
+      healthCount: 0,
+    });
+  }
+
+  for (const report of state.reports) {
+    const monthKey = String(report.date || "").slice(0, 7);
+    const month = months.find((m) => m.key === monthKey);
+    if (!month) continue;
+    const cell = getCellById(report.cellId);
+    if (!cell) continue;
+    month.visitors += parseNonNegativeInt(report.visitorsCount);
+    month.totalPresent += Array.isArray(report.presentMemberIds) ? report.presentMemberIds.length : 0;
+    month.totalPossible += cell.members.length;
+    month.healthSum += computeHealthIndex(report, cell);
+    month.healthCount++;
+  }
+
+  const maxVisitors = Math.max(...months.map((m) => m.visitors), 1);
+  const avgPresences = months.map((m) => (m.totalPossible > 0 ? Math.round((m.totalPresent / m.totalPossible) * 100) : 0));
+  const avgHealthScores = months.map((m) => (m.healthCount > 0 ? Math.round((m.healthSum / m.healthCount) * 10) / 10 : 0));
+  const maxBarPx = 72;
+  const px = (val, max) => max > 0 ? Math.max(2, Math.round((val / max) * maxBarPx)) : 2;
+
+  const visitorsChart = months.map((m) =>
+    `<div class="bar-col">
+      <span class="bar-val">${m.visitors}</span>
+      <div class="bar-wrap"><div class="bar-fill" style="height:${px(m.visitors, maxVisitors)}px"></div></div>
+      <span class="bar-label">${escapeHtml(m.label)}</span>
+    </div>`
+  ).join("");
+
+  const presenceChart = months.map((m, i) =>
+    `<div class="bar-col">
+      <span class="bar-val">${avgPresences[i]}%</span>
+      <div class="bar-wrap"><div class="bar-fill bar-fill-alt" style="height:${px(avgPresences[i], 100)}px"></div></div>
+      <span class="bar-label">${escapeHtml(m.label)}</span>
+    </div>`
+  ).join("");
+
+  const healthChart = months.map((m, i) =>
+    `<div class="bar-col">
+      <span class="bar-val">${avgHealthScores[i]}</span>
+      <div class="bar-wrap"><div class="bar-fill bar-fill-health" style="height:${px(avgHealthScores[i], 8)}px"></div></div>
+      <span class="bar-label">${escapeHtml(m.label)}</span>
+    </div>`
+  ).join("");
+
+  let estagnada = 0, saudavel = 0, crescimento = 0;
+  for (const cell of state.cells) {
+    const latest = state.reports
+      .filter((r) => r.cellId === cell.id)
+      .sort((a, b) => parseReportDateToTime(b.date) - parseReportDateToTime(a.date))[0];
+    if (!latest) continue;
+    const score = computeHealthIndex(latest, cell);
+    if (score <= 3) estagnada++;
+    else if (score <= 6) saudavel++;
+    else crescimento++;
+  }
+  const total = estagnada + saudavel + crescimento;
+  const pct = (n) => (total > 0 ? Math.round((n / total) * 100) : 0);
+
+  const activeAlerts = loadAlerts().filter((a) => a.status !== "resolved");
+  const alertItems = activeAlerts.map((alert) => {
+    const statusLabel = { pending: "Pendente", monitoring: "Em acompanhamento", resolved: "Resolvido" }[alert.status] || alert.status;
+    const statusTone = { pending: "danger", monitoring: "warn", resolved: "ok" }[alert.status] || "neutral";
+    return `<div class="alert-item">
+      <div class="alert-info">
+        <strong>${escapeHtml(alert.memberName)}</strong>
+        <span>${escapeHtml(alert.cellName)} · ${alert.consecutiveAbsences} faltas consecutivas</span>
+        ${alert.observation ? `<p class="alert-obs">${escapeHtml(alert.observation)}</p>` : ""}
+      </div>
+      <div class="alert-actions">
+        <span class="alert-status-chip status-${statusTone}">${statusLabel}</span>
+        <select class="alert-status-select" data-alert-id="${escapeHtml(alert.id)}">
+          <option value="pending" ${alert.status === "pending" ? "selected" : ""}>Pendente</option>
+          <option value="monitoring" ${alert.status === "monitoring" ? "selected" : ""}>Em acompanhamento</option>
+          <option value="resolved" ${alert.status === "resolved" ? "selected" : ""}>Resolvido</option>
+        </select>
+        <input type="text" class="alert-obs-input" placeholder="Observacao..." value="${escapeHtml(alert.observation || "")}" />
+        <button type="button" class="ghost-btn tiny-btn" data-alert-save="${escapeHtml(alert.id)}">Salvar</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  trackingSection.innerHTML = `
+    <h2 class="tracking-title">Visao consolidada</h2>
+    <div class="tracking-grid">
+      <div class="tracking-card">
+        <h3 class="tracking-card-title">Visitantes por mes</h3>
+        <div class="bar-chart">${visitorsChart}</div>
+      </div>
+      <div class="tracking-card">
+        <h3 class="tracking-card-title">Presenca media por mes</h3>
+        <div class="bar-chart">${presenceChart}</div>
+      </div>
+      <div class="tracking-card">
+        <h3 class="tracking-card-title">Saude media por mes</h3>
+        <div class="bar-chart">${healthChart}</div>
+      </div>
+      <div class="tracking-card">
+        <h3 class="tracking-card-title">Distribuicao de saude</h3>
+        ${total === 0 ? `<p class="empty">Sem dados suficientes.</p>` : `
+        <div class="health-dist-list">
+          <div class="health-dist-row">
+            <span class="health-chip health-ok">Em crescimento</span>
+            <div class="health-dist-bar"><div style="width:${pct(crescimento)}%;background:#2d7a4a"></div></div>
+            <strong>${crescimento} (${pct(crescimento)}%)</strong>
+          </div>
+          <div class="health-dist-row">
+            <span class="health-chip health-warn">Saudavel</span>
+            <div class="health-dist-bar"><div style="width:${pct(saudavel)}%;background:#b07d25"></div></div>
+            <strong>${saudavel} (${pct(saudavel)}%)</strong>
+          </div>
+          <div class="health-dist-row">
+            <span class="health-chip health-danger">Estagnada</span>
+            <div class="health-dist-bar"><div style="width:${pct(estagnada)}%;background:#b33030"></div></div>
+            <strong>${estagnada} (${pct(estagnada)}%)</strong>
+          </div>
+        </div>`}
+      </div>
+      <div class="tracking-card tracking-card-full">
+        <h3 class="tracking-card-title">Alertas de ausencia ${activeAlerts.length > 0 ? `<span class="alert-count">${activeAlerts.length}</span>` : ""}</h3>
+        ${alertItems ? `<div class="alert-list">${alertItems}</div>` : `<p class="empty">Nenhum alerta ativo no momento.</p>`}
+      </div>
+    </div>`;
 }

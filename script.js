@@ -675,7 +675,8 @@ function bindAppEvents() {
     }
 
     const editingStudy = studyId ? state.studies.find((entry) => entry.id === studyId) : null;
-    const hasExistingPdf = Boolean(editingStudy?.pdfUrl || editingStudy?.pdfDataUrl);
+    const nextStudyId = studyId || editingStudy?.id || createId();
+    const hasExistingPdf = Boolean(editingStudy?.pdfUrl || editingStudy?.pdfDataUrl || editingStudy?.hasEmbeddedPdf);
     const hasNewFile = pdfFile instanceof File && pdfFile.size > 0;
 
     if (!hasNewFile && !pdfUrl && !hasExistingPdf) {
@@ -683,49 +684,101 @@ function bindAppEvents() {
       return;
     }
 
+    let nextPdfUrl = pdfUrl || String(editingStudy?.pdfUrl || "").trim();
     let pdfDataUrl = editingStudy?.pdfDataUrl || "";
+    let hasEmbeddedPdf = Boolean(pdfDataUrl || editingStudy?.hasEmbeddedPdf);
+    let storagePath = String(editingStudy?.storagePath || "").trim();
+    let usedLocalFallback = false;
+
     if (hasNewFile) {
       if (pdfFile.type && pdfFile.type !== "application/pdf") {
         setStudyFeedback("Envie apenas arquivo PDF.");
         return;
       }
 
-      if (pdfFile.size > 1_800_000) {
-        setStudyFeedback("PDF muito grande para salvar localmente. Use até 1,8 MB.");
-        return;
-      }
-
       try {
-        pdfDataUrl = await readFileAsDataUrl(pdfFile);
+        if (typeof window.fsUploadStudyPdf === "function") {
+          const uploadResult = await window.fsUploadStudyPdf(pdfFile, nextStudyId);
+          nextPdfUrl = String(uploadResult?.pdfUrl || "").trim();
+          storagePath = String(uploadResult?.storagePath || "").trim();
+          pdfDataUrl = "";
+          hasEmbeddedPdf = false;
+        } else {
+          throw new Error("storage_unavailable");
+        }
       } catch {
-        setStudyFeedback("Erro ao ler o arquivo PDF.");
-        return;
+        if (pdfFile.size > 1_800_000) {
+          setStudyFeedback("Falha no envio online e o PDF e grande demais para salvar localmente. Use um link ou um arquivo menor.");
+          return;
+        }
+
+        try {
+          pdfDataUrl = await readFileAsDataUrl(pdfFile);
+          nextPdfUrl = "";
+          storagePath = "";
+          hasEmbeddedPdf = true;
+          usedLocalFallback = true;
+        } catch {
+          setStudyFeedback("Erro ao processar o arquivo PDF.");
+          return;
+        }
       }
+    } else if (pdfUrl) {
+      nextPdfUrl = pdfUrl;
+      pdfDataUrl = "";
+      hasEmbeddedPdf = false;
+      if (storagePath && typeof window.fsDeleteStudyPdf === "function") {
+        window.fsDeleteStudyPdf(storagePath).catch(() => {});
+      }
+      storagePath = "";
+    } else {
+      nextPdfUrl = String(editingStudy?.pdfUrl || "").trim();
+      storagePath = String(editingStudy?.storagePath || "").trim();
+      hasEmbeddedPdf = Boolean(pdfDataUrl || editingStudy?.hasEmbeddedPdf);
+    }
+
+    if (!nextPdfUrl && !pdfDataUrl && !hasEmbeddedPdf) {
+      setStudyFeedback("Informe um link de PDF ou envie um arquivo PDF.");
+      return;
+    }
+
+    if (hasNewFile && editingStudy?.storagePath && editingStudy.storagePath !== storagePath && typeof window.fsDeleteStudyPdf === "function") {
+      window.fsDeleteStudyPdf(editingStudy.storagePath).catch(() => {});
     }
 
     if (studyId && editingStudy) {
       editingStudy.title = title;
       editingStudy.description = description;
-      editingStudy.pdfUrl = pdfUrl;
+      editingStudy.pdfUrl = nextPdfUrl;
       editingStudy.pdfDataUrl = pdfDataUrl;
-      editingStudy.hasEmbeddedPdf = Boolean(pdfDataUrl);
+      editingStudy.hasEmbeddedPdf = hasEmbeddedPdf;
+      editingStudy.storagePath = storagePath;
       editingStudy.updatedAt = new Date().toISOString();
       editingStudy.updatedBy = session?.name || session?.username || "Sistema";
-      setStudyFeedback("Estudo atualizado.");
+      setStudyFeedback(
+        usedLocalFallback
+          ? "Estudo atualizado apenas neste dispositivo. Para compartilhar com todos, use um link de PDF."
+          : "Estudo atualizado."
+      );
     } else {
       state.studies.unshift({
-        id: createId(),
+        id: nextStudyId,
         title,
         description,
-        pdfUrl,
+        pdfUrl: nextPdfUrl,
         pdfDataUrl,
-        hasEmbeddedPdf: Boolean(pdfDataUrl),
+        hasEmbeddedPdf,
+        storagePath,
         createdAt: new Date().toISOString(),
         createdBy: session?.name || session?.username || "Sistema",
         updatedAt: null,
         updatedBy: null,
       });
-      setStudyFeedback("Estudo publicado.");
+      setStudyFeedback(
+        usedLocalFallback
+          ? "Estudo publicado apenas neste dispositivo. Para compartilhar com todos, use um link de PDF."
+          : "Estudo publicado."
+      );
     }
 
     persistAndRender();
@@ -773,6 +826,10 @@ function bindAppEvents() {
           : true;
       if (!shouldDelete) {
         return;
+      }
+
+      if (study.storagePath && typeof window.fsDeleteStudyPdf === "function") {
+        window.fsDeleteStudyPdf(study.storagePath).catch(() => {});
       }
 
       state.studies = state.studies.filter((entry) => entry.id !== study.id);
@@ -3562,6 +3619,7 @@ function normalizeStudy(study) {
       ? study.pdfDataUrl
       : "";
   const hasEmbeddedPdf = study.hasEmbeddedPdf === true || Boolean(pdfDataUrl);
+  const storagePath = String(study.storagePath || "").trim();
 
   if (!title || (!pdfUrl && !pdfDataUrl && !hasEmbeddedPdf)) {
     return null;
@@ -3574,6 +3632,7 @@ function normalizeStudy(study) {
     pdfUrl,
     pdfDataUrl,
     hasEmbeddedPdf,
+    storagePath,
     createdAt: study.createdAt || new Date().toISOString(),
     createdBy: String(study.createdBy || "").trim(),
     updatedAt: study.updatedAt || null,

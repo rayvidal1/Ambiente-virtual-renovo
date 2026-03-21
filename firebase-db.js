@@ -8,6 +8,10 @@
     window.fsSaveState = function () {};
     window.fsSaveUsers = function () {};
     window.fsSaveVisitantes = function () {};
+    window.fsUploadStudyPdf = async function () {
+      throw new Error("storage_unavailable");
+    };
+    window.fsDeleteStudyPdf = async function () {};
   }
 
   if (!window.firebase || typeof window.firebase.initializeApp !== "function") {
@@ -38,6 +42,13 @@
     console.warn("[Firebase] Firestore indisponivel:", error?.message || error);
     installOfflineFallbacks();
     return;
+  }
+
+  let storage = null;
+  try {
+    storage = typeof firebase.storage === "function" ? firebase.storage() : null;
+  } catch (error) {
+    console.warn("[Firebase] Storage indisponivel:", error?.message || error);
   }
 
   function stripHeavyData(state) {
@@ -90,5 +101,41 @@
       .doc("visitantes")
       .set({ list })
       .catch((error) => console.warn("[Firebase] saveVisitantes:", error?.message || error));
+  };
+
+  function sanitizeFileName(fileName) {
+    return String(fileName || "estudo.pdf")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      || "estudo.pdf";
+  }
+
+  window.fsUploadStudyPdf = async function (file, studyId) {
+    if (!storage) {
+      throw new Error("storage_unavailable");
+    }
+
+    const safeStudyId = String(studyId || "study").replace(/[^a-zA-Z0-9_-]+/g, "-");
+    const fileName = sanitizeFileName(file?.name);
+    const storagePath = `studies/${safeStudyId}/${Date.now()}-${fileName}`;
+    const ref = storage.ref().child(storagePath);
+    await ref.put(file, { contentType: "application/pdf" });
+    const pdfUrl = await ref.getDownloadURL();
+    return { pdfUrl, storagePath };
+  };
+
+  window.fsDeleteStudyPdf = async function (storagePath) {
+    if (!storage || !storagePath) {
+      return;
+    }
+
+    try {
+      await storage.ref().child(String(storagePath)).delete();
+    } catch (error) {
+      console.warn("[Firebase] deleteStudyPdf:", error?.message || error);
+    }
   };
 })();

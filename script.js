@@ -2066,7 +2066,24 @@ function renderStudies() {
 }
 
 function openStudyPdf(study) {
-  const target = String(study?.pdfUrl || "").trim() || String(study?.pdfDataUrl || "").trim();
+  const externalUrl = String(study?.pdfUrl || "").trim();
+  const embeddedPdf = String(study?.pdfDataUrl || "").trim();
+  let target = externalUrl;
+
+  if (!target && embeddedPdf) {
+    try {
+      const blob = dataUrlToBlob(embeddedPdf);
+      target = URL.createObjectURL(blob);
+      window.setTimeout(() => {
+        try {
+          URL.revokeObjectURL(target);
+        } catch (_) {}
+      }, 300000);
+    } catch (_) {
+      target = embeddedPdf;
+    }
+  }
+
   if (!target) {
     setStudyFeedback("Este estudo nao possui PDF disponivel.");
     return;
@@ -2082,6 +2099,25 @@ function openStudyPdf(study) {
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   link.click();
+}
+
+function dataUrlToBlob(dataUrl) {
+  const match = /^data:([^;,]+)?(;base64)?,(.*)$/i.exec(String(dataUrl || ""));
+  if (!match) {
+    throw new Error("Data URL invalido");
+  }
+
+  const mimeType = match[1] || "application/octet-stream";
+  const isBase64 = Boolean(match[2]);
+  const payload = match[3] || "";
+  const binary = isBase64 ? atob(payload) : decodeURIComponent(payload);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: mimeType });
 }
 
 function readFileAsDataUrl(file) {

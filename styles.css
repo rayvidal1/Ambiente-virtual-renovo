@@ -154,9 +154,36 @@ body.modal-open {
 }
 
 .auth-screen {
-  width: min(480px, 92vw);
-  margin: 6vh auto 0;
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+  overflow: hidden;
   animation: enter 620ms ease both;
+}
+
+.auth-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(8, 6, 6, 0.42), rgba(24, 8, 10, 0.78)),
+    linear-gradient(135deg, rgba(139, 13, 18, 0.2), rgba(36, 26, 25, 0.25)),
+    url("./entrada renovo.png") center / cover no-repeat;
+  transform: scale(1.03);
+  z-index: -2;
+}
+
+.auth-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.14));
+  z-index: -1;
 }
 
 /* Home screen – dois cards de navegação */
@@ -361,6 +388,13 @@ body.modal-open {
   box-shadow: 0 18px 48px rgba(77, 24, 20, 0.14);
   backdrop-filter: blur(10px);
   padding: 1.4rem;
+}
+
+.auth-screen .auth-card {
+  width: min(480px, 92vw);
+  background: rgba(255, 250, 247, 0.78);
+  box-shadow: 0 20px 56px rgba(12, 7, 8, 0.34);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .auth-form {
@@ -2480,7 +2514,7 @@ button:hover {
 
   /* Auth screen */
   .auth-screen {
-    margin-top: 3vh;
+    padding: 1rem;
   }
 
   /* Home cards: sempre coluna única */

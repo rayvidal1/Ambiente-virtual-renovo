@@ -12,6 +12,7 @@ const APP_SHELL = [
   "./firebase-db.js",
   "./pwa-install.js",
   "./manifest.webmanifest",
+  "./entrada renovo.png",
   "./icon.png",
   "./pwa-192.png",
   "./pwa-512.png",

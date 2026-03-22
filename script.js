@@ -322,6 +322,11 @@ function bindAuthEvents() {
     showHomeScreen();
   });
 
+  document.getElementById("back-to-home-button")?.addEventListener("click", () => {
+    closeAllModals();
+    showHomeScreen();
+  });
+
   // Visitor registration inline form
   document.getElementById("visitor-reg-form-inline")?.addEventListener("submit", (e) => {
     e.preventDefault();

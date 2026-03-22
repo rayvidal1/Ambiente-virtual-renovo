@@ -2601,31 +2601,25 @@ button:hover {
   }
 }
 
-/* Botão flutuante de relatar erro */
-.bug-report-btn {
-  position: fixed;
-  bottom: 1.2rem;
-  right: 1.2rem;
-  z-index: 9000;
+/* Rodapé da tela home com link de relatar erro */
+.home-footer {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.85rem;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 2rem;
-  color: var(--ink-soft);
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 500;
-  text-decoration: none;
-  box-shadow: 0 2px 10px rgba(74,18,22,0.10);
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  justify-content: center;
+  padding: 1.5rem 0 2rem;
 }
-.bug-report-btn:hover {
-  background: var(--brand);
-  color: #fff;
-  border-color: var(--brand);
+.bug-report-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  text-decoration: none;
+  opacity: 0.7;
+  transition: opacity 0.15s, color 0.15s;
+}
+.bug-report-link:hover {
+  color: var(--brand);
+  opacity: 1;
 }
 
 

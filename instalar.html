@@ -95,9 +95,10 @@
         window.addEventListener("load", async () => {
           try {
             const reg = await navigator.serviceWorker.register("./service-worker.js");
-            window.setTimeout(() => {
-              reg.update().catch(() => {});
-            }, 30000);
+            reg.update().catch(() => {});
+            navigator.serviceWorker.addEventListener("controllerchange", () => {
+              window.location.reload();
+            });
           } catch (_) {}
         });
       }

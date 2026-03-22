@@ -94,7 +94,6 @@ const accessBadge = document.getElementById("access-badge");
 const accessNote = document.getElementById("access-note");
 
 let hasAppliedInitialReportContext = false;
-let hasAutoOpenedLeaderReport = false;
 let currentFirstVisits = [];
 let currentImages = [];
 let prevCellIds = new Set();
@@ -158,6 +157,19 @@ try {
   }
 }
 
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode("renovo:" + password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function isPasswordHashed(str) {
+  return typeof str === "string" && /^[0-9a-f]{64}$/.test(str);
+}
+
 function bindAuthEvents() {
   toggleRegisterFormButton?.addEventListener("click", () => {
     registerForm.hidden = !registerForm.hidden;
@@ -177,15 +189,29 @@ function bindAuthEvents() {
     togglePasswordBtn.setAttribute("aria-label", showing ? "Mostrar senha" : "Ocultar senha");
   });
 
-  loginForm?.addEventListener("submit", (event) => {
+  loginForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(loginForm);
     const username = normalizeUsername(formData.get("username"));
     const password = String(formData.get("password") || "");
+    const hashedInput = await hashPassword(password);
 
-    const user = users.find(
-      (entry) => normalizeUsername(entry.username) === username && String(entry.password || "") === password
-    );
+    let user = null;
+    for (const entry of users) {
+      if (normalizeUsername(entry.username) !== username) continue;
+      const stored = String(entry.password || "");
+      if (isPasswordHashed(stored)) {
+        if (stored === hashedInput) { user = entry; break; }
+      } else {
+        if (stored === password) {
+          entry.password = hashedInput;
+          saveUsers(users);
+          if (window.fsSaveUsers) window.fsSaveUsers(users);
+          user = entry;
+          break;
+        }
+      }
+    }
 
     if (!user) {
       setAuthFeedback("Usuario ou senha invalidos.");
@@ -195,7 +221,6 @@ function bindAuthEvents() {
     session = buildSessionFromUser(user);
     saveSession(session);
     hasAppliedInitialReportContext = false;
-    hasAutoOpenedLeaderReport = false;
     ensureLeaderCellForSession();
     showHomeScreen();
     render();
@@ -206,7 +231,7 @@ function bindAuthEvents() {
     setAuthFeedback("");
   });
 
-  registerForm?.addEventListener("submit", (event) => {
+  registerForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(registerForm);
 
@@ -237,11 +262,12 @@ function bindAuthEvents() {
       return;
     }
 
+    const hashedPassword = await hashPassword(password);
     const newUser = {
       id: createId(),
       name,
       username,
-      password,
+      password: hashedPassword,
       role: role === "coordinator" ? "coordinator" : "leader",
       assignedCellName: role === "leader" ? assignedCellName : "",
       createdAt: new Date().toISOString(),
@@ -253,7 +279,6 @@ function bindAuthEvents() {
     session = buildSessionFromUser(newUser);
     saveSession(session);
     hasAppliedInitialReportContext = false;
-    hasAutoOpenedLeaderReport = false;
     ensureLeaderCellForSession();
     showHomeScreen();
     render();
@@ -267,7 +292,6 @@ function bindAuthEvents() {
     clearSession();
     closeAllModals();
     hasAppliedInitialReportContext = false;
-    hasAutoOpenedLeaderReport = false;
     showAuthScreen();
     loginForm.reset();
     if (registerForm) {
@@ -281,7 +305,6 @@ function bindAuthEvents() {
     session = null;
     clearSession();
     hasAppliedInitialReportContext = false;
-    hasAutoOpenedLeaderReport = false;
     showAuthScreen();
     loginForm.reset();
     setAuthFeedback("");
@@ -457,7 +480,7 @@ function bindAppEvents() {
     setAccessFeedback("");
   });
 
-  accessForm?.addEventListener("submit", (event) => {
+  accessForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!hasPermission("manageAccess")) {
       return;
@@ -539,7 +562,7 @@ function bindAppEvents() {
       existingUser.scopeCellNames = role === "coordinator" ? scopeCellNames : [];
       existingUser.updatedAt = new Date().toISOString();
       if (password) {
-        existingUser.password = password;
+        existingUser.password = await hashPassword(password);
       }
 
       saveUsers(users);
@@ -579,7 +602,7 @@ function bindAppEvents() {
       id: createId(),
       name,
       username,
-      password,
+      password: await hashPassword(password),
       role,
       assignedCellName: role === "leader" ? assignedCellName : "",
       scopeCellNames: role === "coordinator" ? scopeCellNames : [],
@@ -2270,7 +2293,6 @@ function render() {
   renderAccessUsers();
   renderStudies();
   renderTrackingPanel();
-  autoOpenLeaderReportModal();
 }
 
 function renderAccessControl() {
@@ -3041,23 +3063,6 @@ function getAccessibleCells() {
 
   const allowedNames = new Set(scopedNames.map((name) => normalizeName(name)));
   return state.cells.filter((cell) => allowedNames.has(normalizeName(cell.name)));
-}
-
-function autoOpenLeaderReportModal() {
-  if (!session || session.role !== "leader" || hasAutoOpenedLeaderReport) {
-    return;
-  }
-
-  hasAutoOpenedLeaderReport = true;
-  if (!hasPermission("submitReports")) {
-    return;
-  }
-
-  renderReportCellOptions();
-  applyInitialReportContext();
-  renderAttendanceList();
-  renderLatestReport();
-  openModal(reportModal);
 }
 
 function applyInitialReportContext() {

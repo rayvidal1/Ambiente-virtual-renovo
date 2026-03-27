@@ -1434,10 +1434,23 @@ async function bootstrapApp() {
       const chosenState = useRemote ? remoteState : localState;
 
       state.cells = chosenState.cells;
-      state.reports = chosenState.reports;
       state.studies = chosenState.studies;
       state.lastReportId = chosenState.lastReportId;
       state.updatedAt = chosenState.updatedAt;
+
+      // Reports live in a dedicated Firestore doc; hydrate with local images
+      if (Array.isArray(fsData.reports)) {
+        try {
+          const imgStore = JSON.parse(localStorage.getItem(LOCAL_IMAGES_KEY) || "{}");
+          state.reports = fsData.reports
+            .map(normalizeReport).filter(Boolean)
+            .map((r) => Object.assign({}, r, { images: imgStore[r.id] || [] }));
+        } catch (_) {
+          state.reports = fsData.reports.map(normalizeReport).filter(Boolean);
+        }
+      } else {
+        state.reports = chosenState.reports;
+      }
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stripStateForStorage(state)));
       if (!useRemote && window.fsSaveState) {

@@ -103,8 +103,14 @@
   };
 
   window.fsSaveReports = function (reports) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 180);
+    const cutoffStr = cutoff.toISOString().slice(0, 10); // "YYYY-MM-DD"
+
     const list = Array.isArray(reports)
-      ? reports.map((r) => Object.assign({}, r, { images: [] }))
+      ? reports
+          .filter((r) => !r.date || r.date >= cutoffStr)
+          .map((r) => Object.assign({}, r, { images: [] }))
       : [];
     db.collection("renovo")
       .doc("reports")

@@ -1330,6 +1330,31 @@ function bindAppEvents() {
     const actionButton = clickTarget.closest("button[data-cell-action]");
     if (actionButton) {
       const action = String(actionButton.dataset.cellAction || "");
+      if (action === "delete-member") {
+        if (!hasPermission("manageMembers")) {
+          return;
+        }
+
+        const cellId = String(actionButton.dataset.cellId || "");
+        const memberId = String(actionButton.dataset.memberId || "");
+        const cell = getCellById(cellId);
+        if (!cell) return;
+
+        const member = (cell.members || []).find((m) => m.id === memberId);
+        if (!member) return;
+
+        const confirmed =
+          typeof window.confirm === "function"
+            ? window.confirm(`Excluir o membro "${member.name}" da celula ${cell.name}?`)
+            : true;
+
+        if (!confirmed) return;
+
+        cell.members = cell.members.filter((m) => m.id !== memberId);
+        persistAndRender();
+        return;
+      }
+
       if (action === "delete") {
         if (!hasPermission("deleteCell")) {
           return;
@@ -2560,6 +2585,7 @@ function renderReportCellOptions() {
 function renderCells() {
   const visibleCells = getAccessibleCells();
   const canDeleteCell = hasPermission("deleteCell");
+  const canManageMembers = hasPermission("manageMembers");
 
   if (visibleCells.length === 0) {
     cellsList.innerHTML = '<p class="empty">Nenhuma celula cadastrada ainda.</p>';
@@ -2578,7 +2604,10 @@ function renderCells() {
           : `<ul class="members">${cell.members
               .map((member) => {
                 const phone = member.phone ? ` - ${escapeHtml(member.phone)}` : "";
-                return `<li>${escapeHtml(member.name)}${phone}</li>`;
+                const deleteBtn = canManageMembers
+                  ? `<button type="button" class="ghost-btn tiny-btn danger-btn member-delete-btn" data-cell-action="delete-member" data-cell-id="${escapeHtml(cell.id)}" data-member-id="${escapeHtml(member.id)}" title="Excluir membro">✕</button>`
+                  : "";
+                return `<li class="member-item">${escapeHtml(member.name)}${phone}${deleteBtn}</li>`;
               })
               .join("")}</ul>`;
       const actionsMarkup = canDeleteCell

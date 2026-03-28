@@ -2484,7 +2484,7 @@ function renderStats() {
 }
 
 function parseImportNames(text) {
-  return (text || "").split("\n")
+  return (text || "").split(/\r?\n/)
     .map(l => l.replace(/^\d+[\.\)]\s*/, "").trim())
     .filter(Boolean);
 }

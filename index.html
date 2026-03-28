@@ -707,6 +707,8 @@
             navigator.serviceWorker.addEventListener("controllerchange", () => {
               window.location.reload();
             });
+            // Verifica atualização a cada 60 segundos enquanto a página está aberta
+            setInterval(() => registration.update().catch(() => {}), 60000);
           } catch (_) {}
         });
       }

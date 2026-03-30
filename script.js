@@ -6,6 +6,7 @@ const LOCAL_PDFS_KEY = "renovo_pdfs_v1";
 const ALERTS_KEY = "renovo_alerts_v1";
 const INITIAL_SEED_MARKER_KEY = "renovo_seed_v2_done";
 const CINZA_IMPORT_MARKER_KEY = "renovo_cinza_reports_v2_done";
+const ALL_MEMBERS_SEED_KEY = "renovo_all_members_v1_done";
 const MANAGEABLE_ROLES = ["leader", "coordinator", "pastor", "admin"];
 
 // Inicializados de forma assíncrona em bootstrapApp()
@@ -1579,6 +1580,7 @@ async function bootstrapApp() {
   try { runInitialSeedOnce(); } catch (e) { console.warn("[seed] erro:", e); }
   try { ensureMinistryStructure(); } catch (e) { console.warn("[structure] erro:", e); }
   try { ensureCinzaReportsImport(); } catch (e) { console.warn("[cinza-import] erro:", e); }
+  try { ensureAllCellMembers(); } catch (e) { console.warn("[all-members] erro:", e); }
   try { ensureVinhoReport20260227(); } catch (e) { console.warn("[vinho-2026-02-27] erro:", e); }
   try { syncAbsenceAlertsWithReports(state); } catch (e) { console.warn("[alerts] erro:", e); }
   session = loadSession();
@@ -4601,6 +4603,52 @@ function seedInitialDataIfEmpty() {
   saveState(state);
 
   saveUsers(users);
+}
+
+function ensureAllCellMembers() {
+  if (localStorage.getItem(ALL_MEMBERS_SEED_KEY) === "done") return;
+
+  const membersByCellName = {
+    "Amarela": ["Leticia","Samuel","Layanne","Rosa","Andreia","Bia","Diego","Juliana","Davi","Weverton","Karla","Weslem","Janaína","Vitória","José"],
+    "Rosa": ["Ariane","Alex","Karla","Lara","Vera","Fiorella","Luzimar","Murilo","Karlen","Missikely","Soninha","Mayara","Alessandro"],
+    "Cinza": ["Jander","Aline","Amanda Rayssa","Amanda","Daniel","Mariana","Ray","Mayara","Samuel","Luiz","Manu","Liz","Rebeca"],
+    "Preta": ["Filipe","Sabrina","Ian Vieira","Mikaelly","Pedro","Vitor","Guilherme","Ana","Eliel","Thifanny","Danilo","Soraia","Josiel","Jhonatan","Mikael","Deivid","Rebeca","Luiz Henrique","Leo","Letícia","Faby","Andrey","Dryka","Davi","Sthefany","Giovanna","Endriw"],
+    "Branca": ["Joana","Josué","Vânia","Vitória","Maria Alice","Maria Lopes","Elci","Patrícia","Conceição","Cel","Kelly","Dyene","Tania","Cleu"],
+    "Laranja": ["Fernando","Elioneide","Nelson","Rosely","Ary","Fernanda","Hudson","Célia","Viviane"],
+    "Visão de Águia": ["Chirlene","Kelma","Marta","Viviane","Denise","Geisy","Ana Lúcia","Meri Jany","Ney","Ezequiel","Osmar","Luiz"],
+    "Lilás": ["Karina","Jhennifer","Renata","Antonio","Nazaré","Rogério","Fabiana","Eva","Renan","Aparecida","Flávio","Alice","Gabriel","Vitória Raissa","Iasmin","Juliana","Rose","Leilane","Robson"],
+    "Vinho": ["Jonattham","Marilene","Silvia","Alzira","Adriana","Marilda","Mikaelly","Sabrina","Francisco","Conceição","Jerusa","Izeti","Kauan","José","Ely","Luiza","Etefany"],
+    "Logos": ["Thiago","Augusto","Leticia","Ney","Leticia Carvalho","Jenny","Denis","Rian","Gustavo","Phedro","Davi"],
+    "GET": ["Miguel","Raíssa","Hugo","Thayssa","Nicoly","John"],
+    "Vermelha": [],
+    "Verde": ["Evelyn","Helloh","Daniel","Kellvem","Hatos","Raiane","Enzo","Ana Lu","Sushinie","Shelcy","Jonas","Kamila","Bruno","Jeferson","Danilo","João Vitor","Jordylan","Tarcyara","Solyan","Huna","Anthony","Alicia","Gaby"],
+    "Ekballo": ["Igor","Julya Maria","Maria Eduarda","Pedro","Vitoria","Wallafy","Yasmin","Vitor Gabriel","Manu","Lindsay","Fernanda"],
+    "Peregrinos": ["Isabella","Sarah","Roberto","Erick","Isabelle","Willian","Elias","Eloah","Julia Lemos","Helloany"],
+    "Azul": [],
+  };
+
+  let changed = false;
+
+  for (const [cellName, names] of Object.entries(membersByCellName)) {
+    if (!names.length) continue;
+    const cell = state.cells.find((c) => normalizeName(c.name) === normalizeName(cellName));
+    if (!cell) continue;
+    const existing = new Set((cell.members || []).map((m) => normalizeName(m.name)));
+    for (const name of names) {
+      if (!existing.has(normalizeName(name))) {
+        cell.members.push({ id: createId(), name, phone: "" });
+        existing.add(normalizeName(name));
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    if (window.fsSaveCells) window.fsSaveCells(state.cells);
+    saveState(state);
+  }
+
+  localStorage.setItem(ALL_MEMBERS_SEED_KEY, "done");
 }
 
 function ensureVinhoReport20260227() {

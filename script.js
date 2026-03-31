@@ -1579,6 +1579,7 @@ async function bootstrapApp() {
   ensureDefaultUsers();
   try { runInitialSeedOnce(); } catch (e) { console.warn("[seed] erro:", e); }
   try { ensureMinistryStructure(); } catch (e) { console.warn("[structure] erro:", e); }
+  try { ensureLeaderAccounts(); } catch (e) { console.warn("[leader-accounts] erro:", e); }
   try { ensureCinzaReportsImport(); } catch (e) { console.warn("[cinza-import] erro:", e); }
   try { ensureAllCellMembers(); } catch (e) { console.warn("[all-members] erro:", e); }
   try { ensureVinhoReport20260227(); } catch (e) { console.warn("[vinho-2026-02-27] erro:", e); }
@@ -1715,6 +1716,60 @@ function ensureMinistryStructure() {
   }
   if (usersChanged) {
     saveUsers(users);
+  }
+}
+
+function ensureLeaderAccounts() {
+  const leaderDefs = [
+    { name: "Leticia",        username: "leticia",        assignedCellName: "Amarela" },
+    { name: "Alex",           username: "alex",           assignedCellName: "Rosa" },
+    { name: "Ariane",         username: "ariane",         assignedCellName: "Rosa" },
+    { name: "Jander",         username: "jander",         assignedCellName: "Cinza" },
+    { name: "Aline",          username: "aline",          assignedCellName: "Cinza" },
+    { name: "Filipe",         username: "filipe",         assignedCellName: "Preta" },
+    { name: "Sabrina",        username: "sabrina",        assignedCellName: "Preta" },
+    { name: "Joana",          username: "joana",          assignedCellName: "Branca" },
+    { name: "Fernando",       username: "fernando",       assignedCellName: "Laranja" },
+    { name: "Elioneide",      username: "elioneide",      assignedCellName: "Laranja" },
+    { name: "Chirlene",       username: "chirlene",       assignedCellName: "Visão de Águia" },
+    { name: "Karina",         username: "karina",         assignedCellName: "Lilás" },
+    { name: "Jeniffer",       username: "jeniffer",       assignedCellName: "Lilás" },
+    { name: "Jonattham",      username: "jonattham",      assignedCellName: "Vinho" },
+    { name: "Marilene",       username: "marilene",       assignedCellName: "Vinho" },
+    { name: "Francinaldo",    username: "francinaldo",    assignedCellName: "Azul" },
+    { name: "Alexandre",      username: "alexandre",      assignedCellName: "Azul" },
+    { name: "Thiago",         username: "thiago",         assignedCellName: "Logos" },
+    { name: "Miguel",         username: "miguel",         assignedCellName: "GET" },
+    { name: "Raissa",         username: "raissa",         assignedCellName: "GET" },
+    { name: "Evelyn",         username: "evelyn",         assignedCellName: "Verde" },
+    { name: "Pedro",          username: "pedro",          assignedCellName: "Ekballo" },
+    { name: "Clara Vitoria",  username: "clara.vitoria",  assignedCellName: "Ekballo" },
+    { name: "Izabella",       username: "izabella",       assignedCellName: "Peregrinos" },
+    { name: "Sara",           username: "sara",           assignedCellName: "Peregrinos" },
+  ];
+
+  let changed = false;
+  for (const def of leaderDefs) {
+    const exists = users.some((u) => normalizeUsername(u.username) === normalizeUsername(def.username));
+    if (!exists) {
+      users.push({
+        id: createId(),
+        name: def.name,
+        username: def.username,
+        password: "123456",
+        role: "leader",
+        assignedCellName: def.assignedCellName,
+        scopeCellNames: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+      });
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    saveUsers(users);
+    if (window.fsSaveUsers) window.fsSaveUsers(users);
   }
 }
 

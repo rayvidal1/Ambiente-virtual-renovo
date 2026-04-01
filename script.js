@@ -3322,9 +3322,8 @@ function applyInitialReportContext() {
     reportCellSelect.value = cells[0].id;
   }
 
-  const latestForCell = [...state.reports].reverse().find((report) => report.cellId === reportCellSelect.value);
   if (!reportDateInput.value) {
-    reportDateInput.value = latestForCell ? latestForCell.date : todayIsoDate();
+    reportDateInput.value = todayIsoDate();
   }
 
   loadSavedReportIfExists();

@@ -135,13 +135,25 @@
   window.fsSaveReports = function (reports) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 180);
-    const cutoffStr = cutoff.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
 
     const list = Array.isArray(reports)
       ? reports
           .filter((r) => !r.date || r.date >= cutoffStr)
           .map((r) => Object.assign({}, r, { images: [] }))
       : [];
+
+    if (list.length === 0) {
+      // Nunca sobrescreve com lista vazia — verifica primeiro se já há dados
+      db.collection("renovo").doc("reports").get().then((snap) => {
+        const existing = snap.exists && Array.isArray(snap.data()?.list) ? snap.data().list : [];
+        if (existing.length === 0) {
+          db.collection("renovo").doc("reports").set({ list: [] })
+            .catch((error) => console.warn("[Firebase] saveReports:", error?.message || error));
+        }
+      }).catch(() => {});
+      return;
+    }
     db.collection("renovo")
       .doc("reports")
       .set({ list })

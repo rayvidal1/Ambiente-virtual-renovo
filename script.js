@@ -1247,6 +1247,7 @@ function bindAppEvents() {
       visitorNames,
       visitorDetails,
       images: currentImages.slice(),
+      offering: String(formData.get("offering") || "").trim(),
       snack: String(formData.get("snack") || "").trim(),
       discipleship: String(formData.get("discipleship") || "").trim(),
       foods: currentFoodItems.length
@@ -2882,6 +2883,8 @@ function loadSavedReportIfExists() {
   renderFirstVisitList();
   currentImages = Array.isArray(report.images) ? report.images.slice() : [];
   renderImagesList();
+  const offeringInput = document.getElementById("offering-input");
+  if (offeringInput) offeringInput.value = report.offering || "";
   setFormFieldValue(reportForm, "snack", report.snack || "");
   setFormFieldValue(reportForm, "discipleship", report.discipleship || "");
   const foodsStr = String(report.foods || "").trim();
@@ -2923,6 +2926,7 @@ function applyReportMode() {
     "visitorsCount",
     "visitorNames",
     "communionMinutes",
+    "offering",
     "snack",
     "discipleship",
     "foodsToggle",

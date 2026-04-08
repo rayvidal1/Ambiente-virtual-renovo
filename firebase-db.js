@@ -161,9 +161,20 @@
   };
 
   window.fsSaveUsers = function (nextUsers) {
+    const list = Array.isArray(nextUsers) ? nextUsers : [];
+    if (list.length === 0) {
+      db.collection("renovo").doc("users").get().then((snap) => {
+        const existing = snap.exists && Array.isArray(snap.data()?.list) ? snap.data().list : [];
+        if (existing.length === 0) {
+          db.collection("renovo").doc("users").set({ list: [] })
+            .catch((error) => console.warn("[Firebase] saveUsers:", error?.message || error));
+        }
+      }).catch(() => {});
+      return;
+    }
     db.collection("renovo")
       .doc("users")
-      .set({ list: nextUsers })
+      .set({ list })
       .catch((error) => console.warn("[Firebase] saveUsers:", error?.message || error));
   };
 

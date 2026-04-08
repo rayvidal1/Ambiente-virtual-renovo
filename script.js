@@ -1747,6 +1747,7 @@ function ensureLeaderAccounts() {
     { name: "Clara Vitoria",  username: "clara.vitoria",  assignedCellName: "Ekballo" },
     { name: "Izabella",       username: "izabella",       assignedCellName: "Peregrinos" },
     { name: "Sara",           username: "sara",           assignedCellName: "Peregrinos" },
+    { name: "Emanuelly",      username: "emanuelly",      assignedCellName: "Vermelha" },
   ];
 
   let changed = false;

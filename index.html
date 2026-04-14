@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Renovo Celulas</title>
     <meta name="theme-color" content="#8b0d12" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="icon" type="image/png" href="icon.png" />
@@ -700,7 +701,10 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", async () => {
           try {
-            const registration = await navigator.serviceWorker.register("./service-worker.js");
+            const swVersion = encodeURIComponent(String(window.RENOVO_APP_VERSION || "dev"));
+            const registration = await navigator.serviceWorker.register(`./service-worker.js?v=${swVersion}`, {
+              updateViaCache: "none",
+            });
             registration.update().catch(() => {});
             navigator.serviceWorker.addEventListener("controllerchange", () => {
               // Só recarrega se nenhum modal estiver aberto (usuário não está preenchendo formulário)

@@ -1256,20 +1256,21 @@ function bindAppEvents() {
       createdAt: new Date().toISOString(),
     };
 
-    upsertReport(reportData);
-    state.lastReportId = reportData.id;
-    try { processAbsenceAlerts(reportData, cell); } catch (_) {}
+    const savedReport = upsertReport(reportData);
+    state.lastReportId = savedReport.id;
+    try { processAbsenceAlerts(savedReport, cell); } catch (_) {}
     persistAndRender();
+    syncReportToRemote(savedReport);
 
-    const presentIds = new Set(reportData.presentMemberIds);
+    const presentIds = new Set(savedReport.presentMemberIds);
     const presentCount = cell.members.filter((m) => presentIds.has(m.id)).length;
     const absentCount = cell.members.length - presentCount;
-    reportOutput.value = buildReportText(reportData, cell);
-    drawReportChart(presentCount, absentCount, reportData.visitorsCount);
+    reportOutput.value = buildReportText(savedReport, cell);
+    drawReportChart(presentCount, absentCount, savedReport.visitorsCount);
     renderReportHistory();
     drawAverageCharts();
     drawLineChart(cellId);
-    renderReportImages(reportData.images);
+    renderReportImages(savedReport.images);
 
     if (generateReportButton) {
       generateReportButton.textContent = "Gerar novo relatorio";
@@ -1293,6 +1294,7 @@ function bindAppEvents() {
       state.reports = state.reports.filter((r) => r.id !== reportId);
       if (state.lastReportId === reportId) state.lastReportId = "";
       saveState(state);
+      deleteReportFromRemote(reportId);
       render();
       return;
     }
@@ -1489,6 +1491,8 @@ async function bootstrapApp() {
     localStorage.setItem("renovo_reset_v1", "done");
   }
 
+  const cached = loadState();
+
   try {
     const loadRemoteData =
       typeof window.fsLoadAll === "function"
@@ -1500,9 +1504,18 @@ async function bootstrapApp() {
       new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
     ]);
 
+    const hasRemoteSnapshot =
+      Boolean(fsData.state) ||
+      Array.isArray(fsData.cells) ||
+      Array.isArray(fsData.reports) ||
+      Array.isArray(fsData.users) ||
+      Array.isArray(fsData.visitantes);
+
     // Estado (células, relatórios, estudos)
-    if (fsData.state) {
-      const remoteState = hydrateStateSnapshot(fsData.state);
+    if (hasRemoteSnapshot) {
+      const remoteState = fsData.state
+        ? hydrateStateSnapshot(fsData.state)
+        : { cells: [], reports: [], studies: [], lastReportId: null, updatedAt: null };
 
       // Células: doc dedicado renovo/cells — nunca sobrescrito por saves de relatório
       if (Array.isArray(fsData.cells)) {
@@ -1519,31 +1532,36 @@ async function bootstrapApp() {
       state.lastReportId = remoteState.lastReportId;
       state.updatedAt = remoteState.updatedAt;
 
-      // Relatórios: doc dedicado renovo/reports
+      // Relatorios: carrega do Firestore e preserva qualquer copia local mais nova
+      let remoteReports = [];
       if (Array.isArray(fsData.reports)) {
         try {
           const imgStore = JSON.parse(localStorage.getItem(LOCAL_IMAGES_KEY) || "{}");
-          state.reports = fsData.reports
+          remoteReports = fsData.reports
             .map(normalizeReport).filter(Boolean)
             .map((r) => Object.assign({}, r, { images: imgStore[r.id] || [] }));
         } catch (_) {
-          state.reports = fsData.reports.map(normalizeReport).filter(Boolean);
+          remoteReports = fsData.reports.map(normalizeReport).filter(Boolean);
         }
       } else {
-        state.reports = remoteState.reports;
+        remoteReports = remoteState.reports;
+      }
+
+      state.reports = mergeReportSnapshots(remoteReports, cached.reports);
+      if (hasNewerReports(state.reports, remoteReports) && window.fsSaveReports) {
+        window.fsSaveReports(state.reports);
       }
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stripStateForStorage(state)));
     } else {
       // Firebase vazio — carrega localStorage e faz upload imediato para o Firestore
-      const cached = loadState();
       state.cells = cached.cells;
       state.reports = cached.reports;
       state.studies = cached.studies;
       state.lastReportId = cached.lastReportId;
       state.updatedAt = cached.updatedAt;
       // Migração: sobe dados locais para o Firestore
-      if (window.fsSaveState) window.fsSaveState(state);
+      if (window.fsSaveState) window.fsSaveState(state, { syncReports: true });
     }
 
     // Usuários
@@ -1568,7 +1586,6 @@ async function bootstrapApp() {
     }
   } catch (_) {
     // Fallback total para localStorage (offline)
-    const cached = loadState();
     state.cells = cached.cells;
     state.reports = cached.reports;
     state.studies = cached.studies;
@@ -1894,7 +1911,7 @@ function ensureCinzaReportsImport() {
   });
 
   if (changed) {
-    saveState(state);
+    saveState(state, { syncReports: true });
   }
   localStorage.setItem(CINZA_IMPORT_MARKER_KEY, "done");
 }
@@ -2452,6 +2469,38 @@ function persistAndRender() {
   render();
 }
 
+function runRemoteTask(label, action) {
+  try {
+    const pending = action();
+    if (pending && typeof pending.catch === "function") {
+      pending.catch((error) => console.warn(`[Firebase] ${label}:`, error?.message || error));
+    }
+  } catch (error) {
+    console.warn(`[Firebase] ${label}:`, error?.message || error);
+  }
+}
+
+function syncReportToRemote(report) {
+  if (!report || typeof window.fsSaveReport !== "function") {
+    return;
+  }
+  runRemoteTask("saveReport", () => window.fsSaveReport(report));
+}
+
+function deleteReportFromRemote(reportId) {
+  if (!reportId || typeof window.fsDeleteReport !== "function") {
+    return;
+  }
+  runRemoteTask("deleteReport", () => window.fsDeleteReport(reportId));
+}
+
+function deleteCellReportsFromRemote(cellId) {
+  if (!cellId || typeof window.fsDeleteReportsByCell !== "function") {
+    return;
+  }
+  runRemoteTask("deleteReportsByCell", () => window.fsDeleteReportsByCell(cellId));
+}
+
 function render() {
   if (!session) {
     return;
@@ -2839,6 +2888,71 @@ function parseReportDateToTime(reportDate) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function getReportMergeKey(report) {
+  const cellId = String(report?.cellId || "").trim();
+  const date = String(report?.date || "").trim();
+  if (cellId && date) {
+    return `cell:${cellId}|${date}`;
+  }
+
+  const id = String(report?.id || "").trim();
+  return id ? `id:${id}` : "";
+}
+
+function getReportFreshnessTime(report) {
+  const updatedTime = new Date(report?.updatedAt || 0).getTime();
+  if (Number.isFinite(updatedTime) && updatedTime > 0) {
+    return updatedTime;
+  }
+
+  const createdTime = new Date(report?.createdAt || 0).getTime();
+  if (Number.isFinite(createdTime) && createdTime > 0) {
+    return createdTime;
+  }
+
+  return parseReportDateToTime(report?.date);
+}
+
+function mergeReportSnapshots(primaryReports, fallbackReports) {
+  const merged = new Map();
+
+  [fallbackReports, primaryReports].forEach((list) => {
+    (Array.isArray(list) ? list : []).forEach((report) => {
+      const key = getReportMergeKey(report);
+      if (!key) {
+        return;
+      }
+
+      const current = merged.get(key);
+      if (!current || getReportFreshnessTime(report) >= getReportFreshnessTime(current)) {
+        merged.set(key, report);
+      }
+    });
+  });
+
+  return Array.from(merged.values());
+}
+
+function hasNewerReports(candidateReports, baselineReports) {
+  const baselineMap = new Map();
+  (Array.isArray(baselineReports) ? baselineReports : []).forEach((report) => {
+    const key = getReportMergeKey(report);
+    if (key) {
+      baselineMap.set(key, report);
+    }
+  });
+
+  return (Array.isArray(candidateReports) ? candidateReports : []).some((report) => {
+    const key = getReportMergeKey(report);
+    if (!key) {
+      return false;
+    }
+
+    const baseline = baselineMap.get(key);
+    return !baseline || getReportFreshnessTime(report) > getReportFreshnessTime(baseline);
+  });
+}
+
 function getReportStats(report) {
   const cell = getCellById(report?.cellId);
   const present = Array.isArray(report?.presentMemberIds) ? report.presentMemberIds.length : 0;
@@ -3221,17 +3335,23 @@ function upsertReport(reportData) {
   );
   if (existingIndex === -1) {
     state.reports.push(reportData);
-    return;
+    return reportData;
   }
 
   const existing = state.reports[existingIndex];
-  state.reports[existingIndex] = {
+  const updatedReport = {
     ...reportData,
     id: existing.id,
     createdAt: existing.createdAt,
     updatedAt: new Date().toISOString(),
   };
-  reportData.id = existing.id;
+  state.reports[existingIndex] = updatedReport;
+  Object.assign(reportData, {
+    id: updatedReport.id,
+    createdAt: updatedReport.createdAt,
+    updatedAt: updatedReport.updatedAt,
+  });
+  return updatedReport;
 }
 
 function findReport(cellId, date) {
@@ -3256,6 +3376,9 @@ function deleteCellAndRelated(cellId) {
 
   const removedReportIds = new Set(state.reports.filter((report) => report.cellId === cellId).map((report) => report.id));
   state.reports = state.reports.filter((report) => report.cellId !== cellId);
+  if (removedReportIds.size > 0) {
+    deleteCellReportsFromRemote(cellId);
+  }
 
   if (removedReportIds.has(state.lastReportId)) {
     const latest = state.reports.slice().sort(compareReportsDesc)[0] || null;
@@ -3768,7 +3891,7 @@ function renderVisitantesCellFilterOptions() {
   select.value = hasPrevious ? previousValue : "";
 }
 
-function saveState(nextState) {
+function saveState(nextState, options = {}) {
   const stampedState = Object.assign({}, nextState, {
     updatedAt: new Date().toISOString(),
   });
@@ -3789,7 +3912,7 @@ function saveState(nextState) {
   // Salva estado sem imagens/PDFs no localStorage principal (evita quota exceeded)
   const stripped = stripStateForStorage(stampedState);
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped)); } catch (_) {}
-  if (window.fsSaveState) window.fsSaveState(stampedState);
+  if (window.fsSaveState) window.fsSaveState(stampedState, options);
 }
 
 function stripStateForStorage(nextState) {
@@ -4659,7 +4782,7 @@ function seedInitialDataIfEmpty() {
     ],
   });
 
-  saveState(state);
+  saveState(state, { syncReports: true });
 
   saveUsers(users);
 }
@@ -4782,7 +4905,7 @@ function ensureVinhoReport20260227() {
   }
 
   if (changed) {
-    saveState(state);
+    saveState(state, { syncReports: true });
   }
 }
 

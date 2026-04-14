@@ -1,0 +1,39 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentProfileExists() {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/renovo_plus_users/$(request.auth.uid));
+    }
+
+    function currentProfile() {
+      return firestore.get(/databases/(default)/documents/renovo_plus_users/$(request.auth.uid)).data;
+    }
+
+    function isActiveProfile() {
+      return currentProfileExists() && currentProfile().status == "active";
+    }
+
+    function isAdminOrPastor() {
+      return isActiveProfile()
+        && (currentProfile().role == "admin" || currentProfile().role == "pastor");
+    }
+
+    match /studies/{allPaths=**} {
+      allow read, write: if true;
+    }
+
+    match /renovo-plus/studies/{studyId}/{fileName} {
+      allow read: if isActiveProfile();
+      allow write: if isAdminOrPastor();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

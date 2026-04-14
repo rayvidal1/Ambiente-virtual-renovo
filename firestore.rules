@@ -1,0 +1,390 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return /databases/$(database)/documents/renovo_plus_users/$(uid);
+    }
+
+    function systemDoc() {
+      return /databases/$(database)/documents/renovo_plus_meta/system;
+    }
+
+    function currentProfileExists() {
+      return signedIn() && exists(userDoc(request.auth.uid));
+    }
+
+    function currentProfile() {
+      return get(userDoc(request.auth.uid)).data;
+    }
+
+    function bootstrapCompleted() {
+      return exists(systemDoc()) && get(systemDoc()).data.bootstrapCompleted == true;
+    }
+
+    function isActiveProfile() {
+      return currentProfileExists() && currentProfile().status == "active";
+    }
+
+    function isAdmin() {
+      return isActiveProfile() && currentProfile().role == "admin";
+    }
+
+    function isPastor() {
+      return isActiveProfile() && currentProfile().role == "pastor";
+    }
+
+    function isAdminOrPastor() {
+      return isAdmin() || isPastor();
+    }
+
+    function isCellVisible(cellId) {
+      return isAdminOrPastor()
+        || (
+          isActiveProfile()
+          && (
+            currentProfile().primaryCellId == cellId
+            || currentProfile().scopeCellIds.hasAny([cellId])
+          )
+        );
+    }
+
+    function validUserKeys(data) {
+      return data.keys().hasAll([
+          "name",
+          "email",
+          "role",
+          "status",
+          "primaryCellId",
+          "scopeCellIds",
+          "ministryName",
+          "notes",
+          "createdAt",
+          "updatedAt"
+        ])
+        && data.keys().hasOnly([
+          "name",
+          "email",
+          "role",
+          "status",
+          "primaryCellId",
+          "scopeCellIds",
+          "ministryName",
+          "notes",
+          "createdAt",
+          "updatedAt"
+        ]);
+    }
+
+    function validUserData(data) {
+      return validUserKeys(data)
+        && data.name is string
+        && data.email is string
+        && data.role in ["pending", "leader", "coordinator", "pastor", "admin"]
+        && data.status in ["pending", "active", "inactive"]
+        && data.primaryCellId is string
+        && data.scopeCellIds is list
+        && data.ministryName is string
+        && data.notes is string
+        && data.createdAt is string
+        && data.updatedAt is string;
+    }
+
+    function validCellKeys(data) {
+      return data.keys().hasAll([
+          "id",
+          "name",
+          "meetingDay",
+          "meetingTime",
+          "address",
+          "leaderUid",
+          "coLeaderUids",
+          "status",
+          "notes",
+          "createdAt",
+          "updatedAt",
+          "createdByUid",
+          "updatedByUid"
+        ])
+        && data.keys().hasOnly([
+          "id",
+          "name",
+          "meetingDay",
+          "meetingTime",
+          "address",
+          "leaderUid",
+          "coLeaderUids",
+          "status",
+          "notes",
+          "createdAt",
+          "updatedAt",
+          "createdByUid",
+          "updatedByUid"
+        ]);
+    }
+
+    function validCellData(data, cellId) {
+      return validCellKeys(data)
+        && data.id == cellId
+        && data.name is string
+        && data.meetingDay is string
+        && data.meetingTime is string
+        && data.address is string
+        && data.leaderUid is string
+        && data.coLeaderUids is list
+        && data.status in ["active", "inactive"]
+        && data.notes is string
+        && data.createdAt is string
+        && data.updatedAt is string
+        && data.createdByUid is string
+        && data.updatedByUid is string;
+    }
+
+    function validReportKeys(data) {
+      return data.keys().hasAll([
+          "id",
+          "cellId",
+          "date",
+          "leaders",
+          "host",
+          "address",
+          "presentCount",
+          "visitorsCount",
+          "offering",
+          "notes",
+          "createdAt",
+          "updatedAt",
+          "createdByUid",
+          "updatedByUid"
+        ])
+        && data.keys().hasOnly([
+          "id",
+          "cellId",
+          "date",
+          "leaders",
+          "host",
+          "address",
+          "presentCount",
+          "visitorsCount",
+          "offering",
+          "notes",
+          "createdAt",
+          "updatedAt",
+          "createdByUid",
+          "updatedByUid"
+        ]);
+    }
+
+    function validReportData(data, reportId) {
+      return validReportKeys(data)
+        && data.id == reportId
+        && data.cellId is string
+        && data.date is string
+        && data.leaders is string
+        && data.host is string
+        && data.address is string
+        && data.presentCount is number
+        && data.visitorsCount is number
+        && data.offering is number
+        && data.notes is string
+        && data.createdAt is string
+        && data.updatedAt is string
+        && data.createdByUid is string
+        && data.updatedByUid is string;
+    }
+
+    function validMemberKeys(data) {
+      return data.keys().hasAll([
+          "id",
+          "cellId",
+          "name",
+          "phone",
+          "roleInCell",
+          "status",
+          "joinedAt",
+          "notes",
+          "createdAt",
+          "updatedAt",
+          "createdByUid",
+          "updatedByUid"
+        ])
+        && data.keys().hasOnly([
+          "id",
+          "cellId",
+          "name",
+          "phone",
+          "roleInCell",
+          "status",
+          "joinedAt",
+          "notes",
+          "createdAt",
+          "updatedAt",
+          "createdByUid",
+          "updatedByUid"
+        ]);
+    }
+
+    function validMemberData(data, memberId) {
+      return validMemberKeys(data)
+        && data.id == memberId
+        && data.cellId is string
+        && data.name is string
+        && data.phone is string
+        && data.roleInCell is string
+        && data.status in ["active", "inactive", "moved", "paused"]
+        && data.joinedAt is string
+        && data.notes is string
+        && data.createdAt is string
+        && data.updatedAt is string
+        && data.createdByUid is string
+        && data.updatedByUid is string;
+    }
+
+    function validSystemData(data) {
+      return data.keys().hasAll([
+          "bootstrapCompleted",
+          "firstAdminUid",
+          "createdAt",
+          "updatedAt"
+        ])
+        && data.keys().hasOnly([
+          "bootstrapCompleted",
+          "firstAdminUid",
+          "createdAt",
+          "updatedAt"
+        ])
+        && data.bootstrapCompleted is bool
+        && data.firstAdminUid is string
+        && data.createdAt is string
+        && data.updatedAt is string;
+    }
+
+    match /renovo/{document=**} {
+      allow read, write: if true;
+    }
+
+    match /renovo_plus_meta/system {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && !bootstrapCompleted()
+        && validSystemData(request.resource.data)
+        && request.resource.data.bootstrapCompleted == true
+        && request.resource.data.firstAdminUid == request.auth.uid;
+      allow update: if isAdmin()
+        && validSystemData(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /renovo_plus_users/{uid} {
+      allow read: if signedIn()
+        && (request.auth.uid == uid || isAdminOrPastor());
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && validUserData(request.resource.data)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.primaryCellId == ""
+        && request.resource.data.scopeCellIds.size() == 0
+        && (
+          (
+            !bootstrapCompleted()
+            && request.resource.data.role == "admin"
+            && request.resource.data.status == "active"
+          )
+          || (
+            bootstrapCompleted()
+            && request.resource.data.role == "pending"
+            && request.resource.data.status == "pending"
+          )
+        );
+
+      allow update: if validUserData(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          isAdmin()
+          || (
+            isPastor()
+            && resource.data.role != "admin"
+            && request.resource.data.role != "admin"
+          )
+          || (
+            signedIn()
+            && request.auth.uid == uid
+            && request.resource.data.email == resource.data.email
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.primaryCellId == resource.data.primaryCellId
+            && request.resource.data.scopeCellIds == resource.data.scopeCellIds
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    match /renovo_plus_cells/{cellId} {
+      allow read: if signedIn() && isCellVisible(cellId);
+      allow create, update: if isAdminOrPastor()
+        && validCellData(request.resource.data, cellId);
+      allow delete: if isAdmin();
+    }
+
+    match /renovo_plus_members/{memberId} {
+      allow read: if signedIn() && isCellVisible(resource.data.cellId);
+      allow create, update: if isActiveProfile()
+        && validMemberData(request.resource.data, memberId)
+        && isCellVisible(request.resource.data.cellId);
+      allow delete: if isAdminOrPastor();
+    }
+
+    match /renovo_plus_reports/{reportId} {
+      allow read: if signedIn() && isCellVisible(resource.data.cellId);
+
+      allow create: if isActiveProfile()
+        && validReportData(request.resource.data, reportId)
+        && isCellVisible(request.resource.data.cellId)
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.updatedByUid == request.auth.uid;
+
+      allow update: if isActiveProfile()
+        && validReportData(request.resource.data, reportId)
+        && isCellVisible(resource.data.cellId)
+        && isCellVisible(request.resource.data.cellId)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdByUid == resource.data.createdByUid
+        && request.resource.data.updatedByUid == request.auth.uid;
+
+      allow delete: if isAdminOrPastor()
+        || (
+          isActiveProfile()
+          && isCellVisible(resource.data.cellId)
+          && resource.data.createdByUid == request.auth.uid
+        );
+    }
+
+    match /renovo_plus_studies/{studyId} {
+      allow read: if isActiveProfile();
+      allow write: if isAdminOrPastor();
+    }
+
+    match /renovo_plus_visitors/{visitorId} {
+      allow read: if signedIn() && isCellVisible(resource.data.cellId);
+      allow create, update: if isActiveProfile()
+        && isCellVisible(request.resource.data.cellId);
+      allow delete: if isAdminOrPastor();
+    }
+
+    match /renovo_plus_alerts/{alertId} {
+      allow read: if signedIn() && isCellVisible(resource.data.cellId);
+      allow create, update: if isActiveProfile()
+        && isCellVisible(request.resource.data.cellId);
+      allow delete: if isAdminOrPastor();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

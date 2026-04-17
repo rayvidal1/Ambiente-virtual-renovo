@@ -25,7 +25,7 @@
   const isPastor = () => session?.role === "pastor";
   const isAdminOrPastor = () => isAdmin() || isPastor();
   const canManageCells = () => isAdminOrPastor();
-  const canManageAccess = () => isAdminOrPastor();
+  const canManageAccess = () => isAdminOrPastor() || isCoordinator();
 
   function getAccessibleCells() {
     if (!session) return [];
@@ -259,7 +259,7 @@
     state.studies = studies;
     state.visitors = visitors;
 
-    if (isAdminOrPastor()) {
+    if (isAdminOrPastor() || isCoordinator()) {
       try { state.profiles = await fb().listProfiles(); } catch (_) { state.profiles = []; }
     }
   }
@@ -1110,18 +1110,34 @@
     renderAccessUsers();
     populateAccessCellSelects();
     resetAccessForm();
+    // Restrict role options for coordinators
+    const roleSelect = $("access-form")?.elements?.role;
+    if (roleSelect && isCoordinator()) {
+      roleSelect.innerHTML = `<option value="leader">Líder de Célula</option>`;
+    } else if (roleSelect) {
+      roleSelect.innerHTML = `
+        <option value="leader">Líder de Célula</option>
+        <option value="coordinator">Coordenador</option>
+        <option value="pastor">Pastor</option>
+        <option value="admin">Admin</option>`;
+    }
     openModal("access-modal");
   }
 
   function populateAccessCellSelects() {
+    // Coordinators only see their own scope cells; admin/pastor see all
+    const visibleCells = isCoordinator()
+      ? state.cells.filter((c) => (session.scopeCellIds || []).includes(c.id))
+      : state.cells;
+
     const cellSel = $("access-cell-select");
     if (cellSel) {
       cellSel.innerHTML = `<option value="">Selecione a célula</option>` +
-        state.cells.map((c) => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("");
+        visibleCells.map((c) => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("");
     }
     const scopeBox = $("scope-cells-checkboxes");
     if (scopeBox) {
-      scopeBox.innerHTML = state.cells
+      scopeBox.innerHTML = visibleCells
         .map((c) =>
           `<label style="display:flex;align-items:center;gap:0.4rem;padding:0.2rem 0;font-size:0.9rem;cursor:pointer">
             <input type="checkbox" value="${escHtml(c.id)}" onchange="window._syncScopeTextarea()" />
@@ -1140,7 +1156,11 @@
   function renderAccessUsers() {
     const container = $("access-users-list");
     if (!container) return;
-    const profiles = state.profiles;
+    // Coordinators only see leaders whose primaryCellId is in their scope
+    const scopeIds = new Set(session.scopeCellIds || []);
+    const profiles = isCoordinator()
+      ? state.profiles.filter((p) => p.role === "leader" && scopeIds.has(p.primaryCellId))
+      : state.profiles;
     if (!profiles.length) {
       container.innerHTML = `<p style="color:var(--ink-soft)">Nenhum usuário cadastrado.</p>`;
       return;

@@ -23,6 +23,7 @@
   const fb = () => window.renovoPlusFirebase;
   const isAdmin = () => session?.role === "admin";
   const isPastor = () => session?.role === "pastor";
+  const isCoordinator = () => session?.role === "coordinator";
   const isAdminOrPastor = () => isAdmin() || isPastor();
   const canManageCells = () => isAdminOrPastor();
   const canManageAccess = () => isAdminOrPastor() || isCoordinator();
@@ -1106,10 +1107,7 @@
 
   async function openAccessModal() {
     try {
-      if (!canManageAccess()) {
-        alert("Sem permissão. Cargo: " + (session?.role || "indefinido"));
-        return;
-      }
+      if (!canManageAccess()) return;
       await loadAllData();
       renderAccessUsers();
       populateAccessCellSelects();

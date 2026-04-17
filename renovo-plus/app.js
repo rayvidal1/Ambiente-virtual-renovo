@@ -1453,15 +1453,17 @@
     showScreen("loading-screen");
     setLoadingText("Conectando...");
 
-    fb().waitForAuthReady().then((user) => onAuthUser(user));
     fb().observeAuth((user) => {
-      // Only react to sign-out after initial boot
-      if (authHandled && !user) {
+      const newUid = user?.uid || null;
+      const currentUid = session?.uid || null;
+      if (!user) {
         session = null;
         authHandled = false;
         state = { cells: [], reports: [], studies: [], visitors: [], profiles: [] };
         showScreen("auth-screen");
-      } else if (!authHandled) {
+      } else if (newUid !== currentUid) {
+        // New user signed in (or first load with existing session)
+        authHandled = false;
         onAuthUser(user);
       }
     });

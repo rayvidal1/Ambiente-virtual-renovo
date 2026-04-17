@@ -1,3835 +1,1475 @@
-/* app.js - shell inicial da Renovo+ */
+/* app.js – Renovo+ v2, UI V1 */
 (function () {
-  const authScreen = document.getElementById("plus-auth-screen");
-  const authForm = document.getElementById("plus-auth-form");
-  const authFeedback = document.getElementById("plus-auth-feedback");
-  const emailInput = document.getElementById("plus-email-input");
-  const loginButton = document.getElementById("plus-login-button");
-  const resetPasswordButton = document.getElementById("plus-reset-password-button");
-  const loadingScreen = document.getElementById("plus-loading-screen");
-  const shell = document.getElementById("plus-shell");
-  const nav = document.getElementById("plus-nav");
-  const signOutButton = document.getElementById("plus-signout-button");
-  const statusPill = document.getElementById("plus-status-pill");
-  const userNameEl = document.getElementById("plus-user-name");
-  const userMetaEl = document.getElementById("plus-user-meta");
-  const pageKicker = document.getElementById("plus-page-kicker");
-  const pageTitle = document.getElementById("plus-page-title");
-  const pageDescription = document.getElementById("plus-page-description");
-  const pageBody = document.getElementById("plus-page-body");
-  const profileWarning = document.getElementById("plus-profile-warning");
-  const versionLabel = document.getElementById("plus-version-label");
-  const AUTH_BOOT_TIMEOUT_MS = 7000;
+  "use strict";
 
-  const ROLE_LABELS = {
-    leader: "Líder",
-    coordinator: "Coordenadora",
-    pastor: "Pastor",
-    admin: "Admin",
-    pending: "Sem perfil",
-  };
-
-  const STATUS_LABELS = {
-    active: "Ativo",
-    inactive: "Inativo",
-    pending: "Pendente",
-  };
-
-  const CELL_STATUS_LABELS = {
-    active: "Ativa",
-    inactive: "Inativa",
-  };
-
-  const MEMBER_STATUS_LABELS = {
-    active: "Ativo",
-    inactive: "Inativo",
-    moved: "Transferido",
-    paused: "Pausado",
-  };
-
-  const MEMBER_ROLE_LABELS = {
-    member: "Membro",
-    host: "Anfitriao",
-    assistant: "Auxiliar",
-    apprentice: "Aprendiz",
-  };
-
-  const ALERT_TYPE_LABELS = {
-    care: "Cuidado",
-    report_gap: "Relatorio pendente",
-    follow_up: "Follow-up",
-    prayer: "Oracao",
-    operations: "Operacao",
-    discipleship: "Discipulado",
-  };
-
-  const ALERT_SEVERITY_LABELS = {
-    info: "Informativo",
-    warn: "Atencao",
-    critical: "Critico",
-  };
-
-  const ALERT_STATUS_LABELS = {
-    open: "Aberto",
-    monitoring: "Em monitoramento",
-    resolved: "Resolvido",
-  };
-
-  const MEETING_DAY_OPTIONS = [
-    { value: "", label: "Selecione o dia" },
-    { value: "domingo", label: "Domingo" },
-    { value: "segunda", label: "Segunda" },
-    { value: "terca", label: "Terca" },
-    { value: "quarta", label: "Quarta" },
-    { value: "quinta", label: "Quinta" },
-    { value: "sexta", label: "Sexta" },
-    { value: "sabado", label: "Sabado" },
-  ];
-
-  const MODULE_DEFS = {
-    dashboard: {
-      kicker: "Mapa da Renovo+",
-      title: "Painel",
-      description: "Visão-base da nova arquitetura: autenticação real, perfis por uid e módulos isolados para crescer sem remendo.",
-      allowedRoles: ["leader", "coordinator", "pastor", "admin", "pending"],
-    },
-    cells: {
-      kicker: "Estrutura ministerial",
-      title: "Células",
-      description: "Modelo da Renovo+ para células, membros e vínculos por cellId em vez de nome textual.",
-      allowedRoles: ["leader", "coordinator", "pastor", "admin"],
-    },
-    members: {
-      kicker: "Base da celula",
-      title: "Membros",
-      description: "Cadastro de membros por cellId, com papel na célula, status e trilha segura para crescimento da equipe.",
-      allowedRoles: ["leader", "coordinator", "pastor", "admin"],
-    },
-    reports: {
-      kicker: "Fluxo semanal",
-      title: "Relatórios",
-      description: "Cada relatório vira um documento próprio com autoria, atualização e escopo da célula.",
-      allowedRoles: ["leader", "coordinator", "pastor", "admin"],
-    },
-    studies: {
-      kicker: "Biblioteca segura",
-      title: "Estudos",
-      description: "Metadados no Firestore, arquivo no Storage e liberação por papel ou audiência do estudo.",
-      allowedRoles: ["leader", "coordinator", "pastor", "admin"],
-    },
-    visitors: {
-      kicker: "Jornada de cuidado",
-      title: "Visitantes",
-      description: "Registro, recorrência, vínculo com célula e conversão futura para membro de forma rastreável.",
-      allowedRoles: ["leader", "coordinator", "pastor", "admin"],
-    },
-    alerts: {
-      kicker: "Cuidado e governanca",
-      title: "Acompanhamento",
-      description: "Alertas por célula, sinais do sistema e acompanhamento ministerial no mesmo fluxo da Renovo+.",
-      allowedRoles: ["leader", "coordinator", "pastor", "admin"],
-    },
-    access: {
-      kicker: "Governança",
-      title: "Acessos",
-      description: "Perfis por uid com papéis, escopo e status gerenciados sem contas compartilhadas.",
-      allowedRoles: ["pastor", "admin"],
-    },
-  };
-
-  const state = {
-    route: "dashboard",
-    authUser: null,
-    profile: null,
-    accessibleCells: [],
-    allCells: [],
-    members: [],
-    reports: [],
+  // ─── STATE ────────────────────────────────────────────────────────────────
+  let session = null; // { uid, name, email, role, primaryCellId, scopeCellIds, status }
+  let state = {
+    cells: [],     // normalised V2 cells, with .members[] and .leader text embedded
+    reports: [],   // normalised V2 reports
     studies: [],
     visitors: [],
-    alerts: [],
-    profiles: [],
-    hasAnyProfiles: false,
-    legacySummary: null,
-    selectedProfileUid: "",
-    selectedCellId: "",
-    selectedMemberId: "",
-    selectedReportId: "",
-    selectedStudyId: "",
-    selectedVisitorId: "",
-    selectedAlertId: "",
+    profiles: [],  // only loaded for admin/pastor
   };
 
-  function escapeHtml(value) {
-    return String(value || "")
+  // current items being edited
+  let editingReportId = null;
+  let editingCellId = null;
+  let editingStudyId = null;
+  let editingAccessUid = null;
+
+  // ─── HELPERS ──────────────────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const fb = () => window.renovoPlusFirebase;
+  const isAdmin = () => session?.role === "admin";
+  const isPastor = () => session?.role === "pastor";
+  const isAdminOrPastor = () => isAdmin() || isPastor();
+  const canManageCells = () => isAdminOrPastor();
+  const canManageAccess = () => isAdminOrPastor();
+
+  function getAccessibleCells() {
+    if (!session) return [];
+    if (isAdminOrPastor()) return state.cells;
+    const ids = new Set(
+      [session.primaryCellId, ...(session.scopeCellIds || [])].filter(Boolean)
+    );
+    return state.cells.filter((c) => ids.has(c.id));
+  }
+
+  function extractLeaderFromNotes(notes) {
+    const str = String(notes || "");
+    const m = str.match(/^Lider:\s*(.+?)(?:\n|$)/im);
+    return m ? m[1].trim() : "";
+  }
+
+  function getCellLeader(cell) {
+    return extractLeaderFromNotes(cell?.notes) || "";
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return "";
+    const parts = String(iso).split("-");
+    if (parts.length !== 3) return iso;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function fmtMoney(val) {
+    const n = Number(val) || 0;
+    return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function escHtml(str) {
+    return String(str || "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
+      .replace(/"/g, "&quot;");
   }
 
-  function setFeedback(message, tone) {
-    authFeedback.textContent = message || "";
-    authFeedback.style.color = tone === "soft" ? "var(--plus-ink-soft)" : "var(--plus-danger)";
+  function showFeedback(elId, msg, isError) {
+    const el = $(elId);
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isError ? "var(--danger, #c0392b)" : "var(--ink-soft, #555)";
+    if (msg) setTimeout(() => { if (el.textContent === msg) el.textContent = ""; }, 6000);
   }
 
-  function setStatus(text, tone) {
-    statusPill.textContent = text;
-    const tones = {
-      ok: ["rgba(39, 95, 75, 0.12)", "var(--plus-ok)"],
-      warn: ["rgba(155, 99, 39, 0.14)", "var(--plus-warn)"],
-      danger: ["rgba(162, 54, 43, 0.14)", "var(--plus-danger)"],
-      neutral: ["rgba(124, 29, 24, 0.1)", "var(--plus-brand)"],
-    };
-    const selected = tones[tone] || tones.neutral;
-    statusPill.style.background = selected[0];
-    statusPill.style.color = selected[1];
-  }
-
-  function normalizeRole(role) {
-    return ROLE_LABELS[String(role || "").trim()] ? String(role).trim() : "pending";
-  }
-
-  function normalizeStatus(status) {
-    return STATUS_LABELS[String(status || "").trim()] ? String(status).trim() : "pending";
-  }
-
-  function canAccessRoute(route) {
-    const definition = MODULE_DEFS[route] || MODULE_DEFS.dashboard;
-    const role = normalizeRole(state.profile?.role);
-    return definition.allowedRoles.includes(role);
-  }
-
-  function ensureAllowedRoute() {
-    if (!canAccessRoute(state.route)) {
-      state.route = "dashboard";
+  function setButtonLoading(btn, loading, label) {
+    if (!btn) return;
+    btn.disabled = loading;
+    if (loading) {
+      btn.dataset.originalText = btn.textContent;
+      btn.textContent = label || "Aguarde...";
+    } else {
+      btn.textContent = btn.dataset.originalText || btn.textContent;
     }
   }
 
-  function buildScopeText() {
-    const profile = state.profile;
-    if (!profile) {
-      return "Sem escopo carregado.";
+  // ─── SCREEN MANAGEMENT ────────────────────────────────────────────────────
+  function showScreen(name) {
+    ["loading-screen", "auth-screen", "home-screen", "app-shell"].forEach((id) => {
+      const el = $(id);
+      if (el) el.hidden = id !== name;
+    });
+  }
+
+  function openModal(id) {
+    const el = $(id);
+    if (el) el.hidden = false;
+  }
+
+  function closeModal(id) {
+    const el = $(id);
+    if (el) el.hidden = true;
+  }
+
+  // ─── AUTH SCREEN ──────────────────────────────────────────────────────────
+  function setupAuthScreen() {
+    const loginForm = $("login-form");
+    const forgotBtn = $("forgot-password-btn");
+    const togglePwd = $("toggle-password");
+
+    if (togglePwd) {
+      togglePwd.addEventListener("click", () => {
+        const inp = loginForm ? loginForm.querySelector('input[name="password"]') : null;
+        if (!inp) return;
+        inp.type = inp.type === "password" ? "text" : "password";
+      });
     }
 
-    if (profile.role === "leader") {
-      return profile.primaryCellId
-        ? `Célula principal: ${profile.primaryCellId}`
-        : "Líder sem célula principal vinculada.";
+    if (loginForm) {
+      loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = loginForm.elements.email.value.trim();
+        const password = loginForm.elements.password.value;
+        const btn = loginForm.querySelector('[type="submit"]');
+        showFeedback("auth-feedback", "");
+        setButtonLoading(btn, true, "Entrando...");
+        try {
+          await fb().signInWithEmail(email, password);
+          // onAuthStateChanged handles navigation
+        } catch (err) {
+          showFeedback("auth-feedback", translateAuthError(err), true);
+          setButtonLoading(btn, false);
+        }
+      });
     }
 
-    if (profile.role === "coordinator") {
-      return profile.scopeCellIds.length
-        ? `Células supervisionadas: ${profile.scopeCellIds.join(", ")}`
-        : "Coordenadora sem células vinculadas ainda.";
+    if (forgotBtn) {
+      forgotBtn.addEventListener("click", async () => {
+        const emailInput = loginForm ? loginForm.elements.email : null;
+        const email = emailInput ? emailInput.value.trim() : "";
+        if (!email) {
+          showFeedback("auth-feedback", "Informe seu e-mail antes de clicar em 'Esqueci minha senha'.", true);
+          return;
+        }
+        setButtonLoading(forgotBtn, true, "Enviando...");
+        try {
+          await fb().sendPasswordReset(email);
+          showFeedback("auth-feedback", "E-mail de redefinição enviado! Verifique sua caixa de entrada.");
+        } catch (err) {
+          showFeedback("auth-feedback", translateAuthError(err), true);
+        } finally {
+          setButtonLoading(forgotBtn, false);
+        }
+      });
+    }
+  }
+
+  function translateAuthError(err) {
+    const code = String(err?.code || "");
+    if (code.includes("user-not-found") || code.includes("wrong-password") || code.includes("invalid-credential"))
+      return "E-mail ou senha incorretos.";
+    if (code.includes("too-many-requests")) return "Muitas tentativas. Aguarde alguns minutos.";
+    if (code.includes("network-request-failed")) return "Sem conexão. Verifique sua internet.";
+    if (code.includes("invalid-email")) return "E-mail inválido.";
+    return err?.message || "Erro ao autenticar.";
+  }
+
+  // ─── HOME SCREEN ──────────────────────────────────────────────────────────
+  function setupHomeScreen() {
+    $("home-logout-button")?.addEventListener("click", handleLogout);
+    $("go-to-celulas")?.addEventListener("click", enterAppShell);
+  }
+
+  function renderHomeScreen() {
+    const nameEl = $("home-username");
+    if (nameEl) nameEl.textContent = session?.name || session?.email || "líder";
+    showScreen("home-screen");
+  }
+
+  // ─── APP SHELL ────────────────────────────────────────────────────────────
+  function setupAppShell() {
+    $("logout-button")?.addEventListener("click", handleLogout);
+    $("back-to-home-button")?.addEventListener("click", () => showScreen("home-screen"));
+
+    $("create-cell-card")?.addEventListener("click", openCreateCellModal);
+    $("add-member-card")?.addEventListener("click", openAddMemberModal);
+    $("import-members-card")?.addEventListener("click", openImportMembersModal);
+    $("weekly-report-card")?.addEventListener("click", openReportModal);
+    $("manage-access-card")?.addEventListener("click", openAccessModal);
+    $("view-studies-card")?.addEventListener("click", openStudiesModal);
+    $("view-visitantes-card")?.addEventListener("click", openVisitantesModal);
+  }
+
+  async function enterAppShell() {
+    showScreen("loading-screen");
+    setLoadingText("Carregando dados das células...");
+    try {
+      await loadAllData();
+      renderAppShell();
+      showScreen("app-shell");
+    } catch (err) {
+      console.error("[Renovo+] enterAppShell:", err);
+      alert("Erro ao carregar dados: " + (err.message || err));
+      showScreen("home-screen");
+    }
+  }
+
+  function renderAppShell() {
+    const badge = $("access-badge");
+    const note = $("access-note");
+    if (badge) {
+      const labels = { admin: "Admin", pastor: "Pastor", coordinator: "Coordenador", leader: "Líder", pending: "Pendente" };
+      badge.textContent = labels[session?.role] || session?.role || "";
+    }
+    if (note) {
+      const cells = getAccessibleCells();
+      note.textContent = cells.length
+        ? `Você acessa ${cells.length} célula${cells.length !== 1 ? "s" : ""}.`
+        : "Sem células vinculadas.";
     }
 
-    if (profile.role === "pastor" || profile.role === "admin") {
-      return "Visão global com governança dos módulos da Renovo+.";
+    const accessCells = getAccessibleCells();
+    const totalMembers = accessCells.reduce((s, c) => s + (c.members?.length || 0), 0);
+    $("total-cells").textContent = accessCells.length;
+    $("total-members").textContent = totalMembers;
+
+    const importCard = $("import-members-card");
+    if (importCard) importCard.hidden = !isAdminOrPastor();
+
+    const accessCard = $("manage-access-card");
+    if (accessCard) accessCard.hidden = !canManageAccess();
+  }
+
+  // ─── DATA LOADING ─────────────────────────────────────────────────────────
+  async function loadAllData() {
+    const profile = session;
+    const [cells, members, reports, studies, visitors] = await Promise.all([
+      fb().listAccessibleCells(profile),
+      fb().listAccessibleMembers(profile),
+      fb().listAccessibleReports(profile),
+      fb().listAccessibleStudies(profile),
+      fb().listAccessibleVisitors(profile),
+    ]);
+
+    state.cells = cells.map((cell) => ({
+      ...cell,
+      leader: extractLeaderFromNotes(cell.notes),
+      members: members
+        .filter((m) => m.cellId === cell.id && m.status !== "inactive")
+        .map((m) => ({ id: m.id, name: m.name, phone: m.phone || "", roleInCell: m.roleInCell || "member" })),
+    }));
+
+    state.reports = reports;
+    state.studies = studies;
+    state.visitors = visitors;
+
+    if (isAdminOrPastor()) {
+      try { state.profiles = await fb().listProfiles(); } catch (_) { state.profiles = []; }
     }
-
-    return "Perfil autenticado, mas ainda sem definição de papel.";
   }
 
-  function sortByName(list) {
-    return (Array.isArray(list) ? list.slice() : []).sort((a, b) =>
-      String(a?.name || "").localeCompare(String(b?.name || ""), "pt-BR", { sensitivity: "base" })
-    );
+  // ─── LOGOUT ───────────────────────────────────────────────────────────────
+  async function handleLogout() {
+    try { await fb().signOut(); } catch (_) {}
+    session = null;
+    state = { cells: [], reports: [], studies: [], visitors: [], profiles: [] };
   }
 
-  function canManageAccess() {
-    return state.profile?.role === "admin" || state.profile?.role === "pastor";
+  function setLoadingText(msg) {
+    const el = document.querySelector("#loading-screen .loading-text");
+    if (el) el.textContent = msg;
   }
 
-  function canManageCells() {
-    return state.profile?.role === "admin" || state.profile?.role === "pastor";
+  // ─── MODAL: CRIAR / EDITAR CÉLULA ─────────────────────────────────────────
+  function setupCellModal() {
+    $("close-cell-modal")?.addEventListener("click", () => {
+      closeModal("cell-modal");
+      editingCellId = null;
+    });
+
+    $("cell-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const btn = form.querySelector('[type="submit"]');
+      setButtonLoading(btn, true, "Salvando...");
+      const name = form.elements.name.value.trim();
+      const neighborhood = form.elements.neighborhood.value.trim();
+      const meetingDay = form.elements.meetingDay.value;
+      const meetingTime = form.elements.meetingTime.value;
+      const leader = form.elements.leader.value.trim();
+      const notes = leader ? `Lider: ${leader}` : "";
+      try {
+        await fb().saveCell(
+          { id: editingCellId || undefined, name, address: neighborhood, meetingDay, meetingTime, leaderUid: "", coLeaderUids: [], status: "active", notes },
+          session.uid
+        );
+        closeModal("cell-modal");
+        editingCellId = null;
+        form.reset();
+        await loadAllData();
+        renderAppShell();
+        if (!$("cells-modal").hidden) renderCellsList();
+      } catch (err) {
+        alert("Erro ao salvar célula: " + (err.message || err));
+      } finally {
+        setButtonLoading(btn, false);
+      }
+    });
   }
 
-  function getVisibleCells() {
-    return sortByName(canManageCells() ? state.allCells : state.accessibleCells);
+  function openCreateCellModal() {
+    if (!canManageCells()) { alert("Apenas admin ou pastor podem criar células."); return; }
+    editingCellId = null;
+    $("cell-form")?.reset();
+    if ($("cell-modal-title")) $("cell-modal-title").textContent = "Nova célula";
+    openModal("cell-modal");
   }
 
-  function findProfileNameByUid(uid) {
-    const normalizedUid = String(uid || "").trim();
-    if (!normalizedUid) {
-      return "";
+  function openEditCellModal(cellId) {
+    if (!canManageCells()) return;
+    const cell = state.cells.find((c) => c.id === cellId);
+    if (!cell) return;
+    editingCellId = cellId;
+    const form = $("cell-form");
+    if (!form) return;
+    form.elements.name.value = cell.name || "";
+    form.elements.neighborhood.value = cell.address || "";
+    form.elements.meetingDay.value = cell.meetingDay || "";
+    form.elements.meetingTime.value = cell.meetingTime || "";
+    form.elements.leader.value = getCellLeader(cell);
+    if ($("cell-modal-title")) $("cell-modal-title").textContent = "Editar célula";
+    openModal("cell-modal");
+  }
+
+  // ─── MODAL: ADICIONAR MEMBRO ───────────────────────────────────────────────
+  function setupMemberModal() {
+    $("close-member-modal")?.addEventListener("click", () => closeModal("member-modal"));
+    $("view-cells-card")?.addEventListener("click", () => {
+      closeModal("member-modal");
+      openCellsListModal();
+    });
+
+    $("member-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const btn = form.querySelector('[type="submit"]');
+      const cellId = form.elements.cellId.value;
+      const name = form.elements.memberName.value.trim();
+      const phone = form.elements.memberPhone.value.trim();
+      if (!cellId || !name) return;
+      setButtonLoading(btn, true, "Adicionando...");
+      try {
+        await fb().saveMember(
+          { cellId, name, phone, roleInCell: "member", status: "active", joinedAt: todayISO(), notes: "" },
+          session.uid
+        );
+        form.elements.memberName.value = "";
+        form.elements.memberPhone.value = "";
+        await loadAllData();
+        renderAppShell();
+        populateMemberCellSelect();
+      } catch (err) {
+        alert("Erro ao adicionar membro: " + (err.message || err));
+      } finally {
+        setButtonLoading(btn, false);
+      }
+    });
+  }
+
+  function openAddMemberModal() {
+    populateMemberCellSelect();
+    openModal("member-modal");
+  }
+
+  function populateMemberCellSelect() {
+    const sel = $("member-cell");
+    if (!sel) return;
+    const cells = getAccessibleCells();
+    sel.innerHTML = cells.length
+      ? cells.map((c) => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("")
+      : `<option value="">Cadastre uma célula primeiro</option>`;
+  }
+
+  // ─── MODAL: IMPORTAR MEMBROS ───────────────────────────────────────────────
+  function setupImportMembersModal() {
+    $("close-import-members-modal")?.addEventListener("click", () => closeModal("import-members-modal"));
+
+    $("import-members-textarea")?.addEventListener("input", () => {
+      const names = ($("import-members-textarea")?.value || "").split("\n").map((l) => l.trim()).filter(Boolean);
+      const prev = $("import-members-preview");
+      if (prev) prev.textContent = names.length ? `${names.length} membro(s) para importar.` : "";
+    });
+
+    $("import-members-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const btn = form.querySelector('[type="submit"]');
+      const cellId = form.elements.cellId.value;
+      const names = (form.elements.memberNames.value || "").split("\n").map((l) => l.trim()).filter(Boolean);
+      if (!cellId || !names.length) return;
+      setButtonLoading(btn, true, `Importando ${names.length}...`);
+      let ok = 0;
+      try {
+        for (const name of names) {
+          await fb().saveMember(
+            { cellId, name, phone: "", roleInCell: "member", status: "active", joinedAt: todayISO(), notes: "Importado em lote." },
+            session.uid
+          );
+          ok++;
+        }
+        form.reset();
+        if ($("import-members-preview")) $("import-members-preview").textContent = "";
+        closeModal("import-members-modal");
+        await loadAllData();
+        renderAppShell();
+        alert(`${ok} membro(s) importados!`);
+      } catch (err) {
+        alert(`Importados ${ok} de ${names.length}. Erro: ${err.message || err}`);
+      } finally {
+        setButtonLoading(btn, false);
+      }
+    });
+  }
+
+  function openImportMembersModal() {
+    if (!isAdminOrPastor()) return;
+    const sel = $("import-members-cell");
+    if (sel) {
+      sel.innerHTML = `<option value="">Selecione a célula</option>` +
+        state.cells.map((c) => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("");
     }
+    openModal("import-members-modal");
+  }
 
-    const match = state.profiles.find((profile) => profile.uid === normalizedUid);
-    if (match) {
-      return match.name || match.email || normalizedUid;
+  // ─── MODAL: VER CÉLULAS ───────────────────────────────────────────────────
+  function setupCellsModal() {
+    $("close-cells-modal")?.addEventListener("click", () => closeModal("cells-modal"));
+  }
+
+  function openCellsListModal() {
+    renderCellsList();
+    openModal("cells-modal");
+  }
+
+  function renderCellsList() {
+    const container = $("cells-list");
+    if (!container) return;
+    const cells = getAccessibleCells();
+    if (!cells.length) {
+      container.innerHTML = `<p style="padding:1rem;color:var(--ink-soft)">Nenhuma célula cadastrada.</p>`;
+      return;
     }
-
-    if (state.profile?.uid === normalizedUid) {
-      return state.profile.name || state.profile.email || normalizedUid;
-    }
-
-    return normalizedUid;
-  }
-
-  function getReportCells() {
-    return sortByName(canManageCells() ? state.allCells : state.accessibleCells);
-  }
-
-  function canManageMembers() {
-    return Boolean(state.profile) && normalizeStatus(state.profile.status) === "active" && normalizeRole(state.profile.role) !== "pending";
-  }
-
-  function canManageStudies() {
-    return state.profile?.role === "admin" || state.profile?.role === "pastor";
-  }
-
-  function canManageVisitors() {
-    return Boolean(state.profile) && normalizeStatus(state.profile.status) === "active" && normalizeRole(state.profile.role) !== "pending";
-  }
-
-  function findCellById(cellId) {
-    const normalizedId = String(cellId || "").trim();
-    return [...state.allCells, ...state.accessibleCells].find((cell) => cell.id === normalizedId) || null;
-  }
-
-  function findCellNameById(cellId) {
-    const cell = findCellById(cellId);
-    return cell?.name || String(cellId || "").trim();
-  }
-
-  function getEditableStudy() {
-    if (!state.studies.length) {
-      return null;
-    }
-
-    if (state.selectedStudyId === "__new__") {
-      return null;
-    }
-
-    const selected = state.studies.find((study) => study.id === state.selectedStudyId);
-    if (selected) {
-      return selected;
-    }
-
-    if (!canManageStudies()) {
-      state.selectedStudyId = state.studies[0].id;
-      return state.studies[0];
-    }
-
-    return null;
-  }
-
-  function getEditableVisitor() {
-    if (!state.visitors.length) {
-      return null;
-    }
-
-    if (state.selectedVisitorId === "__new__") {
-      return null;
-    }
-
-    const selected = state.visitors.find((visitor) => visitor.id === state.selectedVisitorId);
-    if (selected) {
-      return selected;
-    }
-
-    if (canManageVisitors()) {
-      return null;
-    }
-
-    state.selectedVisitorId = state.visitors[0].id;
-    return state.visitors[0];
-  }
-
-  function getEditableMember() {
-    if (!state.members.length) {
-      return null;
-    }
-
-    if (state.selectedMemberId === "__new__") {
-      return null;
-    }
-
-    const selected = state.members.find((member) => member.id === state.selectedMemberId);
-    if (selected) {
-      return selected;
-    }
-
-    if (canManageMembers()) {
-      return null;
-    }
-
-    state.selectedMemberId = state.members[0].id;
-    return state.members[0];
-  }
-
-  function canManageAlerts() {
-    return Boolean(state.profile) && normalizeStatus(state.profile.status) === "active" && normalizeRole(state.profile.role) !== "pending";
-  }
-
-  function getEditableAlert() {
-    if (!state.alerts.length) {
-      return null;
-    }
-
-    if (state.selectedAlertId === "__new__") {
-      return null;
-    }
-
-    const selected = state.alerts.find((alert) => alert.id === state.selectedAlertId);
-    if (selected) {
-      return selected;
-    }
-
-    if (canManageAlerts()) {
-      return null;
-    }
-
-    state.selectedAlertId = state.alerts[0].id;
-    return state.alerts[0];
-  }
-
-  function canManageProfile(targetProfile) {
-    if (!canManageAccess() || !targetProfile) {
-      return false;
-    }
-
-    if (state.profile?.role === "admin") {
-      return true;
-    }
-
-    return targetProfile.role !== "admin" && targetProfile.uid !== state.profile?.uid;
-  }
-
-  function getEditableProfile() {
-    if (!state.profiles.length) {
-      return null;
-    }
-
-    const selected = state.profiles.find((profile) => profile.uid === state.selectedProfileUid);
-    if (selected) {
-      return selected;
-    }
-
-    const current = state.profiles.find((profile) => profile.uid === state.profile?.uid);
-    if (current) {
-      state.selectedProfileUid = current.uid;
-      return current;
-    }
-
-    state.selectedProfileUid = state.profiles[0].uid;
-    return state.profiles[0];
-  }
-
-  function canDeleteCell() {
-    return state.profile?.role === "admin";
-  }
-
-  function canDeleteManagedRecord() {
-    return state.profile?.role === "admin" || state.profile?.role === "pastor";
-  }
-
-  function canDeleteReport(report) {
-    if (canDeleteManagedRecord()) {
-      return true;
-    }
-
-    return Boolean(report?.id) && String(report?.createdByUid || "").trim() === String(state.authUser?.uid || "").trim();
-  }
-
-  function renderDeleteButton(label, datasetName, datasetValue) {
-    if (!datasetName || !datasetValue) {
-      return "";
-    }
-
-    return `<button type="button" class="plus-secondary-button plus-danger-button" data-${escapeHtml(datasetName)}="${escapeHtml(datasetValue)}">${escapeHtml(label)}</button>`;
-  }
-
-  function renderProvisionRoleOptions(selectedValue) {
-    const current = String(selectedValue || "pending");
-    const canAssignAdmin = state.profile?.role === "admin";
-    return [
-      { value: "pending", label: "Sem perfil" },
-      { value: "leader", label: "Lider" },
-      { value: "coordinator", label: "Coordenadora" },
-      { value: "pastor", label: "Pastor" },
-      ...(canAssignAdmin ? [{ value: "admin", label: "Admin" }] : []),
-    ]
-      .map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === current ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
-      .join("");
-  }
-
-  function renderProvisionStatusOptions(selectedValue) {
-    const current = String(selectedValue || "pending");
-    return [
-      { value: "pending", label: "Pendente" },
-      { value: "active", label: "Ativo" },
-      { value: "inactive", label: "Inativo" },
-    ]
-      .map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === current ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
-      .join("");
-  }
-
-  function buildProvisionFormHtml() {
-    return `
-      <form id="plus-provision-form">
-        <label>
-          Nome
-          <input name="name" type="text" placeholder="Nome completo do acesso" required />
-        </label>
-        <label>
-          E-mail
-          <input name="email" type="email" placeholder="lider@igrejarenovo.com" required />
-        </label>
-        <label>
-          Senha temporaria
-          <input name="temporaryPassword" type="text" minlength="6" placeholder="Minimo de 6 caracteres" required />
-        </label>
-        <label>
-          Role inicial
-          <select name="role">
-            ${renderProvisionRoleOptions("pending")}
-          </select>
-        </label>
-        <label>
-          Status inicial
-          <select name="status">
-            ${renderProvisionStatusOptions("pending")}
-          </select>
-        </label>
-        <label>
-          Celula principal
-          <select name="primaryCellId">
-            ${renderCellSelectOptions("")}
-          </select>
-        </label>
-        <label>
-          Escopo supervisionado
-          <input name="scopeCellIds" type="text" placeholder="cell-azul, cell-vinho" />
-        </label>
-        <label>
-          Ministerio
-          <input name="ministryName" type="text" placeholder="Ex.: Supervisao setor norte" />
-        </label>
-        <label>
-          Observacoes
-          <textarea name="notes" placeholder="Observacoes internas sobre este acesso"></textarea>
-        </label>
-        <label class="plus-inline-checkbox">
-          <input name="sendPasswordReset" type="checkbox" value="1" checked />
-          <span>Enviar e-mail de redefinicao logo apos criar a conta</span>
-        </label>
-        <div class="plus-card-actions">
-          <button type="submit" class="plus-inline-button">Criar acesso</button>
-        </div>
-      </form>
-    `;
-  }
-
-  function renderMetaPairs(items) {
-    return items
-      .map(
-        (item) => `
-          <div class="plus-meta-item">
-            <span class="plus-meta-label">${escapeHtml(item.label)}</span>
-            <strong>${escapeHtml(item.value)}</strong>
-          </div>
-        `
-      )
-      .join("");
-  }
-
-  function renderCard(card) {
-    const list = Array.isArray(card.items) && card.items.length
-      ? `<ul>${card.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-      : "";
-    const metrics = Array.isArray(card.metrics) && card.metrics.length
-      ? `
-        <div class="plus-metric-grid">
-          ${card.metrics
-            .map(
-              (metric) => `
-                <div class="plus-metric">
-                  <strong>${escapeHtml(metric.value)}</strong>
-                  <span>${escapeHtml(metric.label)}</span>
-                </div>
-              `
-            )
-            .join("")}
-        </div>
-      `
-      : "";
-    const metaPairs = Array.isArray(card.metaPairs) && card.metaPairs.length
-      ? `<div class="plus-meta-pair">${renderMetaPairs(card.metaPairs)}</div>`
-      : "";
-    const tag = card.tag ? `<span class="plus-role-pill">${escapeHtml(card.tag)}</span>` : "";
-    const body = card.html ? card.html : card.body ? `<p>${escapeHtml(card.body)}</p>` : "";
-
-    return `
-      <article class="plus-card" data-span="${escapeHtml(card.span || "4")}">
-        <div class="plus-card-top">
-          <span class="plus-card-kicker">${escapeHtml(card.kicker || "Renovo+")}</span>
-          ${tag}
-        </div>
-        <h3>${escapeHtml(card.title || "")}</h3>
-        ${body}
-        ${metrics}
-        ${metaPairs}
-        ${list}
-      </article>
-    `;
-  }
-
-  function buildDashboardCards() {
-    const profile = state.profile;
-    const role = normalizeRole(profile?.role);
-    const collections = window.renovoPlusFirebase?.collections || {};
-    const accessibleCount = state.accessibleCells.length;
-
-    return [
-      {
-        span: "4",
-        kicker: "Sessão",
-        title: profile?.name || state.authUser?.email || "Conta autenticada",
-        body: "A fundação já diferencia autenticação Firebase da identidade ministerial do perfil interno.",
-        metaPairs: [
-          { label: "Role", value: ROLE_LABELS[role] || "Sem perfil" },
-          { label: "Status", value: profile?.status === "inactive" ? "Inativo" : "Ativo" },
-          { label: "Escopo", value: buildScopeText() },
-        ],
-      },
-      {
-        span: "4",
-        kicker: "Coleções-base",
-        title: "Módulos isolados",
-        body: "A V2 nasce em coleções separadas para conviver com a V1 sem sobrescrever dados atuais.",
-        items: [
-          `${collections.users || "renovo_plus_users"} -> perfis por uid`,
-          `${collections.cells || "renovo_plus_cells"} -> células e vínculos`,
-          `${collections.reports || "renovo_plus_reports"} -> relatórios por documento`,
-          `${collections.studies || "renovo_plus_studies"} -> biblioteca em PDF`,
-        ],
-      },
-      {
-        span: "4",
-        kicker: "Leitura rápida",
-        title: "Próxima camada",
-        body: "Esta base já está pronta para receber guards, CRUDs por módulo e regras de segurança do Firebase.",
-        metrics: [
-          { value: String(accessibleCount), label: "Células detectadas no escopo" },
-          { value: "6", label: "Módulos mapeados na V2" },
-          { value: "uid", label: "Chave principal do usuário" },
-        ],
-      },
-      {
-        span: "8",
-        kicker: "Mapa funcional",
-        title: "Fluxo de informação da Renovo+",
-        body: "A nova versão parte do usuário autenticado, resolve o perfil ministerial e só então libera os módulos do escopo dele.",
-        items: [
-          "Firebase Auth valida a sessão e entrega um uid real para Firestore e Storage.",
-          "O perfil em renovo_plus_users/{uid} define role, status, célula principal e escopo de supervisão.",
-          "As telas consultam módulos separados: células, relatórios, estudos, visitantes e alertas.",
-          "Toda operação relevante pode registrar createdByUid, updatedByUid e timestamps de auditoria.",
-        ],
-      },
-      {
-        span: "4",
-        kicker: "Fase atual",
-        title: "Fundação entregue",
-        body: "Já podemos começar os módulos sem misturar a V2 com o app atual.",
-        items: [
-          "Shell do app novo",
-          "Login real por e-mail/senha",
-          "Leitura de perfil por uid",
-          "Navegação inicial por papel",
-        ],
-      },
-    ];
-  }
-
-  function buildCellsCards() {
-    return [
-      {
-        span: "6",
-        kicker: "Coleção",
-        title: "renovo_plus_cells",
-        body: "Cada célula passa a ter identidade própria por cellId, sem depender do nome para governar escopo.",
-        items: [
-          "name, meetingDay, meetingTime, address, status",
-          "leaderUid e coLeaderUids",
-          "createdAt, updatedAt",
-          "Subcoleção futura de membros por célula",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Decisão estrutural",
-        title: "Membros separados da tela",
-        body: "Na V2, o membro deixa de ser só uma lista embutida e passa a fazer parte da estrutura ministerial com vínculo seguro.",
-        items: [
-          "cells/{cellId}/members/{memberId} ou coleção dedicada com cellId",
-          "Facilita auditoria, histórico e futuras métricas",
-          "Evita quebrar escopo quando o nome da célula muda",
-        ],
-      },
-      {
-        span: "12",
-        kicker: "Resultado esperado",
-        title: "Fluxo do módulo de células",
-        body: "Admin/pastor governam a estrutura, coordenação acompanha o grupo e líderes operam a própria célula sem risco de cruzar dados.",
-        items: [
-          "Criar/editar célula com leaderUid definido",
-          "Vincular líder e coordenadora por ids, não por texto livre",
-          "Consultar apenas as células filtradas pelo perfil carregado",
-        ],
-      },
-    ];
-  }
-
-  function buildReportsCards() {
-    return [
-      {
-        span: "6",
-        kicker: "Coleção",
-        title: "renovo_plus_reports",
-        body: "Cada relatório é um documento independente, com autoria e vínculo explícito à célula.",
-        items: [
-          "cellId, date, leaders, host, address",
-          "presentMemberIds, visitorsCount e visitorDetails",
-          "offering, foods, snack, discipleship, visits, conversions",
-          "createdByUid, updatedByUid, createdAt e updatedAt",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Permissão",
-        title: "Escrita controlada",
-        body: "Líder escreve no próprio escopo; coordenação acompanha; pastor/admin consolida sem sobrescrever relatórios de outros.",
-        items: [
-          "1 relatório = 1 documento",
-          "Sem lista única regravada inteira",
-          "Sem dependência de refresh para refletir autoria",
-        ],
-      },
-      {
-        span: "12",
-        kicker: "Cadeia de valor",
-        title: "Do relatório ao acompanhamento",
-        body: "O relatório deixa de ser só histórico e vira base de saúde ministerial, presença, visitantes e alertas.",
-        items: [
-          "Relatório alimenta painel do líder",
-          "Relatório alimenta saúde da célula para coordenação",
-          "Relatório alimenta consolidado mensal para pastor/admin",
-          "Relatório também suporta auditoria e revisão futura",
-        ],
-      },
-    ];
-  }
-
-  function buildStudiesCards() {
-    return [
-      {
-        span: "6",
-        kicker: "Firestore + Storage",
-        title: "Biblioteca em dois níveis",
-        body: "Metadado do estudo fica no Firestore; arquivo real fica no Storage com storagePath e regra por perfil.",
-        items: [
-          "title, description, audience, storagePath",
-          "createdByUid, updatedByUid",
-          "Sem PDF preso em localStorage",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Segurança",
-        title: "Acesso ao PDF por autenticação real",
-        body: "O download abre com sessão válida do Firebase, sem depender de link frouxo salvo no banco.",
-        items: [
-          "Upload controlado por Firebase Auth",
-          "Leitura conforme audience do estudo",
-          "Base preparada para pastas por estudo ou por ministério",
-        ],
-      },
-    ];
-  }
-
-  function buildVisitorsCards() {
-    return [
-      {
-        span: "6",
-        kicker: "Rastreio",
-        title: "renovo_plus_visitors",
-        body: "O visitante ganha histórico próprio e deixa de depender só do relatório semanal para existir no sistema.",
-        items: [
-          "name, phone, address, origin, context",
-          "cellId, firstVisitAt, lastVisitAt, visitCount",
-          "createdByUid e status de acompanhamento",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Evolução",
-        title: "Da visita ao cuidado",
-        body: "A Renovo+ pode ligar recorrência, retorno e eventual conversão para membro sem perder a trilha do acompanhamento.",
-        items: [
-          "Registrar por culto ou por célula",
-          "Identificar recorrência automaticamente",
-          "Converter para membro sem duplicação manual",
-        ],
-      },
-    ];
-  }
-
-  function buildAccessCards() {
-    return [
-      {
-        span: "6",
-        kicker: "Governança",
-        title: "Perfis por uid",
-        body: "Cada pessoa tem um uid próprio, sem conta compartilhada por célula.",
-        items: [
-          "role, status, primaryCellId e scopeCellIds",
-          "Desativação sem perder histórico",
-          "Promoção ou mudança de escopo com rastreabilidade",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Papéis",
-        title: "Hierarquia real",
-        body: "As permissões deixam de ser só de interface e passam a existir também nas regras do Firebase.",
-        items: [
-          "leader -> própria célula",
-          "coordinator -> grupo de células",
-          "pastor/admin -> visão consolidada e governança",
-        ],
-      },
-    ];
-  }
-
-  function buildPendingCards() {
-    return [
-      {
-        span: "12",
-        kicker: "Perfil pendente",
-        title: "Conta autenticada, mas ainda sem perfil da Renovo+",
-        body: "A autenticação já funcionou. O próximo passo é criar este uid na coleção renovo_plus_users com role, status e escopo ministerial.",
-        items: [
-          "Coleção esperada: renovo_plus_users/{uid}",
-          "Campos mínimos: name, email, role, status",
-          "Campos de escopo: primaryCellId e scopeCellIds",
-        ],
-      },
-    ];
-  }
-
-  function buildBootstrapCard() {
-    return {
-      span: "12",
-      kicker: "Primeiro passo",
-      title: "Assumir o primeiro admin da Renovo+",
-      html: `
-        <p>Nao ha nenhum perfil cadastrado ainda. Como esta conta ja esta autenticada, voce pode transforma-la no primeiro admin do novo sistema.</p>
-        <form id="plus-bootstrap-form">
-          <label>
-            Nome exibido
-            <input name="name" type="text" value="${escapeHtml(state.authUser?.displayName || state.authUser?.email || "")}" required />
-          </label>
-          <label>
-            Ministerio ou observacao inicial
-            <input name="ministryName" type="text" placeholder="Ex.: Lideranca geral" />
-          </label>
-          <div class="plus-card-actions">
-            <button type="submit" class="plus-inline-button">Assumir como primeiro admin</button>
-          </div>
-        </form>
-      `,
-    };
-  }
-
-  function renderCellSelectOptions(selectedValue) {
-    const current = String(selectedValue || "");
-    const options = sortByName(state.allCells)
-      .map((cell) => `<option value="${escapeHtml(cell.id)}" ${cell.id === current ? "selected" : ""}>${escapeHtml(cell.name || cell.id)}</option>`)
-      .join("");
-    return `<option value="">Sem celula principal</option>${options}`;
-  }
-
-  function getEditableCell() {
-    const visibleCells = getVisibleCells();
-    if (!visibleCells.length) {
-      return null;
-    }
-
-    if (canManageCells() && !state.selectedCellId) {
-      return null;
-    }
-
-    const selected = visibleCells.find((cell) => cell.id === state.selectedCellId);
-    if (selected) {
-      return selected;
-    }
-
-    if (canManageCells()) {
-      return null;
-    }
-
-    state.selectedCellId = visibleCells[0].id;
-    return visibleCells[0];
-  }
-
-  function renderMeetingDayOptions(selectedValue) {
-    const current = String(selectedValue || "");
-    return MEETING_DAY_OPTIONS
-      .map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === current ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
-      .join("");
-  }
-
-  function renderLeaderOptions(selectedValue) {
-    const current = String(selectedValue || "");
-    const profiles = sortByName(state.profiles.filter((profile) => normalizeRole(profile.role) !== "pending"));
-    const options = profiles
-      .map((profile) => `<option value="${escapeHtml(profile.uid)}" ${profile.uid === current ? "selected" : ""}>${escapeHtml(profile.name || profile.email || profile.uid)}</option>`)
-      .join("");
-    return `<option value="">Sem lider definido</option>${options}`;
-  }
-
-  function buildCellsListHtml() {
-    const visibleCells = getVisibleCells();
-    if (!visibleCells.length) {
-      return `<div class="plus-list-item"><strong>Nenhuma celula cadastrada ainda.</strong><span>Assim que uma celula for criada, ela aparecera aqui.</span></div>`;
-    }
-
-    return visibleCells
+    container.innerHTML = cells
       .map((cell) => {
-        const selected = cell.id === state.selectedCellId;
-        const leaderName = findProfileNameByUid(cell.leaderUid) || "Sem lider";
-        const meetingLabel = [cell.meetingDay, cell.meetingTime].filter(Boolean).join(" · ") || "Horario nao informado";
+        const leader = getCellLeader(cell);
+        const canEdit = canManageCells() || session.primaryCellId === cell.id;
+        const membersHtml = (cell.members || [])
+          .map((m) =>
+            `<div class="member-row">
+              <span>${escHtml(m.name)}${m.phone ? ` <small style="color:var(--ink-soft)">${escHtml(m.phone)}</small>` : ""}</span>
+              ${canEdit ? `<button type="button" class="ghost-btn compact-btn danger-btn" onclick="window._deleteMember('${escHtml(m.id)}','${escHtml(cell.id)}')">Remover</button>` : ""}
+            </div>`
+          ).join("");
 
-        return `
-          <div class="plus-list-item">
-            <div class="plus-list-item-top">
-              <div>
-                <strong>${escapeHtml(cell.name || cell.id)}</strong>
-                <small>${escapeHtml(cell.id)}</small>
-              </div>
-              <div class="plus-card-actions">
-                <span class="plus-role-pill">${escapeHtml(CELL_STATUS_LABELS[cell.status] || "Ativa")}</span>
-                <button type="button" class="plus-inline-button" data-select-cell="${escapeHtml(cell.id)}">${selected ? "Selecionada" : "Ver detalhes"}</button>
-              </div>
-            </div>
-            <span>${escapeHtml(`Lider: ${leaderName}`)}</span>
-            <span>${escapeHtml(`Reuniao: ${meetingLabel}`)}</span>
-          </div>
-        `;
-      })
-      .join("");
-  }
-
-  function buildCellEditorHtml(cell) {
-    const safeCell = cell || {
-      id: "",
-      name: "",
-      meetingDay: "",
-      meetingTime: "",
-      address: "",
-      leaderUid: "",
-      coLeaderUids: [],
-      status: "active",
-      notes: "",
-    };
-
-    return `
-      <form id="plus-cell-form">
-        <input type="hidden" name="id" value="${escapeHtml(safeCell.id)}" />
-        <label>
-          Codigo da celula
-          <input name="customId" type="text" value="${escapeHtml(safeCell.id)}" ${safeCell.id ? "readonly" : ""} placeholder="Ex.: setor-norte" />
-        </label>
-        <label>
-          Nome
-          <input name="name" type="text" value="${escapeHtml(safeCell.name)}" placeholder="Nome da celula" required />
-        </label>
-        <label>
-          Lider principal
-          <select name="leaderUid">
-            ${renderLeaderOptions(safeCell.leaderUid)}
-          </select>
-        </label>
-        <label>
-          Co-lideres
-          <input name="coLeaderUids" type="text" value="${escapeHtml((safeCell.coLeaderUids || []).join(", "))}" placeholder="uid-1, uid-2" />
-        </label>
-        <label>
-          Dia da reuniao
-          <select name="meetingDay">
-            ${renderMeetingDayOptions(safeCell.meetingDay)}
-          </select>
-        </label>
-        <label>
-          Horario
-          <input name="meetingTime" type="time" value="${escapeHtml(safeCell.meetingTime)}" />
-        </label>
-        <label>
-          Endereco
-          <textarea name="address" placeholder="Rua, numero, bairro">${escapeHtml(safeCell.address)}</textarea>
-        </label>
-        <label>
-          Status
-          <select name="status">
-            <option value="active" ${safeCell.status === "active" ? "selected" : ""}>Ativa</option>
-            <option value="inactive" ${safeCell.status === "inactive" ? "selected" : ""}>Inativa</option>
-          </select>
-        </label>
-        <label>
-          Observacoes
-          <textarea name="notes" placeholder="Anotacoes internas">${escapeHtml(safeCell.notes)}</textarea>
-        </label>
-        <div class="plus-card-actions">
-          <button type="submit" class="plus-inline-button">${safeCell.id ? "Salvar alteracoes" : "Criar celula"}</button>
-          <button type="button" class="plus-secondary-button" data-new-cell="true">Nova celula</button>
-          ${safeCell.id && canDeleteCell() ? renderDeleteButton("Excluir celula", "delete-cell", safeCell.id) : ""}
-        </div>
-      </form>
-    `;
-  }
-
-  function renderMemberRoleOptions(selectedValue) {
-    const current = String(selectedValue || "member");
-    return Object.entries(MEMBER_ROLE_LABELS)
-      .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(label)}</option>`)
-      .join("");
-  }
-
-  function renderMemberStatusOptions(selectedValue) {
-    const current = String(selectedValue || "active");
-    return Object.entries(MEMBER_STATUS_LABELS)
-      .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(label)}</option>`)
-      .join("");
-  }
-
-  function buildMembersListHtml() {
-    if (!state.members.length) {
-      return `<div class="plus-list-item"><strong>Nenhum membro cadastrado ainda.</strong><span>Assim que o primeiro membro entrar na base nova, ele aparecera aqui.</span></div>`;
-    }
-
-    return state.members
-      .map((member) => {
-        const selected = member.id === state.selectedMemberId;
-        const cellName = findCellNameById(member.cellId) || member.cellId || "Sem celula";
-        return `
-          <div class="plus-list-item">
-            <div class="plus-list-item-top">
-              <div>
-                <strong>${escapeHtml(member.name || member.id)}</strong>
-                <small>${escapeHtml(cellName)}</small>
-              </div>
-              <div class="plus-card-actions">
-                <span class="plus-role-pill">${escapeHtml(MEMBER_STATUS_LABELS[member.status] || member.status || "Ativo")}</span>
-                <button type="button" class="plus-inline-button" data-select-member="${escapeHtml(member.id)}">${selected ? "Selecionado" : "Abrir"}</button>
-              </div>
-            </div>
-            <span>${escapeHtml(`Papel: ${MEMBER_ROLE_LABELS[member.roleInCell] || member.roleInCell || "Membro"} | Entrada: ${member.joinedAt || "Nao informada"}`)}</span>
-            <span>${escapeHtml(member.phone || member.notes || "Sem contato registrado.")}</span>
-          </div>
-        `;
-      })
-      .join("");
-  }
-
-  function buildMemberEditorHtml(member) {
-    const safeMember = member || {
-      id: "",
-      cellId: getReportCells()[0]?.id || "",
-      name: "",
-      phone: "",
-      roleInCell: "member",
-      status: "active",
-      joinedAt: new Date().toISOString().slice(0, 10),
-      notes: "",
-    };
-
-    return `
-      <form id="plus-member-form">
-        <input type="hidden" name="id" value="${escapeHtml(safeMember.id)}" />
-        <label>
-          Celula
-          <select name="cellId" required>
-            ${renderReportCellOptions(safeMember.cellId)}
-          </select>
-        </label>
-        <label>
-          Nome
-          <input name="name" type="text" value="${escapeHtml(safeMember.name)}" placeholder="Nome do membro" required />
-        </label>
-        <label>
-          Telefone
-          <input name="phone" type="text" value="${escapeHtml(safeMember.phone)}" placeholder="Contato principal" />
-        </label>
-        <label>
-          Papel na celula
-          <select name="roleInCell">
-            ${renderMemberRoleOptions(safeMember.roleInCell)}
-          </select>
-        </label>
-        <label>
-          Status
-          <select name="status">
-            ${renderMemberStatusOptions(safeMember.status)}
-          </select>
-        </label>
-        <label>
-          Data de entrada
-          <input name="joinedAt" type="date" value="${escapeHtml(safeMember.joinedAt)}" />
-        </label>
-        <label>
-          Observacoes
-          <textarea name="notes" placeholder="Notas ministeriais ou historico resumido">${escapeHtml(safeMember.notes)}</textarea>
-        </label>
-        <div class="plus-card-actions">
-          <button type="submit" class="plus-inline-button">${safeMember.id ? "Salvar membro" : "Cadastrar membro"}</button>
-          <button type="button" class="plus-secondary-button" data-new-member="true">Novo membro</button>
-          ${safeMember.id && canDeleteManagedRecord() ? renderDeleteButton("Excluir membro", "delete-member", safeMember.id) : ""}
-        </div>
-      </form>
-    `;
-  }
-
-  function getEditableReport() {
-    const reports = Array.isArray(state.reports) ? state.reports : [];
-    if (!reports.length) {
-      return null;
-    }
-
-    if (state.selectedReportId === "__new__") {
-      return null;
-    }
-
-    if (!state.selectedReportId && !canManageCells()) {
-      state.selectedReportId = reports[0].id;
-    }
-
-    const selected = reports.find((report) => report.id === state.selectedReportId);
-    if (selected) {
-      return selected;
-    }
-
-    return canManageCells() ? null : reports[0];
-  }
-
-  function renderReportCellOptions(selectedValue) {
-    const current = String(selectedValue || "");
-    const options = getReportCells()
-      .map((cell) => `<option value="${escapeHtml(cell.id)}" ${cell.id === current ? "selected" : ""}>${escapeHtml(cell.name || cell.id)}</option>`)
-      .join("");
-    return `<option value="">Selecione a celula</option>${options}`;
-  }
-
-  function buildReportsListHtml() {
-    if (!state.reports.length) {
-      return `<div class="plus-list-item"><strong>Nenhum relatorio encontrado.</strong><span>Assim que o primeiro relatorio for salvo, ele aparecera aqui.</span></div>`;
-    }
-
-    return state.reports
-      .map((report) => {
-        const selected = report.id === state.selectedReportId;
-        const cellName = findCellNameById(report.cellId) || report.cellId || "Sem celula";
-        return `
-          <div class="plus-list-item">
-            <div class="plus-list-item-top">
-              <div>
-                <strong>${escapeHtml(cellName)}</strong>
-                <small>${escapeHtml(report.date || report.id)}</small>
-              </div>
-              <div class="plus-card-actions">
-                <span class="plus-role-pill">${escapeHtml(`R$ ${Number(report.offering || 0).toFixed(2)}`)}</span>
-                <button type="button" class="plus-inline-button" data-select-report="${escapeHtml(report.id)}">${selected ? "Selecionado" : "Abrir"}</button>
-              </div>
-            </div>
-            <span>${escapeHtml(`Presentes: ${Number(report.presentCount || 0)} · Visitantes: ${Number(report.visitorsCount || 0)}`)}</span>
-            <span>${escapeHtml(report.notes || "Sem observacoes registradas.")}</span>
-          </div>
-        `;
-      })
-      .join("");
-  }
-
-  function buildReportEditorHtml(report) {
-    const safeReport = report || {
-      id: "",
-      cellId: getReportCells()[0]?.id || "",
-      date: new Date().toISOString().slice(0, 10),
-      leaders: state.profile?.name || "",
-      host: "",
-      address: "",
-      presentCount: 0,
-      visitorsCount: 0,
-      offering: 0,
-      notes: "",
-    };
-
-    return `
-      <form id="plus-report-form">
-        <input type="hidden" name="id" value="${escapeHtml(safeReport.id)}" />
-        <label>
-          Celula
-          <select name="cellId" required>
-            ${renderReportCellOptions(safeReport.cellId)}
-          </select>
-        </label>
-        <label>
-          Data
-          <input name="date" type="date" value="${escapeHtml(safeReport.date)}" required />
-        </label>
-        <label>
-          Lideranca presente
-          <input name="leaders" type="text" value="${escapeHtml(safeReport.leaders)}" placeholder="Ex.: Ana, Paulo" />
-        </label>
-        <label>
-          Anfitriao
-          <input name="host" type="text" value="${escapeHtml(safeReport.host)}" placeholder="Casa onde a celula reuniu" />
-        </label>
-        <label>
-          Endereco
-          <textarea name="address" placeholder="Endereco da reuniao">${escapeHtml(safeReport.address)}</textarea>
-        </label>
-        <label>
-          Presentes
-          <input name="presentCount" type="number" min="0" step="1" value="${escapeHtml(safeReport.presentCount)}" />
-        </label>
-        <label>
-          Visitantes
-          <input name="visitorsCount" type="number" min="0" step="1" value="${escapeHtml(safeReport.visitorsCount)}" />
-        </label>
-        <label>
-          Oferta
-          <input name="offering" type="number" min="0" step="0.01" value="${escapeHtml(Number(safeReport.offering || 0).toFixed(2))}" />
-        </label>
-        <label>
-          Observacoes
-          <textarea name="notes" placeholder="Resumo do encontro">${escapeHtml(safeReport.notes)}</textarea>
-        </label>
-        <div class="plus-card-actions">
-          <button type="submit" class="plus-inline-button">${safeReport.id ? "Salvar relatorio" : "Criar relatorio"}</button>
-          <button type="button" class="plus-secondary-button" data-new-report="true">Novo relatorio</button>
-          ${safeReport.id && canDeleteReport(safeReport) ? renderDeleteButton("Excluir relatorio", "delete-report", safeReport.id) : ""}
-        </div>
-      </form>
-    `;
-  }
-
-  function buildStudiesListHtml() {
-    if (!state.studies.length) {
-      return `<div class="plus-list-item"><strong>Nenhum estudo disponivel ainda.</strong><span>Quando o primeiro PDF for publicado, ele aparecera aqui.</span></div>`;
-    }
-
-    return state.studies
-      .map((study) => {
-        const selected = study.id === state.selectedStudyId;
-        return `
-          <div class="plus-list-item">
-            <div class="plus-list-item-top">
-              <div>
-                <strong>${escapeHtml(study.title || study.id)}</strong>
-                <small>${escapeHtml(study.audience || "all")}</small>
-              </div>
-              <div class="plus-card-actions">
-                ${study.downloadUrl ? `<a class="plus-inline-button" href="${escapeHtml(study.downloadUrl)}" target="_blank" rel="noreferrer">Abrir PDF</a>` : ""}
-                <button type="button" class="plus-inline-button" data-select-study="${escapeHtml(study.id)}">${selected ? "Selecionado" : "Detalhes"}</button>
-              </div>
-            </div>
-            <span>${escapeHtml(study.fileName || "Arquivo sem nome")}</span>
-            <span>${escapeHtml(study.description || "Sem descricao registrada.")}</span>
-          </div>
-        `;
-      })
-      .join("");
-  }
-
-  function buildStudyEditorHtml(study) {
-    const safeStudy = study || {
-      id: "",
-      title: "",
-      description: "",
-      audience: "all",
-      fileName: "",
-      downloadUrl: "",
-    };
-
-    return `
-      <form id="plus-study-form">
-        <input type="hidden" name="id" value="${escapeHtml(safeStudy.id)}" />
-        <label>
-          Titulo
-          <input name="title" type="text" value="${escapeHtml(safeStudy.title)}" placeholder="Ex.: Estudo de lideranca" required />
-        </label>
-        <label>
-          Descricao
-          <textarea name="description" placeholder="Resumo e orientacao do estudo">${escapeHtml(safeStudy.description)}</textarea>
-        </label>
-        <label>
-          Audiencia
-          <select name="audience">
-            <option value="all" ${safeStudy.audience === "all" ? "selected" : ""}>Todos</option>
-            <option value="leaders" ${safeStudy.audience === "leaders" ? "selected" : ""}>Lideres</option>
-            <option value="coordinators" ${safeStudy.audience === "coordinators" ? "selected" : ""}>Coordenadoras</option>
-            <option value="pastors" ${safeStudy.audience === "pastors" ? "selected" : ""}>Pastores e admin</option>
-          </select>
-        </label>
-        <label>
-          PDF do estudo
-          <input name="file" type="file" accept="application/pdf" ${safeStudy.id ? "" : "required"} />
-        </label>
-        ${safeStudy.fileName ? `<p>Arquivo atual: <strong>${escapeHtml(safeStudy.fileName)}</strong></p>` : ""}
-        ${safeStudy.downloadUrl ? `<p><a href="${escapeHtml(safeStudy.downloadUrl)}" target="_blank" rel="noreferrer">Abrir arquivo atual</a></p>` : ""}
-        <div class="plus-card-actions">
-          <button type="submit" class="plus-inline-button">${safeStudy.id ? "Salvar estudo" : "Publicar estudo"}</button>
-          <button type="button" class="plus-secondary-button" data-new-study="true">Novo estudo</button>
-          ${safeStudy.id && canManageStudies() ? renderDeleteButton("Excluir estudo", "delete-study", safeStudy.id) : ""}
-        </div>
-      </form>
-    `;
-  }
-
-  function buildVisitorsListHtml() {
-    if (!state.visitors.length) {
-      return `<div class="plus-list-item"><strong>Nenhum visitante registrado ainda.</strong><span>Assim que um visitante for lancado, ele aparecera aqui.</span></div>`;
-    }
-
-    return state.visitors
-      .map((visitor) => {
-        const selected = visitor.id === state.selectedVisitorId;
-        const cellName = findCellNameById(visitor.cellId) || visitor.cellId || "Sem celula";
-        const whenLabel = visitor.lastVisitAt || visitor.firstVisitAt || "Sem data";
-        return `
-          <div class="plus-list-item">
-            <div class="plus-list-item-top">
-              <div>
-                <strong>${escapeHtml(visitor.name || visitor.id)}</strong>
-                <small>${escapeHtml(cellName)}</small>
-              </div>
-              <div class="plus-card-actions">
-                <span class="plus-role-pill">${escapeHtml(visitor.status || "new")}</span>
-                <button type="button" class="plus-inline-button" data-select-visitor="${escapeHtml(visitor.id)}">${selected ? "Selecionado" : "Abrir"}</button>
-              </div>
-            </div>
-            <span>${escapeHtml(`Ultima visita: ${whenLabel} · Visitas: ${Number(visitor.visitCount || 0)}`)}</span>
-            <span>${escapeHtml(visitor.context || visitor.notes || "Sem observacoes registradas.")}</span>
-          </div>
-        `;
-      })
-      .join("");
-  }
-
-  function buildVisitorEditorHtml(visitor) {
-    const safeVisitor = visitor || {
-      id: "",
-      cellId: getReportCells()[0]?.id || "",
-      name: "",
-      phone: "",
-      address: "",
-      origin: "",
-      context: "",
-      status: "new",
-      firstVisitAt: new Date().toISOString().slice(0, 10),
-      lastVisitAt: new Date().toISOString().slice(0, 10),
-      visitCount: 1,
-      notes: "",
-    };
-
-    return `
-      <form id="plus-visitor-form">
-        <input type="hidden" name="id" value="${escapeHtml(safeVisitor.id)}" />
-        <label>
-          Celula
-          <select name="cellId" required>
-            ${renderReportCellOptions(safeVisitor.cellId)}
-          </select>
-        </label>
-        <label>
-          Nome
-          <input name="name" type="text" value="${escapeHtml(safeVisitor.name)}" placeholder="Nome do visitante" required />
-        </label>
-        <label>
-          Telefone
-          <input name="phone" type="text" value="${escapeHtml(safeVisitor.phone)}" placeholder="Contato" />
-        </label>
-        <label>
-          Endereco
-          <textarea name="address" placeholder="Endereco">${escapeHtml(safeVisitor.address)}</textarea>
-        </label>
-        <label>
-          Origem
-          <input name="origin" type="text" value="${escapeHtml(safeVisitor.origin)}" placeholder="Quem trouxe ou como conheceu" />
-        </label>
-        <label>
-          Contexto
-          <textarea name="context" placeholder="Como foi a visita">${escapeHtml(safeVisitor.context)}</textarea>
-        </label>
-        <label>
-          Status
-          <select name="status">
-            <option value="new" ${safeVisitor.status === "new" ? "selected" : ""}>Novo</option>
-            <option value="returning" ${safeVisitor.status === "returning" ? "selected" : ""}>Retornando</option>
-            <option value="follow_up" ${safeVisitor.status === "follow_up" ? "selected" : ""}>Em acompanhamento</option>
-            <option value="member" ${safeVisitor.status === "member" ? "selected" : ""}>Virou membro</option>
-          </select>
-        </label>
-        <label>
-          Primeira visita
-          <input name="firstVisitAt" type="date" value="${escapeHtml(safeVisitor.firstVisitAt)}" />
-        </label>
-        <label>
-          Ultima visita
-          <input name="lastVisitAt" type="date" value="${escapeHtml(safeVisitor.lastVisitAt)}" />
-        </label>
-        <label>
-          Quantidade de visitas
-          <input name="visitCount" type="number" min="0" step="1" value="${escapeHtml(safeVisitor.visitCount)}" />
-        </label>
-        <label>
-          Observacoes
-          <textarea name="notes" placeholder="Anotacoes pastorais ou acompanhamento">${escapeHtml(safeVisitor.notes)}</textarea>
-        </label>
-        <div class="plus-card-actions">
-          <button type="submit" class="plus-inline-button">${safeVisitor.id ? "Salvar visitante" : "Registrar visitante"}</button>
-          <button type="button" class="plus-secondary-button" data-new-visitor="true">Novo visitante</button>
-          ${safeVisitor.id && canDeleteManagedRecord() ? renderDeleteButton("Excluir visitante", "delete-visitor", safeVisitor.id) : ""}
-        </div>
-      </form>
-    `;
-  }
-
-  function renderAlertTypeOptions(selectedValue) {
-    const current = String(selectedValue || "care");
-    return Object.entries(ALERT_TYPE_LABELS)
-      .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(label)}</option>`)
-      .join("");
-  }
-
-  function renderAlertSeverityOptions(selectedValue) {
-    const current = String(selectedValue || "warn");
-    return Object.entries(ALERT_SEVERITY_LABELS)
-      .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(label)}</option>`)
-      .join("");
-  }
-
-  function renderAlertStatusOptions(selectedValue) {
-    const current = String(selectedValue || "open");
-    return Object.entries(ALERT_STATUS_LABELS)
-      .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(label)}</option>`)
-      .join("");
-  }
-
-  function buildAlertsListHtml() {
-    if (!state.alerts.length) {
-      return `<div class="plus-list-item"><strong>Nenhum alerta manual registrado ainda.</strong><span>Os acompanhamentos criados pela equipe vao aparecer aqui.</span></div>`;
-    }
-
-    return state.alerts
-      .map((alert) => {
-        const selected = alert.id === state.selectedAlertId;
-        const cellName = findCellNameById(alert.cellId) || alert.cellId || "Sem celula";
-        const severityLabel = ALERT_SEVERITY_LABELS[alert.severity] || alert.severity || "Atencao";
-        const statusLabel = ALERT_STATUS_LABELS[alert.status] || alert.status || "Aberto";
-        return `
-          <div class="plus-list-item">
-            <div class="plus-list-item-top">
-              <div>
-                <strong>${escapeHtml(alert.title || alert.id)}</strong>
-                <small>${escapeHtml(cellName)}</small>
-              </div>
-              <div class="plus-card-actions">
-                <span class="plus-role-pill">${escapeHtml(severityLabel)}</span>
-                <span class="plus-role-pill">${escapeHtml(statusLabel)}</span>
-                <button type="button" class="plus-inline-button" data-select-alert="${escapeHtml(alert.id)}">${selected ? "Selecionado" : "Abrir"}</button>
-              </div>
-            </div>
-            <span>${escapeHtml(alert.summary || "Sem resumo registrado.")}</span>
-            <span>${escapeHtml(`Tipo: ${ALERT_TYPE_LABELS[alert.type] || alert.type || "Cuidado"} | Prazo: ${alert.dueAt || "Livre"}`)}</span>
-          </div>
-        `;
-      })
-      .join("");
-  }
-
-  function buildAlertEditorHtml(alert) {
-    const safeAlert = alert || {
-      id: "",
-      cellId: getReportCells()[0]?.id || "",
-      type: "care",
-      severity: "warn",
-      status: "open",
-      title: "",
-      summary: "",
-      ownerUid: "",
-      dueAt: "",
-      notes: "",
-    };
-
-    return `
-      <form id="plus-alert-form">
-        <input type="hidden" name="id" value="${escapeHtml(safeAlert.id)}" />
-        <label>
-          Celula
-          <select name="cellId" required>
-            ${renderReportCellOptions(safeAlert.cellId)}
-          </select>
-        </label>
-        <label>
-          Tipo
-          <select name="type">
-            ${renderAlertTypeOptions(safeAlert.type)}
-          </select>
-        </label>
-        <label>
-          Gravidade
-          <select name="severity">
-            ${renderAlertSeverityOptions(safeAlert.severity)}
-          </select>
-        </label>
-        <label>
-          Status
-          <select name="status">
-            ${renderAlertStatusOptions(safeAlert.status)}
-          </select>
-        </label>
-        <label>
-          Titulo
-          <input name="title" type="text" value="${escapeHtml(safeAlert.title)}" placeholder="Ex.: Familia precisa de visita" required />
-        </label>
-        <label>
-          Resumo
-          <textarea name="summary" placeholder="Contexto rapido do acompanhamento">${escapeHtml(safeAlert.summary)}</textarea>
-        </label>
-        <label>
-          Responsavel (uid)
-          <input name="ownerUid" type="text" value="${escapeHtml(safeAlert.ownerUid)}" placeholder="Uid de quem vai acompanhar" />
-        </label>
-        <label>
-          Prazo
-          <input name="dueAt" type="date" value="${escapeHtml(safeAlert.dueAt)}" />
-        </label>
-        <label>
-          Observacoes internas
-          <textarea name="notes" placeholder="Anotacoes ministeriais">${escapeHtml(safeAlert.notes)}</textarea>
-        </label>
-        <div class="plus-card-actions">
-          <button type="submit" class="plus-inline-button">${safeAlert.id ? "Salvar alerta" : "Criar alerta"}</button>
-          <button type="button" class="plus-secondary-button" data-new-alert="true">Novo alerta</button>
-          ${safeAlert.id && canDeleteManagedRecord() ? renderDeleteButton("Excluir alerta", "delete-alert", safeAlert.id) : ""}
-        </div>
-      </form>
-    `;
-  }
-
-  function collectDerivedAlerts() {
-    const visibleCells = getVisibleCells();
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const reportsThisMonth = state.reports.filter((report) => String(report.date || "").slice(0, 7) === currentMonth);
-    const reportedCellIds = new Set(reportsThisMonth.map((report) => String(report.cellId || "").trim()).filter(Boolean));
-    const derived = [];
-    const cellsMissingReport = visibleCells.filter((cell) => cell.status !== "inactive" && !reportedCellIds.has(cell.id));
-    const followUpVisitors = state.visitors.filter((visitor) => String(visitor.status || "").trim() === "follow_up");
-    const cellsWithoutLeader = visibleCells.filter((cell) => !String(cell.leaderUid || "").trim());
-    const profilesPending = canManageAccess()
-      ? state.profiles.filter((profile) => normalizeRole(profile.role) === "pending" || normalizeStatus(profile.status) === "pending")
-      : [];
-
-    if (cellsMissingReport.length) {
-      derived.push({
-        severity: "warn",
-        title: "Celulas sem relatorio neste mes",
-        summary: cellsMissingReport.map((cell) => cell.name || cell.id).slice(0, 4).join(", "),
-        route: "reports",
-      });
-    }
-
-    if (followUpVisitors.length) {
-      derived.push({
-        severity: "info",
-        title: "Visitantes em acompanhamento",
-        summary: followUpVisitors
-          .slice(0, 4)
-          .map((visitor) => `${visitor.name || visitor.id} (${findCellNameById(visitor.cellId) || visitor.cellId || "Sem celula"})`)
-          .join(", "),
-        route: "visitors",
-      });
-    }
-
-    if (cellsWithoutLeader.length) {
-      derived.push({
-        severity: "critical",
-        title: "Celulas sem lider definido",
-        summary: cellsWithoutLeader.map((cell) => cell.name || cell.id).slice(0, 4).join(", "),
-        route: "cells",
-      });
-    }
-
-    if (profilesPending.length) {
-      derived.push({
-        severity: "warn",
-        title: "Perfis aguardando liberacao",
-        summary: profilesPending.map((profile) => profile.name || profile.email || profile.uid).slice(0, 4).join(", "),
-        route: "access",
-      });
-    }
-
-    return derived;
-  }
-
-  function buildDerivedAlertsHtml() {
-    const items = collectDerivedAlerts();
-    if (!items.length) {
-      return `<div class="plus-list-item"><strong>Nenhum sinal estrutural urgente agora.</strong><span>O modulo vai destacar aqui os pontos que pedem cuidado ou reorganizacao.</span></div>`;
-    }
-
-    return items
-      .map((item) => `
-        <div class="plus-list-item">
-          <div class="plus-list-item-top">
+        return `<div class="cell-card">
+          <div class="cell-card-head">
             <div>
-              <strong>${escapeHtml(item.title)}</strong>
-              <small>${escapeHtml(ALERT_SEVERITY_LABELS[item.severity] || item.severity || "Atencao")}</small>
+              <strong>${escHtml(cell.name)}</strong>
+              ${leader ? `<small style="display:block;color:var(--ink-soft)">Líder: ${escHtml(leader)}</small>` : ""}
+              <small style="color:var(--ink-soft)">${[cell.meetingDay, cell.meetingTime, cell.address].filter(Boolean).map(escHtml).join(" · ")}</small>
             </div>
-            <div class="plus-card-actions">
-              <span class="plus-role-pill">${escapeHtml(ALERT_SEVERITY_LABELS[item.severity] || item.severity || "Atencao")}</span>
-              ${item.route && canAccessRoute(item.route) ? `<button type="button" class="plus-inline-button" data-dashboard-route="${escapeHtml(item.route)}">Abrir modulo</button>` : ""}
+            <div style="display:flex;gap:0.4rem">
+              ${canManageCells() ? `<button type="button" class="ghost-btn compact-btn" onclick="window._editCell('${escHtml(cell.id)}')">Editar</button>` : ""}
+              ${canManageCells() ? `<button type="button" class="ghost-btn compact-btn danger-btn" onclick="window._deleteCell('${escHtml(cell.id)}')">Excluir</button>` : ""}
             </div>
           </div>
-          <span>${escapeHtml(item.summary || "Sem resumo adicional.")}</span>
-        </div>
-      `)
-      .join("");
-  }
-
-  function buildProfilesListHtml() {
-    if (!state.profiles.length) {
-      return `<div class="plus-list-item"><strong>Nenhum perfil carregado.</strong><span>Assim que novas contas forem criadas, elas aparecerao aqui.</span></div>`;
-    }
-
-    return state.profiles
-      .map((profile) => {
-        const selected = profile.uid === state.selectedProfileUid;
-        const canEdit = canManageProfile(profile) || profile.uid === state.profile?.uid;
-        return `
-          <div class="plus-list-item">
-            <div class="plus-list-item-top">
-              <div>
-                <strong>${escapeHtml(profile.name || profile.email || profile.uid)}</strong>
-                <small>${escapeHtml(profile.email || profile.uid)}</small>
-              </div>
-              <div class="plus-card-actions">
-                <span class="plus-role-pill">${escapeHtml(ROLE_LABELS[normalizeRole(profile.role)] || "Sem perfil")}</span>
-                <span class="plus-role-pill">${escapeHtml(STATUS_LABELS[normalizeStatus(profile.status)] || "Pendente")}</span>
-                ${canEdit ? `<button type="button" class="plus-inline-button" data-select-profile="${escapeHtml(profile.uid)}">${selected ? "Editando" : "Editar"}</button>` : ""}
-              </div>
-            </div>
-            <span>${escapeHtml(profile.primaryCellId ? `Celula principal: ${profile.primaryCellId}` : "Sem celula principal")}</span>
-            <span>${escapeHtml(profile.scopeCellIds.length ? `Escopo: ${profile.scopeCellIds.join(", ")}` : "Sem escopo complementar")}</span>
+          <div class="cell-members">
+            <p style="margin:0.5rem 0 0.25rem;font-size:0.85rem;font-weight:600">${(cell.members || []).length} membro(s)</p>
+            ${membersHtml || `<p style="font-size:0.85rem;color:var(--ink-soft)">Nenhum membro.</p>`}
           </div>
-        `;
-      })
-      .join("");
+        </div>`;
+      }).join("");
   }
 
-  function buildAccessCardsV2() {
-    const editable = getEditableProfile();
-    const canAssignAdmin = state.profile?.role === "admin";
-    const legacy = state.legacySummary;
+  window._editCell = function (cellId) {
+    closeModal("cells-modal");
+    openEditCellModal(cellId);
+  };
 
-    return [
-      {
-        span: "4",
-        kicker: "Governanca",
-        title: "Perfis carregados",
-        metrics: [
-          { value: String(state.profiles.length), label: "Perfis na Renovo+" },
-          { value: String(state.allCells.length), label: "Celulas para escopo" },
-          { value: ROLE_LABELS[normalizeRole(state.profile?.role)] || "Sem perfil", label: "Seu papel atual" },
-        ],
-      },
-      {
-        span: "8",
-        kicker: "Fluxo de entrada",
-        title: "Como novos usuarios entram",
-        body: "A Renovo+ agora trabalha com acesso criado pela administracao. Depois disso, o proprio usuario entra, redefine a senha se precisar e opera so dentro do escopo liberado.",
-        items: [
-          "Admin ou pastor cria a conta com senha temporaria por este modulo.",
-          "A primeira conta continua podendo assumir o bootstrap inicial.",
-          "Depois do cadastro, o perfil ja fica pronto para receber papel, status e escopo.",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Lista de perfis",
-        title: "Usuarios da Renovo+",
-        html: `<div class="plus-list">${buildProfilesListHtml()}</div>`,
-      },
-      {
-        span: "6",
-        kicker: "Editor",
-        title: editable ? `Perfil de ${editable.name || editable.email || editable.uid}` : "Selecione um perfil",
-        html: editable
-          ? `
-            <form id="plus-profile-form">
-              <input type="hidden" name="uid" value="${escapeHtml(editable.uid)}" />
-              <label>
-                Nome
-                <input name="name" type="text" value="${escapeHtml(editable.name)}" required />
-              </label>
-              <label>
-                E-mail
-                <input name="email" type="email" value="${escapeHtml(editable.email)}" readonly />
-              </label>
-              <label>
-                Role
-                <select name="role">
-                  <option value="pending" ${editable.role === "pending" ? "selected" : ""}>Sem perfil</option>
-                  <option value="leader" ${editable.role === "leader" ? "selected" : ""}>Lider</option>
-                  <option value="coordinator" ${editable.role === "coordinator" ? "selected" : ""}>Coordenadora</option>
-                  <option value="pastor" ${editable.role === "pastor" ? "selected" : ""}>Pastor</option>
-                  ${canAssignAdmin ? `<option value="admin" ${editable.role === "admin" ? "selected" : ""}>Admin</option>` : ""}
-                </select>
-              </label>
-              <label>
-                Status
-                <select name="status">
-                  <option value="pending" ${normalizeStatus(editable.status) === "pending" ? "selected" : ""}>Pendente</option>
-                  <option value="active" ${normalizeStatus(editable.status) === "active" ? "selected" : ""}>Ativo</option>
-                  <option value="inactive" ${normalizeStatus(editable.status) === "inactive" ? "selected" : ""}>Inativo</option>
-                </select>
-              </label>
-              <label>
-                Celula principal
-                <select name="primaryCellId">
-                  ${renderCellSelectOptions(editable.primaryCellId)}
-                </select>
-              </label>
-              <label>
-                Escopo supervisionado
-                <input name="scopeCellIds" type="text" value="${escapeHtml((editable.scopeCellIds || []).join(", "))}" placeholder="cell-azul, cell-vinho" />
-              </label>
-              <label>
-                Ministerio
-                <input name="ministryName" type="text" value="${escapeHtml(editable.ministryName)}" placeholder="Ex.: Supervisao setor norte" />
-              </label>
-              <label>
-                Observacoes
-                <textarea name="notes" placeholder="Observacoes internas">${escapeHtml(editable.notes)}</textarea>
-              </label>
-              <div class="plus-card-actions">
-                <button type="submit" class="plus-inline-button">Salvar perfil</button>
-                ${editable.email ? `<button type="button" class="plus-secondary-button" data-send-reset-email="${escapeHtml(editable.email)}">Enviar redefinicao</button>` : ""}
-              </div>
-              <p class="plus-muted-note">Use a redefinicao para trocar a senha sem depender do console do Firebase.</p>
-            </form>
-          `
-          : `<p>Nenhum perfil selecionado ainda.</p>`,
-      },
-      {
-        span: "6",
-        kicker: "Novo acesso",
-        title: "Criar conta com e-mail e senha",
-        html: buildProvisionFormHtml(),
-      },
-      {
-        span: "6",
-        kicker: "Migracao",
-        title: "Trazer dados da V1",
-        body: legacy
-          ? "A leitura da base antiga ja encontrou dados suficientes para iniciar a migracao da V1 para a Renovo+."
-          : "Quando a leitura da V1 estiver disponivel, este modulo mostra o resumo do que pode ser trazido para a base nova.",
-        metrics: legacy
-          ? [
-              { value: String(legacy.cells), label: "Celulas da V1" },
-              { value: String(legacy.members), label: "Membros mapeados" },
-              { value: String(legacy.reports), label: "Relatorios legados" },
-              { value: String(legacy.visitors), label: "Visitantes importaveis" },
-              { value: String(legacy.studies), label: "Estudos com arquivo" },
-              { value: String(legacy.unlinkedVisitors), label: "Visitantes sem celula" },
-            ]
-          : [],
-        html: `
-          <div class="plus-card-actions">
-            <button type="button" class="plus-inline-button" data-import-legacy="true">Importar dados da V1</button>
-          </div>
-          <p class="plus-muted-note">Perfis legados nao entram automaticamente porque a V2 usa Firebase Auth por uid. Estudos sem arquivo remoto continuam de fora e precisam ser republicados.</p>
-          ${legacy && legacy.studiesMissingFile > 0 ? `<p class="plus-muted-note">${escapeHtml(`${legacy.studiesMissingFile} estudo(s) da V1 ainda sem PDF remoto importavel.`)}</p>` : ""}
-        `,
-      },
-    ];
-  }
+  window._deleteCell = async function (cellId) {
+    const cell = state.cells.find((c) => c.id === cellId);
+    if (!cell) return;
+    if (!confirm(`Excluir célula "${cell.name}"? Isso remove todos os membros, relatórios e visitantes desta célula.`)) return;
+    try {
+      await fb().deleteCell(cellId);
+      await loadAllData();
+      renderAppShell();
+      renderCellsList();
+    } catch (err) { alert("Erro ao excluir: " + (err.message || err)); }
+  };
 
-  function buildPendingCardsV2() {
-    const cards = [
-      {
-        span: "8",
-        kicker: "Onboarding",
-        title: "Conta autenticada, mas ainda sem governanca liberada",
-        body: state.profile
-          ? "Seu cadastro ja existe, mas o papel ou o status ainda nao liberaram os modulos finais da Renovo+."
-          : "A autenticacao funcionou, mas este acesso ainda nao recebeu um perfil completo dentro da Renovo+.",
-        items: [
-          `UID autenticado: ${state.authUser?.uid || "-"}`,
-          `E-mail: ${state.authUser?.email || "-"}`,
-          state.profile
-            ? `Role atual: ${ROLE_LABELS[normalizeRole(state.profile.role)] || "Sem perfil"}`
-            : "Se este nao for o primeiro admin, um pastor ou admin precisa concluir a liberacao pelo modulo de acessos.",
-        ],
-      },
-      {
-        span: "4",
-        kicker: "Situacao",
-        title: state.hasAnyProfiles ? "Aguardando configuracao" : "Nenhum perfil ainda",
-        body: state.hasAnyProfiles
-          ? "Um admin ou pastor precisa completar seu papel, status e escopo no modulo de acessos."
-          : "Como esta e a primeira conta autenticada, ja podemos criar o admin inicial por aqui.",
-        items: [
-          "Colecao alvo: renovo_plus_users/{uid}",
-          "Campos minimos: name, email, role, status",
-          "Escopo: primaryCellId e scopeCellIds",
-        ],
-      },
-    ];
+  window._deleteMember = async function (memberId, cellId) {
+    const cell = state.cells.find((c) => c.id === cellId);
+    const member = (cell?.members || []).find((m) => m.id === memberId);
+    if (!confirm(`Remover "${member?.name || "membro"}"?`)) return;
+    try {
+      await fb().deleteMember(memberId);
+      await loadAllData();
+      renderAppShell();
+      renderCellsList();
+    } catch (err) { alert("Erro: " + (err.message || err)); }
+  };
 
-    if (!state.hasAnyProfiles && state.authUser) {
-      cards.push(buildBootstrapCard());
-    }
+  // ─── MODAL: RELATÓRIO SEMANAL ──────────────────────────────────────────────
+  let foodItems = [];
+  let reportImages = [];
 
-    return cards;
-  }
+  function setupReportModal() {
+    $("close-report-modal")?.addEventListener("click", () => {
+      closeModal("report-modal");
+      editingReportId = null;
+    });
 
-  function getCardsForRoute(route) {
-    if (!state.profile || normalizeRole(state.profile.role) === "pending" || normalizeStatus(state.profile.status) === "pending") {
-      return buildPendingCardsV2();
-    }
+    $("report-cell")?.addEventListener("change", () => {
+      populateAttendanceList($("report-cell").value);
+      updateReportHistory();
+    });
 
-    if (route === "cells") return buildCellsCards();
-    if (route === "members") return buildMembersCards();
-    if (route === "reports") return buildReportsCards();
-    if (route === "studies") return buildStudiesCards();
-    if (route === "visitors") return buildVisitorsCards();
-    if (route === "alerts") return buildAlertsCards();
-    if (route === "access") return buildAccessCardsV2();
-    return buildDashboardCards();
-  }
+    $("mark-all-attendance")?.addEventListener("click", () => {
+      document.querySelectorAll("#attendance-list input[type='checkbox']").forEach((cb) => (cb.checked = true));
+    });
+    $("clear-attendance")?.addEventListener("click", () => {
+      document.querySelectorAll("#attendance-list input[type='checkbox']").forEach((cb) => (cb.checked = false));
+    });
 
-  function renderNav() {
-    const buttons = nav.querySelectorAll("[data-route]");
-    buttons.forEach((button) => {
-      const route = button.dataset.route;
-      const visible = canAccessRoute(route);
-      button.hidden = !visible;
-      button.classList.toggle("is-active", state.route === route && visible);
+    $("foods-yes")?.addEventListener("change", () => {
+      const wrap = $("foods-list-wrap");
+      if (wrap) wrap.hidden = false;
+      renderFoodItems();
+    });
+    $("foods-no")?.addEventListener("change", () => {
+      const wrap = $("foods-list-wrap");
+      if (wrap) wrap.hidden = true;
+    });
+    $("add-food-btn")?.addEventListener("click", () => { foodItems.push(""); renderFoodItems(); });
+
+    $("add-image-btn")?.addEventListener("click", () => $("image-file-input")?.click());
+    $("image-file-input")?.addEventListener("change", (e) => {
+      Array.from(e.target.files || []).forEach((file) => {
+        reportImages.push({ url: URL.createObjectURL(file), name: file.name });
+      });
+      renderReportImages();
+      e.target.value = "";
+    });
+
+    $("copy-report")?.addEventListener("click", () => {
+      const ta = $("report-output");
+      if (!ta || !ta.value) return;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(ta.value).catch(() => { ta.select(); document.execCommand("copy"); });
+      } else {
+        ta.select(); document.execCommand("copy");
+      }
+    });
+
+    $("report-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await handleReportSubmit(e.target);
     });
   }
 
-  function renderWarning() {
-    if (!state.authUser) {
-      profileWarning.hidden = true;
-      profileWarning.textContent = "";
-      return;
-    }
+  function openReportModal() {
+    editingReportId = null;
+    foodItems = [];
+    reportImages = [];
+    $("report-form")?.reset();
+    if ($("report-mode-note")) $("report-mode-note").hidden = true;
+    if ($("report-output")) $("report-output").value = "";
+    if ($("report-chart-wrap")) $("report-chart-wrap").hidden = true;
+    if ($("report-line-wrap")) $("report-line-wrap").hidden = true;
+    if ($("foods-list-wrap")) $("foods-list-wrap").hidden = true;
 
-    if (!state.profile) {
-      profileWarning.hidden = false;
-      profileWarning.innerHTML = `
-        <strong>Perfil ainda não encontrado.</strong><br />
-        O uid autenticado é <code>${escapeHtml(state.authUser.uid)}</code>. Crie o documento correspondente em
-        <code>${escapeHtml(window.renovoPlusFirebase?.collections?.users || "renovo_plus_users")}/${escapeHtml(state.authUser.uid)}</code>
-        para liberar módulos e permissões.
-      `;
-      return;
+    populateReportCellSelect();
+    const firstCellId = $("report-cell")?.value;
+    if (firstCellId) {
+      populateAttendanceList(firstCellId);
+      updateReportHistory();
     }
-
-    if (normalizeRole(state.profile.role) === "pending" || normalizeStatus(state.profile.status) === "pending") {
-      profileWarning.hidden = false;
-      profileWarning.innerHTML = `
-        <strong>Conta autenticada, aguardando liberacao.</strong><br />
-        Este uid ja existe na Renovo+, mas ainda precisa de papel ministerial e status ativo para abrir os modulos finais.
-      `;
-      return;
-    }
-
-    if (status === "pending" || role === "pending") {
-      setStatus("Aguardando liberacao", "warn");
-      return;
-    }
-
-    if (state.profile.status === "inactive") {
-      profileWarning.hidden = false;
-      profileWarning.textContent = "Este perfil está marcado como inativo. A ideia é que a V2 bloqueie operações sensíveis nesse estado.";
-      return;
-    }
-
-    profileWarning.hidden = true;
-    profileWarning.textContent = "";
+    renderFoodItems();
+    renderVisitorSection();
+    renderReportImages();
+    openModal("report-modal");
   }
 
-  function renderPage() {
-    ensureAllowedRoute();
-    renderNav();
-    renderWarning();
-
-    const definition = MODULE_DEFS[state.route] || MODULE_DEFS.dashboard;
-    pageKicker.textContent = definition.kicker;
-    pageTitle.textContent = definition.title;
-    pageDescription.textContent = definition.description;
-    pageBody.innerHTML = getCardsForRoute(state.route).map(renderCard).join("");
-  }
-
-  function showAuthScreen() {
-    loadingScreen.hidden = true;
-    shell.hidden = true;
-    authScreen.hidden = false;
-  }
-
-  function showShell() {
-    loadingScreen.hidden = true;
-    authScreen.hidden = true;
-    shell.hidden = false;
-  }
-
-  function showBootstrapFallback(message) {
-    loadingScreen.hidden = true;
-    authScreen.hidden = false;
-    shell.hidden = true;
-    setFeedback(message || "", "soft");
-  }
-
-  function updateUserSummary() {
-    const role = normalizeRole(state.profile?.role);
-    if (!state.authUser) {
-      userNameEl.textContent = "Conta desconectada";
-      userMetaEl.textContent = "-";
-      setStatus("Desconectado", "neutral");
-      return;
-    }
-    const status = normalizeStatus(state.profile?.status);
-    userNameEl.textContent = state.profile?.name || state.authUser?.displayName || state.authUser?.email || "Conta autenticada";
-    userMetaEl.textContent = `${ROLE_LABELS[role] || "Sem perfil"} · ${state.profile?.email || state.authUser?.email || "-"}`;
-
-    userMetaEl.textContent = `${ROLE_LABELS[role] || "Sem perfil"} · ${STATUS_LABELS[status] || "Pendente"} · ${state.profile?.email || state.authUser?.email || "-"}`;
-
-    if (!state.profile) {
-      setStatus("Perfil pendente", "warn");
-      return;
-    }
-
-    if (state.profile.status === "inactive") {
-      setStatus("Perfil inativo", "danger");
-      return;
-    }
-
-    setStatus("Sessão ativa", "ok");
-  }
-
-  async function refreshProfile(user) {
-    state.authUser = user || null;
-    state.profile = null;
-    state.accessibleCells = [];
-
-    if (!user) {
-      updateUserSummary();
-      showAuthScreen();
-      return;
-    }
-
-    try {
-      const profile = await window.renovoPlusFirebase.loadUserProfile(user.uid);
-      state.profile = profile;
-      if (profile) {
-        state.accessibleCells = await window.renovoPlusFirebase.listAccessibleCells(profile);
-      }
-    } catch (error) {
-      console.warn("[Renovo+] profile:", error?.message || error);
-      setStatus("Falha ao ler perfil", "danger");
-    }
-
-    updateUserSummary();
-    renderPage();
-    showShell();
-  }
-
-  async function handleLogin(event) {
-    event.preventDefault();
-    const formData = new FormData(authForm);
-    const email = String(formData.get("email") || "").trim();
-    const password = String(formData.get("password") || "");
-
-    if (!email || !password) {
-      setFeedback("Informe e-mail e senha.");
-      return;
-    }
-
-    try {
-      loginButton.disabled = true;
-      loginButton.textContent = "Entrando...";
-      setFeedback("Autenticando no Firebase...", "soft");
-      await window.renovoPlusFirebase.signInWithEmail(email, password);
-      setFeedback("", "soft");
-    } catch (error) {
-      const code = String(error?.code || "");
-      if (code.includes("user-not-found") || code.includes("wrong-password") || code.includes("invalid-login-credentials")) {
-        setFeedback("E-mail ou senha inválidos.");
-      } else if (code.includes("invalid-email")) {
-        setFeedback("Informe um e-mail válido.");
-      } else if (code.includes("operation-not-allowed")) {
-        setFeedback("O login por e-mail/senha ainda não está habilitado neste projeto Firebase.");
-      } else {
-        setFeedback(error?.message || "Não foi possível entrar agora.");
-      }
-    } finally {
-      loginButton.disabled = false;
-      loginButton.textContent = "Entrar na Renovo+";
+  function populateReportCellSelect() {
+    const sel = $("report-cell");
+    if (!sel) return;
+    const cells = getAccessibleCells();
+    sel.innerHTML = cells.length
+      ? cells.map((c) => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("")
+      : `<option value="">Cadastre uma célula primeiro</option>`;
+    if (!isAdminOrPastor() && session?.primaryCellId) {
+      const exists = cells.some((c) => c.id === session.primaryCellId);
+      if (exists) sel.value = session.primaryCellId;
     }
   }
 
-  async function handlePasswordResetRequest() {
-    const email = String(emailInput?.value || "").trim();
-    if (!email) {
-      setFeedback("Informe o e-mail para enviar a redefinicao de senha.");
-      emailInput?.focus();
+  function populateAttendanceList(cellId) {
+    const container = $("attendance-list");
+    if (!container) return;
+    const cell = state.cells.find((c) => c.id === cellId);
+    const members = cell?.members || [];
+    if (!members.length) {
+      container.innerHTML = `<p style="color:var(--ink-soft);font-size:0.9rem">Nenhum membro cadastrado nesta célula.</p>`;
       return;
     }
-
-    try {
-      if (resetPasswordButton) {
-        resetPasswordButton.disabled = true;
-        resetPasswordButton.textContent = "Enviando...";
-      }
-      setFeedback("Enviando e-mail de redefinicao...", "soft");
-      await window.renovoPlusFirebase.sendPasswordReset(email);
-      setFeedback("E-mail de redefinicao enviado. Confira sua caixa de entrada.", "soft");
-    } catch (error) {
-      const code = String(error?.code || "");
-      if (code.includes("invalid-email")) {
-        setFeedback("Informe um e-mail valido para redefinir a senha.");
-      } else if (code.includes("user-not-found")) {
-        setFeedback("Esse e-mail ainda nao possui acesso criado na Renovo+.");
-      } else {
-        setFeedback(error?.message || "Nao foi possivel enviar a redefinicao agora.");
-      }
-    } finally {
-      if (resetPasswordButton) {
-        resetPasswordButton.disabled = false;
-        resetPasswordButton.textContent = "Esqueci minha senha";
-      }
-    }
+    container.innerHTML = members
+      .map((m) =>
+        `<label class="attendance-item">
+          <input type="checkbox" name="present" value="${escHtml(m.id)}" data-member-name="${escHtml(m.name)}" />
+          ${escHtml(m.name)}
+        </label>`
+      ).join("");
   }
 
-  async function handleSignOut() {
-    try {
-      signOutButton.disabled = true;
-      await window.renovoPlusFirebase.signOut();
-    } catch (error) {
-      console.warn("[Renovo+] signOut:", error?.message || error);
-    } finally {
-      signOutButton.disabled = false;
-    }
+  function renderFoodItems() {
+    const list = $("foods-items-list");
+    if (!list) return;
+    list.innerHTML = foodItems
+      .map((item, i) =>
+        `<div style="display:flex;gap:0.4rem;margin-bottom:0.3rem">
+          <input type="text" value="${escHtml(item)}" placeholder="Ex: frango, arroz..."
+            style="flex:1;padding:0.35rem 0.5rem;border:1px solid var(--line);border-radius:0.4rem;font-size:0.9rem"
+            oninput="window._setFoodItem(${i},this.value)" />
+          <button type="button" class="ghost-btn compact-btn danger-btn" onclick="window._removeFoodItem(${i})">×</button>
+        </div>`
+      ).join("");
   }
 
-  function handleNavClick(event) {
-    const button = event.target.closest("[data-route]");
-    if (!button) {
-      return;
-    }
-
-    const route = String(button.dataset.route || "dashboard");
-    if (!canAccessRoute(route)) {
-      return;
-    }
-
-    state.route = route;
-    renderPage();
-  }
-
-  async function bootstrap() {
-    versionLabel.textContent = String(window.RENOVO_PLUS_VERSION || "dev");
-    setStatus("Carregando", "neutral");
-    updateUserSummary();
-
-    authForm?.addEventListener("submit", handleLogin);
-    resetPasswordButton?.addEventListener("click", handlePasswordResetRequest);
-    signOutButton?.addEventListener("click", handleSignOut);
-    nav?.addEventListener("click", handleNavClick);
-
-    try {
-      await window.renovoPlusFirebase.waitForAuthReady();
-      window.renovoPlusFirebase.observeAuth((user) => {
-        refreshProfile(user);
-      });
-    } catch (error) {
-      console.warn("[Renovo+] bootstrap:", error?.message || error);
-      loadingScreen.hidden = true;
-      authScreen.hidden = false;
-      setFeedback(error?.message || "Não foi possível iniciar a Renovo+.");
-    }
-  }
-
-  function renderWarning() {
-    if (!state.authUser) {
-      profileWarning.hidden = true;
-      profileWarning.textContent = "";
-      return;
-    }
-
-    if (!state.profile) {
-      profileWarning.hidden = false;
-      profileWarning.innerHTML = `
-        <strong>Acesso autenticado, mas ainda sem perfil liberado.</strong><br />
-        O uid autenticado e <code>${escapeHtml(state.authUser.uid)}</code>. Se esta conta nao for o primeiro admin da V2,
-        um pastor ou admin precisa terminar a liberacao pelo modulo de acessos.
-      `;
-      return;
-    }
-
-    if (normalizeRole(state.profile.role) === "pending" || normalizeStatus(state.profile.status) === "pending") {
-      profileWarning.hidden = false;
-      profileWarning.innerHTML = `
-        <strong>Conta autenticada, aguardando liberacao.</strong><br />
-        Este uid ja existe na Renovo+, mas ainda precisa de papel ministerial e status ativo para abrir os modulos finais.
-      `;
-      return;
-    }
-
-    if (state.profile.status === "inactive") {
-      profileWarning.hidden = false;
-      profileWarning.textContent = "Este perfil esta marcado como inativo. A ideia e que a V2 bloqueie operacoes sensiveis nesse estado.";
-      return;
-    }
-
-    profileWarning.hidden = true;
-    profileWarning.textContent = "";
-  }
-
-  function updateUserSummary() {
-    const role = normalizeRole(state.profile?.role);
-
-    if (!state.authUser) {
-      userNameEl.textContent = "Conta desconectada";
-      userMetaEl.textContent = "-";
-      setStatus("Desconectado", "neutral");
-      return;
-    }
-
-    const status = normalizeStatus(state.profile?.status);
-    const roleLabel = ROLE_LABELS[role] || "Sem perfil";
-    const statusLabel = STATUS_LABELS[status] || "Pendente";
-
-    userNameEl.textContent = state.profile?.name || state.authUser?.displayName || state.authUser?.email || "Conta autenticada";
-    userMetaEl.textContent = `${roleLabel} · ${statusLabel} · ${state.profile?.email || state.authUser?.email || "-"}`;
-
-    if (!state.profile) {
-      setStatus("Perfil pendente", "warn");
-      return;
-    }
-
-    if (status === "pending" || role === "pending") {
-      setStatus("Aguardando liberacao", "warn");
-      return;
-    }
-
-    if (status === "inactive") {
-      setStatus("Perfil inativo", "danger");
-      return;
-    }
-
-    setStatus("Sessao ativa", "ok");
-  }
-
-  async function loadGovernanceContext() {
-    state.hasAnyProfiles = false;
-    state.profiles = [];
-    state.allCells = [];
-    state.legacySummary = null;
-
-    try {
-      state.hasAnyProfiles = await window.renovoPlusFirebase.hasAnyProfiles();
-    } catch (error) {
-      console.warn("[Renovo+] hasAnyProfiles:", error?.message || error);
-    }
-
-    if (!canManageAccess()) {
-      state.selectedProfileUid = state.profile?.uid || "";
-      return;
-    }
-
-    try {
-      const [profiles, allCells, legacySummary] = await Promise.all([
-        window.renovoPlusFirebase.listProfiles(),
-        window.renovoPlusFirebase.listAllCells(),
-        window.renovoPlusFirebase.loadLegacySummary().catch(() => null),
-      ]);
-
-      state.profiles = profiles;
-      state.allCells = allCells;
-      state.legacySummary = legacySummary;
-
-      if (profiles.some((profile) => profile.uid === state.selectedProfileUid)) {
-        return;
-      }
-
-      const ownProfile = profiles.find((profile) => profile.uid === state.profile?.uid);
-      state.selectedProfileUid = ownProfile?.uid || profiles[0]?.uid || "";
-    } catch (error) {
-      console.warn("[Renovo+] governance:", error?.message || error);
-    }
-  }
-
-  async function refreshProfile(user) {
-    state.authUser = user || null;
-    state.profile = null;
-    state.accessibleCells = [];
-    state.allCells = [];
-    state.members = [];
-    state.reports = [];
-    state.studies = [];
-    state.visitors = [];
-    state.alerts = [];
-    state.profiles = [];
-    state.hasAnyProfiles = false;
-    state.legacySummary = null;
-    state.selectedProfileUid = "";
-    state.selectedCellId = "";
-    state.selectedMemberId = "";
-    state.route = "dashboard";
-    state.selectedReportId = "";
-    state.selectedStudyId = "";
-    state.selectedVisitorId = "";
-    state.selectedAlertId = "";
-
-    if (!user) {
-      setFeedback("", "soft");
-      updateUserSummary();
-      showAuthScreen();
-      return;
-    }
-
-    try {
-      const profile = await window.renovoPlusFirebase.loadUserProfile(user.uid);
-      state.profile = profile;
-
-      if (profile) {
-        state.accessibleCells = await window.renovoPlusFirebase.listAccessibleCells(profile);
-        state.members = await window.renovoPlusFirebase.listAccessibleMembers(profile);
-        state.reports = await window.renovoPlusFirebase.listAccessibleReports(profile);
-        state.studies = await window.renovoPlusFirebase.listAccessibleStudies(profile);
-        state.visitors = await window.renovoPlusFirebase.listAccessibleVisitors(profile);
-        state.alerts = await window.renovoPlusFirebase.listAccessibleAlerts(profile);
-      }
-
-      await loadGovernanceContext();
-    } catch (error) {
-      console.warn("[Renovo+] profile:", error?.message || error);
-      setStatus("Falha ao ler perfil", "danger");
-    }
-
-    updateUserSummary();
-    renderPage();
-    showShell();
-  }
-
-  async function handleBootstrapSubmit(event) {
-    event.preventDefault();
-    if (!state.authUser) {
-      return;
-    }
-
-    const form = event.target;
-    const submitButton = form.querySelector('button[type="submit"]');
-    const formData = new FormData(form);
-    const name = String(formData.get("name") || "").trim();
-    const ministryName = String(formData.get("ministryName") || "").trim();
-
-    if (!name) {
-      setStatus("Informe um nome", "warn");
-      return;
-    }
-
-    try {
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = "Assumindo...";
-      }
-
-      setStatus("Criando primeiro admin", "warn");
-      await window.renovoPlusFirebase.claimInitialAdminProfile(state.authUser, {
-        name,
-        email: state.authUser.email || "",
-        ministryName,
-      });
-
-      await refreshProfile(state.authUser);
-      setStatus("Admin inicial pronto", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] bootstrap admin:", error?.message || error);
-      setStatus("Falha no bootstrap", "danger");
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = "Assumir como primeiro admin";
-      }
-    }
-  }
-
-  async function handleProfileSave(event) {
-    event.preventDefault();
-    const form = event.target;
-    const formData = new FormData(form);
-    const uid = String(formData.get("uid") || "").trim();
-    const targetProfile = state.profiles.find((profile) => profile.uid === uid) || null;
-    const canEdit = Boolean(targetProfile) && (canManageProfile(targetProfile) || uid === state.profile?.uid);
-
-    if (!uid || !canEdit) {
-      setStatus("Edicao nao permitida", "danger");
-      return;
-    }
-
-    const submitButton = form.querySelector('button[type="submit"]');
-    const requestedRole = String(formData.get("role") || "").trim();
-    const safeRole = state.profile?.role === "admin" || requestedRole !== "admin"
-      ? requestedRole
-      : targetProfile?.role || "pending";
-    const scopeCellIds = String(formData.get("scopeCellIds") || "")
-      .split(/[,\n;]+/)
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    try {
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = "Salvando...";
-      }
-
-      setStatus("Salvando perfil", "warn");
-      await window.renovoPlusFirebase.saveUserProfile(uid, {
-        name: String(formData.get("name") || "").trim(),
-        email: String(formData.get("email") || "").trim(),
-        role: safeRole,
-        status: String(formData.get("status") || "").trim(),
-        primaryCellId: String(formData.get("primaryCellId") || "").trim(),
-        scopeCellIds,
-        ministryName: String(formData.get("ministryName") || "").trim(),
-        notes: String(formData.get("notes") || "").trim(),
-      });
-
-      state.selectedProfileUid = uid;
-      await refreshProfile(state.authUser);
-      state.route = "access";
-      renderPage();
-      setStatus("Perfil salvo", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] save profile:", error?.message || error);
-      setStatus("Falha ao salvar perfil", "danger");
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = "Salvar perfil";
-      }
-    }
-  }
-
-  async function handleProvisionAccess(event) {
-    event.preventDefault();
-    if (!canManageAccess()) {
-      setStatus("Somente admin ou pastor podem criar acessos", "danger");
-      return;
-    }
-
-    const form = event.target;
-    const submitButton = form.querySelector('button[type="submit"]');
-    const formData = new FormData(form);
-    const scopeCellIds = String(formData.get("scopeCellIds") || "")
-      .split(/[,\n;]+/)
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    try {
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = "Criando...";
-      }
-
-      setStatus("Criando novo acesso", "warn");
-      const created = await window.renovoPlusFirebase.provisionManagedAccess({
-        name: String(formData.get("name") || "").trim(),
-        email: String(formData.get("email") || "").trim(),
-        temporaryPassword: String(formData.get("temporaryPassword") || ""),
-        role: String(formData.get("role") || "pending").trim(),
-        status: String(formData.get("status") || "pending").trim(),
-        primaryCellId: String(formData.get("primaryCellId") || "").trim(),
-        scopeCellIds,
-        ministryName: String(formData.get("ministryName") || "").trim(),
-        notes: String(formData.get("notes") || "").trim(),
-      }, {
-        sendPasswordReset: formData.get("sendPasswordReset") === "1",
-      });
-
-      await refreshProfile(state.authUser);
-      state.selectedProfileUid = created?.uid || "";
-      state.route = "access";
-      renderPage();
-      form.reset();
-      setStatus("Acesso criado", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] provision access:", error?.message || error);
-      const code = String(error?.code || "");
-      if (code.includes("email-already-in-use")) {
-        setStatus("Esse e-mail ja possui conta criada no Firebase", "danger");
-      } else if (code.includes("invalid-email")) {
-        setStatus("Informe um e-mail valido para criar o acesso", "danger");
-      } else if (code.includes("weak-password")) {
-        setStatus("Use uma senha temporaria mais forte", "danger");
-      } else {
-        setStatus("Falha ao criar o acesso", "danger");
-      }
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = "Criar acesso";
-      }
-    }
-  }
-
-  async function handleManagedPasswordReset(email) {
-    const normalizedEmail = String(email || "").trim();
-    if (!normalizedEmail) {
-      setStatus("Perfil sem e-mail para redefinicao", "danger");
-      return;
-    }
-
-    try {
-      setStatus("Enviando redefinicao", "warn");
-      await window.renovoPlusFirebase.sendPasswordReset(normalizedEmail);
-      setStatus("Redefinicao enviada", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] password reset:", error?.message || error);
-      setStatus("Falha ao enviar redefinicao", "danger");
-    }
-  }
-
-  async function handleImportLegacy(button) {
-    if (!canManageAccess()) {
-      setStatus("Somente admin ou pastor podem importar a V1", "danger");
-      return;
-    }
-
-    if (!window.confirm("Importar os dados da V1 para a Renovo+ agora? Esse processo sincroniza celulas, membros, relatorios, visitantes e estudos com arquivo remoto.")) {
-      return;
-    }
-
-    const originalText = button?.textContent || "";
-
-    try {
-      if (button) {
-        button.disabled = true;
-        button.textContent = "Importando...";
-      }
-
-      setStatus("Importando dados da V1", "warn");
-      const summary = await window.renovoPlusFirebase.importLegacyData(state.authUser?.uid || "");
-      await refreshProfile(state.authUser);
-      state.route = "access";
-      renderPage();
-      setStatus(
-        `Importacao concluida: ${summary.cells} celulas, ${summary.members} membros, ${summary.reports} relatorios, ${summary.visitors} visitantes e ${summary.studies} estudos.`,
-        "ok"
-      );
-    } catch (error) {
-      console.warn("[Renovo+] import legacy:", error?.message || error);
-      setStatus("Falha ao importar a V1", "danger");
-    } finally {
-      if (button) {
-        button.disabled = false;
-        button.textContent = originalText || "Importar dados da V1";
-      }
-    }
-  }
-
-  async function handleDeleteAction(entity, entityId) {
-    const normalizedEntity = String(entity || "").trim();
-    const normalizedId = String(entityId || "").trim();
-    if (!normalizedEntity || !normalizedId) {
-      return;
-    }
-
-    const messages = {
-      cell: "Excluir esta celula e os dados vinculados a ela?",
-      member: "Excluir este membro da Renovo+?",
-      report: "Excluir este relatorio da Renovo+?",
-      study: "Excluir este estudo e o PDF vinculado?",
-      visitor: "Excluir este visitante da Renovo+?",
-      alert: "Excluir este alerta da Renovo+?",
-    };
-
-    if (!window.confirm(messages[normalizedEntity] || "Confirmar exclusao deste registro?")) {
-      return;
-    }
-
-    try {
-      setStatus("Excluindo registro", "warn");
-
-      if (normalizedEntity === "cell") {
-        await window.renovoPlusFirebase.deleteCell(normalizedId);
-      } else if (normalizedEntity === "member") {
-        await window.renovoPlusFirebase.deleteMember(normalizedId);
-      } else if (normalizedEntity === "report") {
-        await window.renovoPlusFirebase.deleteReport(normalizedId);
-      } else if (normalizedEntity === "study") {
-        await window.renovoPlusFirebase.deleteStudy(normalizedId);
-      } else if (normalizedEntity === "visitor") {
-        await window.renovoPlusFirebase.deleteVisitor(normalizedId);
-      } else if (normalizedEntity === "alert") {
-        await window.renovoPlusFirebase.deleteAlert(normalizedId);
-      } else {
-        return;
-      }
-
-      await refreshProfile(state.authUser);
-      state.route = normalizedEntity === "cell" ? "cells"
-        : normalizedEntity === "member" ? "members"
-          : normalizedEntity === "report" ? "reports"
-            : normalizedEntity === "study" ? "studies"
-              : normalizedEntity === "visitor" ? "visitors"
-                : "alerts";
-      renderPage();
-      setStatus("Registro excluido", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] delete action:", error?.message || error);
-      setStatus("Falha ao excluir registro", "danger");
-    }
-  }
-
-  async function handleCellSave(event) {
-    event.preventDefault();
-    if (!canManageCells()) {
-      setStatus("Somente admin ou pastor podem salvar celulas", "danger");
-      return;
-    }
-
-    const form = event.target;
-    const formData = new FormData(form);
-    const name = String(formData.get("name") || "").trim();
-    const submitButton = form.querySelector('button[type="submit"]');
-
-    if (!name) {
-      setStatus("Informe o nome da celula", "warn");
-      return;
-    }
-
-    const coLeaderUids = String(formData.get("coLeaderUids") || "")
-      .split(/[,\n;]+/)
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    try {
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = "Salvando...";
-      }
-
-      setStatus("Salvando celula", "warn");
-      const saved = await window.renovoPlusFirebase.saveCell({
-        id: String(formData.get("id") || "").trim(),
-        customId: String(formData.get("customId") || "").trim(),
-        name,
-        leaderUid: String(formData.get("leaderUid") || "").trim(),
-        coLeaderUids,
-        meetingDay: String(formData.get("meetingDay") || "").trim(),
-        meetingTime: String(formData.get("meetingTime") || "").trim(),
-        address: String(formData.get("address") || "").trim(),
-        status: String(formData.get("status") || "").trim(),
-        notes: String(formData.get("notes") || "").trim(),
-      }, state.authUser?.uid || "");
-
-      state.selectedCellId = saved?.id || "";
-      await refreshProfile(state.authUser);
-      state.selectedCellId = saved?.id || state.selectedCellId;
-      state.route = "cells";
-      renderPage();
-      setStatus("Celula salva", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] save cell:", error?.message || error);
-      setStatus("Falha ao salvar celula", "danger");
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = String(formData.get("id") || "").trim() ? "Salvar alteracoes" : "Criar celula";
-      }
-    }
-  }
-
-  async function handleMemberSave(event) {
-    event.preventDefault();
-    if (!canManageMembers()) {
-      setStatus("Seu perfil nao pode salvar membros agora", "danger");
-      return;
-    }
-
-    const form = event.target;
-    const formData = new FormData(form);
-    const cellId = String(formData.get("cellId") || "").trim();
-    const name = String(formData.get("name") || "").trim();
-    const allowedCellIds = new Set(getReportCells().map((cell) => cell.id));
-
-    if (!cellId || !name) {
-      setStatus("Informe a celula e o nome do membro", "warn");
-      return;
-    }
-
-    if (!allowedCellIds.has(cellId)) {
-      setStatus("Seu perfil nao pode cadastrar membros nessa celula", "danger");
-      return;
-    }
-
-    const submitButton = form.querySelector('button[type="submit"]');
-    const existingId = String(formData.get("id") || "").trim();
-
-    try {
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = "Salvando...";
-      }
-
-      setStatus("Salvando membro", "warn");
-      const saved = await window.renovoPlusFirebase.saveMember({
-        id: existingId,
-        cellId,
-        name,
-        phone: String(formData.get("phone") || "").trim(),
-        roleInCell: String(formData.get("roleInCell") || "member").trim(),
-        status: String(formData.get("status") || "active").trim(),
-        joinedAt: String(formData.get("joinedAt") || "").trim(),
-        notes: String(formData.get("notes") || "").trim(),
-      }, state.authUser?.uid || "");
-
-      state.selectedMemberId = saved?.id || "";
-      await refreshProfile(state.authUser);
-      state.selectedMemberId = saved?.id || state.selectedMemberId;
-      state.route = "members";
-      renderPage();
-      setStatus("Membro salvo", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] save member:", error?.message || error);
-      setStatus("Falha ao salvar membro", "danger");
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = existingId ? "Salvar membro" : "Cadastrar membro";
-      }
-    }
-  }
-
-  async function handleReportSave(event) {
-    event.preventDefault();
-    const form = event.target;
-    const formData = new FormData(form);
-    const cellId = String(formData.get("cellId") || "").trim();
-    const date = String(formData.get("date") || "").trim();
-    const allowedCellIds = new Set(getReportCells().map((cell) => cell.id));
-
-    if (!cellId || !date) {
-      setStatus("Informe a celula e a data do relatorio", "warn");
-      return;
-    }
-
-    if (!allowedCellIds.has(cellId)) {
-      setStatus("Seu perfil nao pode registrar relatorio nessa celula", "danger");
-      return;
-    }
-
-    const submitButton = form.querySelector('button[type="submit"]');
-    const existingId = String(formData.get("id") || "").trim();
-    const presentCount = Number(formData.get("presentCount") || 0);
-    const visitorsCount = Number(formData.get("visitorsCount") || 0);
-    const offering = Number(formData.get("offering") || 0);
-
-    try {
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = "Salvando...";
-      }
-
-      setStatus("Salvando relatorio", "warn");
-      const saved = await window.renovoPlusFirebase.saveReport({
-        id: existingId,
-        cellId,
-        date,
-        leaders: String(formData.get("leaders") || "").trim(),
-        host: String(formData.get("host") || "").trim(),
-        address: String(formData.get("address") || "").trim(),
-        presentCount: Number.isFinite(presentCount) ? presentCount : 0,
-        visitorsCount: Number.isFinite(visitorsCount) ? visitorsCount : 0,
-        offering: Number.isFinite(offering) ? offering : 0,
-        notes: String(formData.get("notes") || "").trim(),
-      }, state.authUser?.uid || "");
-
-      state.selectedReportId = saved?.id || "";
-      await refreshProfile(state.authUser);
-      state.selectedReportId = saved?.id || state.selectedReportId;
-      state.route = "reports";
-      renderPage();
-      setStatus("Relatorio salvo", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] save report:", error?.message || error);
-      setStatus("Falha ao salvar relatorio", "danger");
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = existingId ? "Salvar relatorio" : "Criar relatorio";
-      }
-    }
-  }
-
-  async function handleStudySave(event) {
-    event.preventDefault();
-    if (!canManageStudies()) {
-      setStatus("Somente admin ou pastor podem publicar estudos", "danger");
-      return;
-    }
-
-    const form = event.target;
-    const formData = new FormData(form);
-    const title = String(formData.get("title") || "").trim();
-    const existingId = String(formData.get("id") || "").trim();
-    const file = formData.get("file");
-
-    if (!title) {
-      setStatus("Informe o titulo do estudo", "warn");
-      return;
-    }
-
-    if (!existingId && (!(file instanceof File) || !file.name)) {
-      setStatus("Envie um PDF para publicar o estudo", "warn");
-      return;
-    }
-
-    const submitButton = form.querySelector('button[type="submit"]');
-
-    try {
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = "Publicando...";
-      }
-
-      setStatus("Salvando estudo", "warn");
-      const saved = await window.renovoPlusFirebase.saveStudy({
-        id: existingId,
-        title,
-        description: String(formData.get("description") || "").trim(),
-        audience: String(formData.get("audience") || "all").trim(),
-        file: file instanceof File && file.name ? file : null,
-      }, state.authUser?.uid || "");
-
-      state.selectedStudyId = saved?.id || "";
-      await refreshProfile(state.authUser);
-      state.selectedStudyId = saved?.id || state.selectedStudyId;
-      state.route = "studies";
-      renderPage();
-      setStatus("Estudo salvo", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] save study:", error?.message || error);
-      setStatus("Falha ao salvar estudo", "danger");
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = existingId ? "Salvar estudo" : "Publicar estudo";
-      }
-    }
-  }
-
-  async function handleVisitorSave(event) {
-    event.preventDefault();
-    if (!canManageVisitors()) {
-      setStatus("Seu perfil nao pode salvar visitantes agora", "danger");
-      return;
-    }
-
-    const form = event.target;
-    const formData = new FormData(form);
-    const cellId = String(formData.get("cellId") || "").trim();
-    const name = String(formData.get("name") || "").trim();
-    const allowedCellIds = new Set(getReportCells().map((cell) => cell.id));
-
-    if (!cellId || !name) {
-      setStatus("Informe a celula e o nome do visitante", "warn");
-      return;
-    }
-
-    if (!allowedCellIds.has(cellId)) {
-      setStatus("Seu perfil nao pode registrar visitante nessa celula", "danger");
-      return;
-    }
-
-    const submitButton = form.querySelector('button[type="submit"]');
-    const existingId = String(formData.get("id") || "").trim();
-    const visitCount = Number(formData.get("visitCount") || 0);
-
-    try {
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = "Salvando...";
-      }
-
-      setStatus("Salvando visitante", "warn");
-      const saved = await window.renovoPlusFirebase.saveVisitor({
-        id: existingId,
-        cellId,
-        name,
-        phone: String(formData.get("phone") || "").trim(),
-        address: String(formData.get("address") || "").trim(),
-        origin: String(formData.get("origin") || "").trim(),
-        context: String(formData.get("context") || "").trim(),
-        status: String(formData.get("status") || "new").trim(),
-        firstVisitAt: String(formData.get("firstVisitAt") || "").trim(),
-        lastVisitAt: String(formData.get("lastVisitAt") || "").trim(),
-        visitCount: Number.isFinite(visitCount) ? visitCount : 0,
-        notes: String(formData.get("notes") || "").trim(),
-      }, state.authUser?.uid || "");
-
-      state.selectedVisitorId = saved?.id || "";
-      await refreshProfile(state.authUser);
-      state.selectedVisitorId = saved?.id || state.selectedVisitorId;
-      state.route = "visitors";
-      renderPage();
-      setStatus("Visitante salvo", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] save visitor:", error?.message || error);
-      setStatus("Falha ao salvar visitante", "danger");
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = existingId ? "Salvar visitante" : "Registrar visitante";
-      }
-    }
-  }
-
-  async function handleAlertSave(event) {
-    event.preventDefault();
-    if (!canManageAlerts()) {
-      setStatus("Seu perfil nao pode salvar alertas agora", "danger");
-      return;
-    }
-
-    const form = event.target;
-    const formData = new FormData(form);
-    const cellId = String(formData.get("cellId") || "").trim();
-    const title = String(formData.get("title") || "").trim();
-    const allowedCellIds = new Set(getReportCells().map((cell) => cell.id));
-
-    if (!cellId || !title) {
-      setStatus("Informe a celula e o titulo do alerta", "warn");
-      return;
-    }
-
-    if (!allowedCellIds.has(cellId)) {
-      setStatus("Seu perfil nao pode acompanhar alertas nessa celula", "danger");
-      return;
-    }
-
-    const submitButton = form.querySelector('button[type="submit"]');
-    const existingId = String(formData.get("id") || "").trim();
-
-    try {
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = "Salvando...";
-      }
-
-      setStatus("Salvando alerta", "warn");
-      const saved = await window.renovoPlusFirebase.saveAlert({
-        id: existingId,
-        cellId,
-        type: String(formData.get("type") || "care").trim(),
-        severity: String(formData.get("severity") || "warn").trim(),
-        status: String(formData.get("status") || "open").trim(),
-        title,
-        summary: String(formData.get("summary") || "").trim(),
-        ownerUid: String(formData.get("ownerUid") || "").trim(),
-        dueAt: String(formData.get("dueAt") || "").trim(),
-        notes: String(formData.get("notes") || "").trim(),
-      }, state.authUser?.uid || "");
-
-      state.selectedAlertId = saved?.id || "";
-      await refreshProfile(state.authUser);
-      state.selectedAlertId = saved?.id || state.selectedAlertId;
-      state.route = "alerts";
-      renderPage();
-      setStatus("Alerta salvo", "ok");
-    } catch (error) {
-      console.warn("[Renovo+] save alert:", error?.message || error);
-      setStatus("Falha ao salvar alerta", "danger");
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = existingId ? "Salvar alerta" : "Criar alerta";
-      }
-    }
-  }
-
-  function handlePageClick(event) {
-    const resetButton = event.target.closest("[data-send-reset-email]");
-    if (resetButton) {
-      handleManagedPasswordReset(String(resetButton.dataset.sendResetEmail || "").trim());
-      return;
-    }
-
-    const importButton = event.target.closest("[data-import-legacy]");
-    if (importButton) {
-      handleImportLegacy(importButton);
-      return;
-    }
-
-    const deleteButton = event.target.closest("[data-delete-cell], [data-delete-member], [data-delete-report], [data-delete-study], [data-delete-visitor], [data-delete-alert]");
-    if (deleteButton) {
-      if (deleteButton.dataset.deleteCell) {
-        handleDeleteAction("cell", deleteButton.dataset.deleteCell);
-      } else if (deleteButton.dataset.deleteMember) {
-        handleDeleteAction("member", deleteButton.dataset.deleteMember);
-      } else if (deleteButton.dataset.deleteReport) {
-        handleDeleteAction("report", deleteButton.dataset.deleteReport);
-      } else if (deleteButton.dataset.deleteStudy) {
-        handleDeleteAction("study", deleteButton.dataset.deleteStudy);
-      } else if (deleteButton.dataset.deleteVisitor) {
-        handleDeleteAction("visitor", deleteButton.dataset.deleteVisitor);
-      } else if (deleteButton.dataset.deleteAlert) {
-        handleDeleteAction("alert", deleteButton.dataset.deleteAlert);
-      }
-      return;
-    }
-
-    const button = event.target.closest("[data-select-profile]");
-    if (!button) {
-      const routeButton = event.target.closest("[data-dashboard-route]");
-      if (routeButton) {
-        const route = String(routeButton.dataset.dashboardRoute || "").trim();
-        if (route && MODULE_DEFS[route] && canAccessRoute(route)) {
-          state.route = route;
-          renderPage();
-        }
-        return;
-      }
-
-      const cellButton = event.target.closest("[data-select-cell]");
-      if (cellButton) {
-        const cellId = String(cellButton.dataset.selectCell || "").trim();
-        if (!cellId) {
-          return;
-        }
-        state.selectedCellId = cellId;
-        state.route = "cells";
-        renderPage();
-      }
-
-      const newCellButton = event.target.closest("[data-new-cell]");
-      if (newCellButton) {
-        state.selectedCellId = "";
-        state.route = "cells";
-        renderPage();
-      }
-
-      const memberButton = event.target.closest("[data-select-member]");
-      if (memberButton) {
-        const memberId = String(memberButton.dataset.selectMember || "").trim();
-        if (!memberId) {
-          return;
-        }
-        state.selectedMemberId = memberId;
-        state.route = "members";
-        renderPage();
-      }
-
-      const newMemberButton = event.target.closest("[data-new-member]");
-      if (newMemberButton) {
-        state.selectedMemberId = "__new__";
-        state.route = "members";
-        renderPage();
-      }
-
-      const reportButton = event.target.closest("[data-select-report]");
-      if (reportButton) {
-        const reportId = String(reportButton.dataset.selectReport || "").trim();
-        if (!reportId) {
-          return;
-        }
-        state.selectedReportId = reportId;
-        state.route = "reports";
-        renderPage();
-      }
-
-      const newReportButton = event.target.closest("[data-new-report]");
-      if (newReportButton) {
-        state.selectedReportId = "__new__";
-        state.route = "reports";
-        renderPage();
-      }
-
-      const studyButton = event.target.closest("[data-select-study]");
-      if (studyButton) {
-        const studyId = String(studyButton.dataset.selectStudy || "").trim();
-        if (!studyId) {
-          return;
-        }
-        state.selectedStudyId = studyId;
-        state.route = "studies";
-        renderPage();
-      }
-
-      const newStudyButton = event.target.closest("[data-new-study]");
-      if (newStudyButton) {
-        state.selectedStudyId = "__new__";
-        state.route = "studies";
-        renderPage();
-      }
-
-      const visitorButton = event.target.closest("[data-select-visitor]");
-      if (visitorButton) {
-        const visitorId = String(visitorButton.dataset.selectVisitor || "").trim();
-        if (!visitorId) {
-          return;
-        }
-        state.selectedVisitorId = visitorId;
-        state.route = "visitors";
-        renderPage();
-      }
-
-      const newVisitorButton = event.target.closest("[data-new-visitor]");
-      if (newVisitorButton) {
-        state.selectedVisitorId = "__new__";
-        state.route = "visitors";
-        renderPage();
-      }
-
-      const alertButton = event.target.closest("[data-select-alert]");
-      if (alertButton) {
-        const alertId = String(alertButton.dataset.selectAlert || "").trim();
-        if (!alertId) {
-          return;
-        }
-        state.selectedAlertId = alertId;
-        state.route = "alerts";
-        renderPage();
-      }
-
-      const newAlertButton = event.target.closest("[data-new-alert]");
-      if (newAlertButton) {
-        state.selectedAlertId = "__new__";
-        state.route = "alerts";
-        renderPage();
-      }
-      return;
-    }
-
-    const uid = String(button.dataset.selectProfile || "").trim();
-    if (!uid) {
-      return;
-    }
-
-    state.selectedProfileUid = uid;
-    state.route = "access";
-    renderPage();
-  }
-
-  function handlePageSubmit(event) {
-    const form = event.target;
-    if (!(form instanceof HTMLFormElement)) {
-      return;
-    }
-
-    if (form.id === "plus-bootstrap-form") {
-      handleBootstrapSubmit(event);
-      return;
-    }
-
-    if (form.id === "plus-profile-form") {
-      handleProfileSave(event);
-      return;
-    }
-
-    if (form.id === "plus-provision-form") {
-      handleProvisionAccess(event);
-      return;
-    }
-
-    if (form.id === "plus-cell-form") {
-      handleCellSave(event);
-      return;
-    }
-
-    if (form.id === "plus-member-form") {
-      handleMemberSave(event);
-      return;
-    }
-
-    if (form.id === "plus-report-form") {
-      handleReportSave(event);
-      return;
-    }
-
-    if (form.id === "plus-study-form") {
-      handleStudySave(event);
-      return;
-    }
-
-    if (form.id === "plus-visitor-form") {
-      handleVisitorSave(event);
-      return;
-    }
-
-    if (form.id === "plus-alert-form") {
-      handleAlertSave(event);
-    }
-  }
-
-  function formatCurrency(value) {
-    const amount = Number(value || 0);
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(Number.isFinite(amount) ? amount : 0);
-  }
-
-  function parseTimelineDate(value) {
-    const raw = String(value || "").trim();
-    if (!raw) {
-      return 0;
-    }
-
-    const parsed = raw.length <= 10 ? new Date(`${raw}T00:00:00`) : new Date(raw);
-    const stamp = parsed.getTime();
-    return Number.isFinite(stamp) ? stamp : 0;
-  }
-
-  function formatDisplayDate(value) {
-    const raw = String(value || "").trim();
-    if (!raw) {
-      return "Sem data";
-    }
-
-    const stamp = parseTimelineDate(raw);
-    if (!stamp) {
-      return raw;
-    }
-
-    return new Intl.DateTimeFormat("pt-BR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).format(new Date(stamp));
-  }
-
-  function getMonthKey(value) {
-    return String(value || "").trim().slice(0, 7);
-  }
-
-  function sortByTimeline(list, fields) {
-    const allowedFields = Array.isArray(fields) && fields.length ? fields : ["updatedAt", "createdAt"];
-    return (Array.isArray(list) ? list.slice() : []).sort((left, right) => {
-      const leftStamp = allowedFields.reduce((max, field) => Math.max(max, parseTimelineDate(left?.[field])), 0);
-      const rightStamp = allowedFields.reduce((max, field) => Math.max(max, parseTimelineDate(right?.[field])), 0);
-      return rightStamp - leftStamp;
-    });
-  }
-
-  function buildDashboardReportsHtml(limit) {
-    const items = sortByTimeline(state.reports, ["date", "updatedAt", "createdAt"]).slice(0, limit || 4);
-    if (!items.length) {
-      return `<div class="plus-list-item"><strong>Nenhum relatorio ainda.</strong><span>Assim que o primeiro encontro for salvo, ele aparecera aqui.</span></div>`;
-    }
-
-    return items
-      .map((report) => {
-        const cellName = findCellNameById(report.cellId) || report.cellId || "Sem celula";
-        return `
-          <div class="plus-list-item">
-            <div class="plus-list-item-top">
-              <div>
-                <strong>${escapeHtml(cellName)}</strong>
-                <small>${escapeHtml(formatDisplayDate(report.date || report.updatedAt || report.createdAt))}</small>
-              </div>
-              <div class="plus-card-actions">
-                <span class="plus-role-pill">${escapeHtml(formatCurrency(report.offering || 0))}</span>
-                <button type="button" class="plus-inline-button" data-select-report="${escapeHtml(report.id)}">Abrir</button>
-              </div>
-            </div>
-            <span>${escapeHtml(`Presentes: ${Number(report.presentCount || 0)} | Visitantes: ${Number(report.visitorsCount || 0)}`)}</span>
-            <span>${escapeHtml(report.notes || "Resumo ainda nao preenchido.")}</span>
-          </div>
-        `;
-      })
-      .join("");
-  }
-
-  function buildDashboardVisitorsHtml(limit) {
-    const items = sortByTimeline(state.visitors, ["lastVisitAt", "firstVisitAt", "updatedAt", "createdAt"]).slice(0, limit || 4);
-    if (!items.length) {
-      return `<div class="plus-list-item"><strong>Nenhum visitante no radar.</strong><span>Os proximos registros vao aparecer aqui para facilitar o acompanhamento.</span></div>`;
-    }
-
-    return items
-      .map((visitor) => {
-        const cellName = findCellNameById(visitor.cellId) || visitor.cellId || "Sem celula";
-        return `
-          <div class="plus-list-item">
-            <div class="plus-list-item-top">
-              <div>
-                <strong>${escapeHtml(visitor.name || visitor.id)}</strong>
-                <small>${escapeHtml(cellName)}</small>
-              </div>
-              <div class="plus-card-actions">
-                <span class="plus-role-pill">${escapeHtml(visitor.status || "new")}</span>
-                <button type="button" class="plus-inline-button" data-select-visitor="${escapeHtml(visitor.id)}">Abrir</button>
-              </div>
-            </div>
-            <span>${escapeHtml(`Ultima visita: ${formatDisplayDate(visitor.lastVisitAt || visitor.firstVisitAt)} | Visitas: ${Number(visitor.visitCount || 0)}`)}</span>
-            <span>${escapeHtml(visitor.context || visitor.notes || "Sem observacoes registradas.")}</span>
-          </div>
-        `;
-      })
-      .join("");
-  }
-
-  function buildDashboardStudiesHtml(limit) {
-    const items = sortByTimeline(state.studies, ["updatedAt", "createdAt"]).slice(0, limit || 4);
-    if (!items.length) {
-      return `<div class="plus-list-item"><strong>Biblioteca vazia por enquanto.</strong><span>Quando os primeiros estudos forem publicados, eles ficam visiveis aqui.</span></div>`;
-    }
-
-    return items
-      .map((study) => `
-        <div class="plus-list-item">
-          <div class="plus-list-item-top">
-            <div>
-              <strong>${escapeHtml(study.title || study.id)}</strong>
-              <small>${escapeHtml(study.audience || "all")}</small>
-            </div>
-            <div class="plus-card-actions">
-              ${study.downloadUrl ? `<a class="plus-inline-button" href="${escapeHtml(study.downloadUrl)}" target="_blank" rel="noreferrer">Abrir PDF</a>` : ""}
-              <button type="button" class="plus-inline-button" data-select-study="${escapeHtml(study.id)}">Detalhes</button>
-            </div>
-          </div>
-          <span>${escapeHtml(study.fileName || "Arquivo ainda nao informado.")}</span>
-          <span>${escapeHtml(study.description || "Sem descricao registrada.")}</span>
-        </div>
-      `)
-      .join("");
-  }
-
-  function buildDashboardFocusHtml(cellsMissingReport, cellsWithoutLeader, profilesPending, inactiveProfiles, visibleCells) {
-    const items = [];
-
-    if (!visibleCells.length) {
-      items.push("Nenhuma celula apareceu no seu escopo ainda.");
-    }
-
-    if (cellsMissingReport > 0) {
-      items.push(`${cellsMissingReport} celula(s) ativa(s) ainda sem relatorio neste mes.`);
-    }
-
-    if (cellsWithoutLeader > 0) {
-      items.push(`${cellsWithoutLeader} celula(s) ainda sem lider principal definido.`);
-    }
-
-    if (profilesPending > 0) {
-      items.push(`${profilesPending} perfil(is) aguardando liberacao em acessos.`);
-    }
-
-    if (inactiveProfiles > 0) {
-      items.push(`${inactiveProfiles} perfil(is) marcados como inativos na governanca.`);
-    }
-
-    if (!items.length) {
-      items.push("O escopo atual esta com a base principal preenchida e sem alertas estruturais imediatos.");
-    }
-
-    return `
-      <ul>
-        ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-      </ul>
-      <div class="plus-card-actions">
-        <button type="button" class="plus-inline-button" data-dashboard-route="cells">Abrir celulas</button>
-        ${canAccessRoute("members") ? `<button type="button" class="plus-inline-button" data-dashboard-route="members">Abrir membros</button>` : ""}
-        ${canAccessRoute("reports") ? `<button type="button" class="plus-inline-button" data-dashboard-route="reports">Ver relatorios</button>` : ""}
-        ${canAccessRoute("alerts") ? `<button type="button" class="plus-inline-button" data-dashboard-route="alerts">Abrir acompanhamento</button>` : ""}
-        ${canManageAccess() ? `<button type="button" class="plus-inline-button" data-dashboard-route="access">Gerir acessos</button>` : ""}
+  window._setFoodItem = (i, val) => { foodItems[i] = val; };
+  window._removeFoodItem = (i) => { foodItems.splice(i, 1); renderFoodItems(); };
+
+  function renderVisitorSection() {
+    const panel = $("visitor-panel-first");
+    if (!panel) return;
+    panel.innerHTML =
+      `<div style="margin-bottom:0.5rem">
+        <label style="display:block;margin-bottom:0.25rem;font-size:0.9rem;font-weight:600">
+          Nomes dos visitantes <small style="font-weight:400;color:var(--ink-soft)">(um por linha)</small>
+        </label>
+        <textarea id="visitor-names-input" rows="3"
+          style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--line);border-radius:0.5rem;font-family:inherit;font-size:0.9rem;resize:vertical;box-sizing:border-box"
+          placeholder="João Pereira&#10;Maria Santos"></textarea>
       </div>
-    `;
-  }
+      <label style="display:block;font-size:0.9rem;font-weight:600;margin-bottom:0.25rem">Total de visitantes</label>
+      <input type="number" id="visitors-count-input" min="0" step="1" value="0"
+        style="width:100%;padding:0.4rem 0.6rem;border:1px solid var(--line);border-radius:0.5rem;font-size:0.9rem" />`;
 
-  function buildDashboardCards() {
-    const profile = state.profile;
-    const role = normalizeRole(profile?.role);
-    const status = normalizeStatus(profile?.status);
-    const visibleCells = getVisibleCells();
-    const activeCells = visibleCells.filter((cell) => cell.status !== "inactive").length;
-    const inactiveCells = visibleCells.filter((cell) => cell.status === "inactive").length;
-    const cellsWithoutLeader = visibleCells.filter((cell) => !String(cell.leaderUid || "").trim()).length;
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const reportsThisMonth = state.reports.filter((report) => getMonthKey(report.date) === currentMonth);
-    const reportsThisMonthCount = reportsThisMonth.length;
-    const reportedCellIds = new Set(reportsThisMonth.map((report) => String(report.cellId || "").trim()).filter(Boolean));
-    const cellsMissingReport = visibleCells.filter((cell) => cell.status !== "inactive" && !reportedCellIds.has(cell.id)).length;
-    const offeringThisMonth = reportsThisMonth.reduce((sum, report) => sum + Number(report.offering || 0), 0);
-    const followUpVisitors = state.visitors.filter((visitor) => String(visitor.status || "").trim() === "follow_up").length;
-    const returningVisitors = state.visitors.filter((visitor) => Number(visitor.visitCount || 0) > 1).length;
-    const firstVisitThisMonth = state.visitors.filter((visitor) => getMonthKey(visitor.firstVisitAt) === currentMonth).length;
-    const activeStudies = state.studies.filter((study) => Boolean(study.downloadUrl)).length;
-    const updatedStudiesThisMonth = state.studies.filter((study) => getMonthKey(study.updatedAt || study.createdAt) === currentMonth).length;
-    const profilesPending = state.profiles.filter((entry) => normalizeStatus(entry.status) === "pending" || normalizeRole(entry.role) === "pending").length;
-    const inactiveProfiles = state.profiles.filter((entry) => normalizeStatus(entry.status) === "inactive").length;
-    const scopeSummary = visibleCells.length
-      ? visibleCells.map((cell) => cell.name || cell.id).slice(0, 3).join(", ")
-      : "Nenhuma celula vinculada ainda";
-    const sessionMessage = role === "leader"
-      ? "Sua leitura prioriza a propria celula, com atalhos para relatorios, visitantes e estudos liberados."
-      : role === "coordinator"
-        ? "O painel consolida o grupo supervisionado e ajuda a perceber quem precisa de apoio esta semana."
-        : "A visao aqui serve como centro de governanca, com panorama estrutural da Renovo+ antes de abrir cada modulo.";
-
-    return [
-      {
-        span: "8",
-        kicker: "Panorama",
-        title: role === "leader" ? "Pulso da sua celula" : role === "coordinator" ? "Pulso do seu grupo" : "Pulso da Renovo+",
-        html: `
-          <p>${escapeHtml(sessionMessage)}</p>
-          <div class="plus-card-actions">
-            ${canManageMembers() ? `<button type="button" class="plus-inline-button" data-new-member="true">Novo membro</button>` : ""}
-            ${canAccessRoute("reports") ? `<button type="button" class="plus-inline-button" data-new-report="true">Novo relatorio</button>` : ""}
-            ${canManageVisitors() ? `<button type="button" class="plus-inline-button" data-new-visitor="true">Novo visitante</button>` : ""}
-            ${canAccessRoute("alerts") ? `<button type="button" class="plus-inline-button" data-dashboard-route="alerts">Abrir acompanhamento</button>` : ""}
-            ${canManageStudies() ? `<button type="button" class="plus-inline-button" data-new-study="true">Publicar estudo</button>` : `<button type="button" class="plus-inline-button" data-dashboard-route="studies">Abrir estudos</button>`}
-            ${canManageCells() ? `<button type="button" class="plus-inline-button" data-new-cell="true">Nova celula</button>` : ""}
-          </div>
-        `,
-        metrics: [
-          { value: String(visibleCells.length), label: "Celulas no escopo" },
-          { value: String(reportsThisMonthCount), label: "Relatorios neste mes" },
-          { value: formatCurrency(offeringThisMonth), label: "Oferta do mes" },
-          { value: String(followUpVisitors), label: "Visitantes em acompanhamento" },
-        ],
-      },
-      {
-        span: "4",
-        kicker: "Sessao",
-        title: profile?.name || state.authUser?.email || "Conta autenticada",
-        tag: ROLE_LABELS[role] || "Sem perfil",
-        metaPairs: [
-          { label: "Status", value: STATUS_LABELS[status] || "Pendente" },
-          { label: "Celula principal", value: findCellNameById(profile?.primaryCellId) || profile?.primaryCellId || "Nao definida" },
-          { label: "Ministerio", value: profile?.ministryName || "Nao informado" },
-          { label: "Escopo inicial", value: scopeSummary },
-        ],
-      },
-      {
-        span: "4",
-        kicker: "Leitura rapida",
-        title: "Saude do escopo",
-        metrics: [
-          { value: String(activeCells), label: "Celulas ativas" },
-          { value: String(cellsMissingReport), label: "Sem relatorio no mes" },
-          { value: String(returningVisitors), label: "Visitantes com retorno" },
-          { value: String(activeStudies), label: "Estudos com PDF" },
-        ],
-      },
-      {
-        span: "4",
-        kicker: "Relatorios",
-        title: "Ultimos encontros",
-        html: `<div class="plus-list">${buildDashboardReportsHtml(4)}</div>`,
-      },
-      {
-        span: "4",
-        kicker: "Visitantes",
-        title: "Quem esta em foco",
-        html: `<div class="plus-list">${buildDashboardVisitorsHtml(4)}</div>`,
-      },
-      {
-        span: "6",
-        kicker: "Biblioteca",
-        title: "Estudos e ritmo de publicacao",
-        html: `<div class="plus-list">${buildDashboardStudiesHtml(3)}</div>`,
-        metrics: [
-          { value: String(state.studies.length), label: "Total na biblioteca" },
-          { value: String(updatedStudiesThisMonth), label: "Atualizados neste mes" },
-          { value: String(firstVisitThisMonth), label: "Primeiras visitas no mes" },
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Atencao",
-        title: canManageAccess() ? "Governanca e estrutura" : "Pontos para acompanhar",
-        html: buildDashboardFocusHtml(cellsMissingReport, cellsWithoutLeader, profilesPending, inactiveProfiles, visibleCells),
-        metrics: [
-          { value: String(cellsWithoutLeader), label: "Celulas sem lider" },
-          { value: String(inactiveCells), label: "Celulas inativas" },
-          { value: canManageAccess() ? String(state.profiles.length) : String(visibleCells.length), label: canManageAccess() ? "Perfis carregados" : "Celulas observadas" },
-          { value: canManageAccess() ? String(profilesPending) : String(followUpVisitors), label: canManageAccess() ? "Perfis pendentes" : "Follow-up ativo" },
-        ],
-      },
-    ];
-  }
-
-  function buildAlertsCards() {
-    const editableAlert = getEditableAlert();
-    const availableCells = getReportCells();
-    const derivedAlerts = collectDerivedAlerts();
-    const openAlerts = state.alerts.filter((alert) => alert.status !== "resolved").length;
-    const criticalAlerts = state.alerts.filter((alert) => alert.severity === "critical" && alert.status !== "resolved").length;
-    const monitoringAlerts = state.alerts.filter((alert) => alert.status === "monitoring").length;
-    const dueSoonCount = state.alerts.filter((alert) => {
-      if (!alert.dueAt || alert.status === "resolved") {
-        return false;
-      }
-      const dueDate = new Date(`${alert.dueAt}T23:59:59`);
-      const diff = dueDate.getTime() - Date.now();
-      return Number.isFinite(diff) && diff >= 0 && diff <= 7 * 24 * 60 * 60 * 1000;
-    }).length;
-    const selectedCellName = editableAlert ? findCellNameById(editableAlert.cellId) || editableAlert.cellId : "Nenhum alerta selecionado";
-
-    return [
-      {
-        span: "4",
-        kicker: "Panorama",
-        title: "Acompanhamento no escopo",
-        metrics: [
-          { value: String(state.alerts.length), label: "Alertas manuais" },
-          { value: String(openAlerts), label: "Abertos" },
-          { value: String(criticalAlerts), label: "Criticos" },
-          { value: String(derivedAlerts.length), label: "Sinais automaticos" },
-        ],
-      },
-      {
-        span: "8",
-        kicker: "Leitura ministerial",
-        title: "Do registro ao cuidado continuo",
-        body: "Este modulo junta os alertas criados pela equipe com sinais automaticos da base para evitar que acompanhamento fique espalhado entre relatorios, visitantes e memoria oral.",
-        items: [
-          "Cada alerta fica vinculado a uma celula e respeita o escopo do perfil autenticado.",
-          "Coordenacao e lideranca podem transformar sinais em acompanhamentos formais.",
-          "Pastor e admin ganham uma camada de governanca sobre pendencias estruturais e ministeriais.",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Sinais do sistema",
-        title: "Alertas derivados da base",
-        html: `<div class="plus-list">${buildDerivedAlertsHtml()}</div>`,
-      },
-      {
-        span: "6",
-        kicker: "Fila manual",
-        title: "Alertas registrados pela equipe",
-        html: `<div class="plus-list">${buildAlertsListHtml()}</div>`,
-        metrics: [
-          { value: String(monitoringAlerts), label: "Em monitoramento" },
-          { value: String(dueSoonCount), label: "Com prazo em 7 dias" },
-          { value: String(availableCells.length), label: "Celulas disponiveis" },
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Editor",
-        title: editableAlert
-          ? `${editableAlert.title || editableAlert.id} | ${selectedCellName}`
-          : availableCells.length
-            ? "Criar novo alerta"
-            : "Sem celulas para acompanhar",
-        html: availableCells.length
-          ? buildAlertEditorHtml(editableAlert)
-          : `<p>Vincule o perfil a pelo menos uma celula antes de abrir acompanhamentos neste modulo.</p>`,
-      },
-      {
-        span: "6",
-        kicker: "Resumo do caso",
-        title: editableAlert ? "Leitura rapida do alerta selecionado" : "Como usar este modulo",
-        html: editableAlert
-          ? `
-            <div class="plus-meta-pair">
-              ${renderMetaPairs([
-                { label: "Celula", value: selectedCellName || "Nao definida" },
-                { label: "Tipo", value: ALERT_TYPE_LABELS[editableAlert.type] || editableAlert.type || "Cuidado" },
-                { label: "Gravidade", value: ALERT_SEVERITY_LABELS[editableAlert.severity] || editableAlert.severity || "Atencao" },
-                { label: "Status", value: ALERT_STATUS_LABELS[editableAlert.status] || editableAlert.status || "Aberto" },
-                { label: "Prazo", value: editableAlert.dueAt || "Livre" },
-                { label: "Responsavel", value: findProfileNameByUid(editableAlert.ownerUid) || editableAlert.ownerUid || "Nao atribuido" },
-              ])}
-            </div>
-            <p>${escapeHtml(editableAlert.summary || editableAlert.notes || "Sem resumo adicional para este acompanhamento.")}</p>
-          `
-          : `
-            <ul>
-              <li>Abra um alerta quando um cuidado precisar continuar alem do relatorio semanal.</li>
-              <li>Use gravidade e status para diferenciar observacao simples de caso urgente.</li>
-              <li>Os sinais automaticos ajudam a descobrir pendencias que ainda nao viraram acompanhamento formal.</li>
-            </ul>
-            <div class="plus-card-actions">
-              <button type="button" class="plus-inline-button" data-new-alert="true">Novo alerta</button>
-              <button type="button" class="plus-inline-button" data-dashboard-route="dashboard">Voltar ao painel</button>
-            </div>
-          `,
-      },
-    ];
-  }
-
-  function buildCellsCards() {
-    const visibleCells = getVisibleCells();
-    const editableCell = getEditableCell();
-    const canManage = canManageCells();
-    const activeCells = visibleCells.filter((cell) => cell.status !== "inactive").length;
-    const selectedLeader = editableCell ? findProfileNameByUid(editableCell.leaderUid) || "Sem lider" : "Sem lider";
-
-    return [
-      {
-        span: "4",
-        kicker: "Panorama",
-        title: "Celulas carregadas",
-        metrics: [
-          { value: String(visibleCells.length), label: "No escopo atual" },
-          { value: String(activeCells), label: "Ativas" },
-          { value: canManage ? "Gestao" : "Consulta", label: "Seu nivel neste modulo" },
-        ],
-      },
-      {
-        span: "8",
-        kicker: "Estrutura",
-        title: canManage ? "Cadastro real de celulas" : "Celulas do seu escopo",
-        body: canManage
-          ? "Admin e pastor ja podem criar ou ajustar a estrutura base das celulas da Renovo+, com leaderUid, horario, endereco e status."
-          : "Aqui aparecem apenas as celulas liberadas para o seu perfil ministerial na Renovo+.",
-        items: canManage
-          ? [
-              "Cada celula grava um documento proprio em renovo_plus_cells.",
-              "O codigo vira o cellId usado depois em relatorios, membros e escopo.",
-              "O vinculo de lideranca ja nasce por uid, nao por texto livre.",
-            ]
-          : [
-              "A leitura ja respeita primaryCellId e scopeCellIds do seu perfil.",
-              "Esta tela passa a ser a porta de entrada da estrutura ministerial da V2.",
-              "Nos proximos passos, membros e relatorios vao se apoiar nesta base.",
-            ],
-      },
-      {
-        span: "6",
-        kicker: "Lista",
-        title: "Mapa de celulas",
-        html: `<div class="plus-list">${buildCellsListHtml()}</div>`,
-      },
-      {
-        span: "6",
-        kicker: canManage ? "Editor" : "Detalhes",
-        title: editableCell
-          ? editableCell.name || editableCell.id
-          : canManage
-            ? "Criar nova celula"
-            : "Nenhuma celula no escopo",
-        html: canManage
-          ? buildCellEditorHtml(editableCell)
-          : editableCell
-            ? `
-              <div class="plus-meta-pair">
-                ${renderMetaPairs([
-                  { label: "Codigo", value: editableCell.id },
-                  { label: "Lider", value: selectedLeader },
-                  { label: "Status", value: CELL_STATUS_LABELS[editableCell.status] || "Ativa" },
-                  { label: "Reuniao", value: [editableCell.meetingDay, editableCell.meetingTime].filter(Boolean).join(" · ") || "Nao informado" },
-                  { label: "Endereco", value: editableCell.address || "Nao informado" },
-                ])}
-              </div>
-            `
-            : `<p>Nenhuma celula apareceu no seu escopo ainda.</p>`,
-      },
-    ];
-  }
-
-  function buildMembersCards() {
-    const editableMember = getEditableMember();
-    const activeMembers = state.members.filter((member) => member.status === "active").length;
-    const inactiveMembers = state.members.filter((member) => member.status !== "active").length;
-    const hostCount = state.members.filter((member) => member.roleInCell === "host").length;
-    const coveredCells = new Set(state.members.map((member) => String(member.cellId || "").trim()).filter(Boolean)).size;
-    const selectedCellName = editableMember ? findCellNameById(editableMember.cellId) || editableMember.cellId : "Nenhuma celula selecionada";
-
-    return [
-      {
-        span: "4",
-        kicker: "Base viva",
-        title: "Membros no escopo",
-        metrics: [
-          { value: String(state.members.length), label: "Total carregado" },
-          { value: String(activeMembers), label: "Ativos" },
-          { value: String(hostCount), label: "Anfitrioes" },
-          { value: String(coveredCells), label: "Celulas cobertas" },
-        ],
-      },
-      {
-        span: "8",
-        kicker: "Estrutura humana",
-        title: "Cadastro por cellId",
-        body: "A Renovo+ agora trata membro como entidade propria, ligada a uma celula especifica e pronta para sustentar presenca, cuidado e historico sem depender de listas soltas dentro da tela.",
-        items: [
-          "Cada membro salva um documento proprio em renovo_plus_members.",
-          "O acesso respeita o mesmo escopo de celulas do perfil autenticado.",
-          "Esse modulo abre caminho para presenca por pessoa e futura conversao automatica de visitante em membro.",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Lista",
-        title: "Membros da base nova",
-        html: `<div class="plus-list">${buildMembersListHtml()}</div>`,
-      },
-      {
-        span: "6",
-        kicker: "Editor",
-        title: editableMember
-          ? `${editableMember.name || editableMember.id} | ${selectedCellName}`
-          : getReportCells().length
-            ? "Cadastrar novo membro"
-            : "Sem celulas para membros",
-        html: getReportCells().length
-          ? buildMemberEditorHtml(editableMember)
-          : `<p>Primeiro vincule seu perfil a uma celula para cadastrar membros na Renovo+.</p>`,
-      },
-      {
-        span: "6",
-        kicker: "Leitura rapida",
-        title: editableMember ? "Resumo do membro selecionado" : "Panorama ministerial",
-        html: editableMember
-          ? `
-            <div class="plus-meta-pair">
-              ${renderMetaPairs([
-                { label: "Celula", value: selectedCellName || "Nao definida" },
-                { label: "Papel", value: MEMBER_ROLE_LABELS[editableMember.roleInCell] || editableMember.roleInCell || "Membro" },
-                { label: "Status", value: MEMBER_STATUS_LABELS[editableMember.status] || editableMember.status || "Ativo" },
-                { label: "Telefone", value: editableMember.phone || "Nao informado" },
-                { label: "Entrada", value: editableMember.joinedAt || "Nao informada" },
-              ])}
-            </div>
-            <p>${escapeHtml(editableMember.notes || "Sem observacoes registradas para este membro.")}</p>
-          `
-          : `
-            <ul>
-              <li>Use este cadastro como fonte unica para quem faz parte da celula.</li>
-              <li>O papel na celula ajuda a diferenciar anfitriao, auxiliar e membros em formacao.</li>
-              <li>Nos proximos passos, relatorios e acompanhamento poderao ler essa base diretamente.</li>
-            </ul>
-          `,
-        metrics: [
-          { value: String(inactiveMembers), label: "Nao ativos" },
-          { value: String(state.members.filter((member) => member.roleInCell === "assistant").length), label: "Auxiliares" },
-          { value: String(state.members.filter((member) => member.roleInCell === "apprentice").length), label: "Aprendizes" },
-        ],
-      },
-    ];
-  }
-
-  function buildReportsCards() {
-    const editableReport = getEditableReport();
-    const totalOffering = state.reports.reduce((sum, report) => sum + Number(report.offering || 0), 0);
-    const reportsThisMonth = state.reports.filter((report) => String(report.date || "").slice(0, 7) === new Date().toISOString().slice(0, 7)).length;
-    const availableCells = getReportCells();
-    const selectedCellName = editableReport ? findCellNameById(editableReport.cellId) || editableReport.cellId : "Sem celula selecionada";
-
-    return [
-      {
-        span: "4",
-        kicker: "Resumo",
-        title: "Relatorios no escopo",
-        metrics: [
-          { value: String(state.reports.length), label: "Total carregado" },
-          { value: String(reportsThisMonth), label: "Neste mes" },
-          { value: `R$ ${totalOffering.toFixed(2)}`, label: "Oferta somada" },
-        ],
-      },
-      {
-        span: "8",
-        kicker: "Fluxo semanal",
-        title: "Relatorio por documento",
-        body: "A Renovo+ ja grava cada relatorio como documento proprio em renovo_plus_reports, vinculado ao cellId e ao uid de quem salvou.",
-        items: [
-          "A escrita respeita o escopo do perfil autenticado.",
-          "Cada formulario salva apenas um relatorio por vez.",
-          "A base ja esta pronta para crescer com presenca detalhada e visitantes por nome.",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Historico",
-        title: "Relatorios recentes",
-        html: `<div class="plus-list">${buildReportsListHtml()}</div>`,
-      },
-      {
-        span: "6",
-        kicker: "Editor",
-        title: editableReport
-          ? `${selectedCellName} · ${editableReport.date || "Sem data"}`
-          : availableCells.length
-            ? "Criar novo relatorio"
-            : "Sem celulas para relatorio",
-        html: availableCells.length
-          ? buildReportEditorHtml(editableReport)
-          : `<p>Primeiro crie uma celula e vincule seu perfil a ela para comecar a registrar relatorios.</p>`,
-      },
-    ];
-  }
-
-  function buildStudiesCards() {
-    const editableStudy = getEditableStudy();
-    const downloadableCount = state.studies.filter((study) => Boolean(study.downloadUrl)).length;
-    const selectedTitle = editableStudy?.title || editableStudy?.fileName || "Nenhum estudo selecionado";
-
-    return [
-      {
-        span: "4",
-        kicker: "Biblioteca",
-        title: "Estudos publicados",
-        metrics: [
-          { value: String(state.studies.length), label: "Total carregado" },
-          { value: String(downloadableCount), label: "Com PDF ativo" },
-          { value: canManageStudies() ? "Publicacao" : "Leitura", label: "Seu nivel neste modulo" },
-        ],
-      },
-      {
-        span: "8",
-        kicker: "Storage + Firestore",
-        title: "Biblioteca protegida",
-        body: "A Renovo+ ja separa o metadado do estudo no Firestore e o PDF no Storage, com espaco para audiencias e historico de publicacao.",
-        items: [
-          "Cada estudo salva um documento proprio em renovo_plus_studies.",
-          "O upload usa a sessao autenticada do Firebase.",
-          "Leitores podem abrir o PDF sem depender de localStorage.",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Lista",
-        title: "Biblioteca de estudos",
-        html: `<div class="plus-list">${buildStudiesListHtml()}</div>`,
-      },
-      {
-        span: "6",
-        kicker: canManageStudies() ? "Editor" : "Detalhes",
-        title: selectedTitle,
-        html: canManageStudies()
-          ? buildStudyEditorHtml(editableStudy)
-          : editableStudy
-            ? `
-              <div class="plus-meta-pair">
-                ${renderMetaPairs([
-                  { label: "Titulo", value: editableStudy.title || editableStudy.id },
-                  { label: "Audiencia", value: editableStudy.audience || "all" },
-                  { label: "Arquivo", value: editableStudy.fileName || "Sem arquivo" },
-                  { label: "Descricao", value: editableStudy.description || "Sem descricao" },
-                ])}
-              </div>
-              ${editableStudy.downloadUrl ? `<div class="plus-card-actions"><a class="plus-inline-button" href="${escapeHtml(editableStudy.downloadUrl)}" target="_blank" rel="noreferrer">Abrir PDF</a></div>` : ""}
-            `
-            : `<p>Nenhum estudo foi disponibilizado ainda.</p>`,
-      },
-    ];
-  }
-
-  function buildVisitorsCards() {
-    const editableVisitor = getEditableVisitor();
-    const returningCount = state.visitors.filter((visitor) => Number(visitor.visitCount || 0) > 1).length;
-    const followUpCount = state.visitors.filter((visitor) => String(visitor.status || "") === "follow_up").length;
-    const selectedCellName = editableVisitor ? findCellNameById(editableVisitor.cellId) || editableVisitor.cellId : "Nenhum visitante selecionado";
-
-    return [
-      {
-        span: "4",
-        kicker: "Resumo",
-        title: "Visitantes no escopo",
-        metrics: [
-          { value: String(state.visitors.length), label: "Total carregado" },
-          { value: String(returningCount), label: "Com retorno" },
-          { value: String(followUpCount), label: "Em acompanhamento" },
-        ],
-      },
-      {
-        span: "8",
-        kicker: "Cuidado",
-        title: "Historico por visitante",
-        body: "A Renovo+ ja trata visitante como documento proprio, vinculado a uma celula e com espaco para recorrencia, contexto e acompanhamento.",
-        items: [
-          "Cada visitante salva um documento em renovo_plus_visitors.",
-          "O modulo respeita o mesmo escopo de celulas do perfil autenticado.",
-          "A base ja prepara a futura conversao de visitante em membro.",
-        ],
-      },
-      {
-        span: "6",
-        kicker: "Lista",
-        title: "Visitantes recentes",
-        html: `<div class="plus-list">${buildVisitorsListHtml()}</div>`,
-      },
-      {
-        span: "6",
-        kicker: "Editor",
-        title: editableVisitor
-          ? `${editableVisitor.name || editableVisitor.id} · ${selectedCellName}`
-          : canManageVisitors()
-            ? "Registrar novo visitante"
-            : "Sem visitantes no escopo",
-        html: canManageVisitors()
-          ? buildVisitorEditorHtml(editableVisitor)
-          : editableVisitor
-            ? `
-              <div class="plus-meta-pair">
-                ${renderMetaPairs([
-                  { label: "Nome", value: editableVisitor.name || editableVisitor.id },
-                  { label: "Celula", value: selectedCellName },
-                  { label: "Status", value: editableVisitor.status || "new" },
-                  { label: "Telefone", value: editableVisitor.phone || "Nao informado" },
-                  { label: "Ultima visita", value: editableVisitor.lastVisitAt || editableVisitor.firstVisitAt || "Nao informado" },
-                ])}
-              </div>
-            `
-            : `<p>Nenhum visitante foi registrado ainda no seu escopo.</p>`,
-      },
-    ];
-  }
-
-  async function bootstrap() {
-    versionLabel.textContent = String(window.RENOVO_PLUS_VERSION || "dev");
-    setStatus("Carregando", "neutral");
-    updateUserSummary();
-
-    authForm?.addEventListener("submit", handleLogin);
-    signOutButton?.addEventListener("click", handleSignOut);
-    nav?.addEventListener("click", handleNavClick);
-    pageBody?.addEventListener("click", handlePageClick);
-    pageBody?.addEventListener("submit", handlePageSubmit);
-
-    try {
-      let authSettled = false;
-      window.renovoPlusFirebase.observeAuth((user) => {
-        authSettled = true;
-        refreshProfile(user);
+    const namesTa = $("visitor-names-input");
+    if (namesTa) {
+      namesTa.addEventListener("input", () => {
+        const names = namesTa.value.split("\n").map((l) => l.trim()).filter(Boolean);
+        const countInp = $("visitors-count-input");
+        if (countInp) countInp.value = names.length;
       });
-
-      await Promise.race([
-        window.renovoPlusFirebase.waitForAuthReady(),
-        new Promise((_, reject) => {
-          window.setTimeout(() => {
-            if (!authSettled) {
-              reject(new Error("AUTH_BOOT_TIMEOUT"));
-            }
-          }, AUTH_BOOT_TIMEOUT_MS);
-        }),
-      ]);
-    } catch (error) {
-      console.warn("[Renovo+] bootstrap:", error?.message || error);
-      showBootstrapFallback(
-        error?.message === "AUTH_BOOT_TIMEOUT"
-          ? "A inicializacao da Renovo+ demorou mais que o esperado. Voce ja pode tentar entrar. Se continuar vendo so esta tela, abra o link em uma janela anonima."
-          : (error?.message || "Nao foi possivel iniciar a Renovo+.")
-      );
     }
   }
 
-  bootstrap();
+  function renderReportImages() {
+    const container = $("images-list");
+    const countLabel = $("images-count-label");
+    if (container) {
+      container.innerHTML = reportImages
+        .map((img, i) =>
+          `<div class="image-thumb-wrap" style="position:relative;display:inline-block;margin:0.2rem">
+            <img src="${img.url}" alt="" style="width:80px;height:80px;object-fit:cover;border-radius:0.4rem;display:block" />
+            <button type="button" class="ghost-btn" onclick="window._removeReportImage(${i})"
+              style="position:absolute;top:2px;right:2px;padding:0 4px;font-size:0.75rem;background:rgba(0,0,0,0.5);color:#fff;border:none;border-radius:0.3rem;cursor:pointer">×</button>
+          </div>`
+        ).join("");
+    }
+    if (countLabel) countLabel.textContent = reportImages.length ? `(${reportImages.length})` : "";
+  }
+
+  window._removeReportImage = (i) => { reportImages.splice(i, 1); renderReportImages(); };
+
+  async function handleReportSubmit(form) {
+    const btn = $("generate-report-btn");
+    setButtonLoading(btn, true, "Gerando...");
+
+    const cellId = form.elements.cellId.value;
+    const date = form.elements.date.value;
+    const leaders = form.elements.leaders.value.trim();
+    const coLeaders = form.elements.coLeaders.value.trim();
+    const host = form.elements.host.value.trim();
+    const address = form.elements.address.value.trim();
+    const communionMinutes = form.elements.communionMinutes.value;
+    const snack = form.querySelector('input[name="snack"]:checked')?.value || "";
+    const discipleship = form.querySelector('input[name="discipleship"]:checked')?.value || "";
+    const offering = parseFloat(form.elements.offering.value) || 0;
+
+    const presentCheckboxes = Array.from(form.querySelectorAll('input[name="present"]:checked'));
+    const presentMemberIds = presentCheckboxes.map((cb) => cb.value);
+    const presentCount = presentMemberIds.length;
+
+    const cell = state.cells.find((c) => c.id === cellId);
+    const allMembers = cell?.members || [];
+    const absentMembers = allMembers.filter((m) => !presentMemberIds.includes(m.id));
+
+    const visitorNamesRaw = $("visitor-names-input")?.value || "";
+    const visitorNames = visitorNamesRaw.split("\n").map((l) => l.trim()).filter(Boolean).join(", ");
+    const visitorsCount = parseInt($("visitors-count-input")?.value) || 0;
+
+    const foodsToggle = form.querySelector('input[name="foodsToggle"]:checked')?.value;
+    const foodsStr = foodsToggle === "sim" ? foodItems.filter(Boolean).join(", ") : "";
+
+    try {
+      const saved = await fb().saveReport(
+        {
+          id: editingReportId || undefined,
+          cellId, date, leaders, coLeaders, host, address,
+          presentMemberIds, presentCount,
+          visitorsCount, visitorNames,
+          offering, snack, discipleship, communionMinutes,
+          foods: foodsStr, notes: "",
+        },
+        session.uid
+      );
+      editingReportId = saved.id;
+      await loadAllData();
+      renderAppShell();
+
+      const presentNames = presentCheckboxes.map((cb) => cb.dataset.memberName || cb.value);
+      const text = buildReportText({
+        cell, date, leaders, coLeaders, host, address,
+        presentNames, presentCount, allMembersCount: allMembers.length,
+        absentMembers, visitorsCount, visitorNames,
+        offering, snack, discipleship, communionMinutes, foods: foodsStr,
+      });
+      $("report-output").value = text;
+
+      updateReportHistory();
+      drawReportCharts(cellId, presentCount, allMembers.length, visitorsCount);
+
+      const modeNote = $("report-mode-note");
+      if (modeNote) {
+        modeNote.textContent = `Relatório salvo com sucesso!`;
+        modeNote.hidden = false;
+      }
+    } catch (err) {
+      alert("Erro ao salvar relatório: " + (err.message || err));
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  }
+
+  function buildReportText({ cell, date, leaders, coLeaders, host, address, presentNames, presentCount, allMembersCount, absentMembers, visitorsCount, visitorNames, offering, snack, discipleship, communionMinutes, foods }) {
+    const lines = [];
+    const cellName = cell?.name || "";
+    lines.push(`📋 *RELATÓRIO SEMANAL – ${cellName.toUpperCase()}*`);
+    lines.push("");
+    lines.push(`📅 *Data:* ${fmtDate(date)}`);
+    if (address) lines.push(`📍 *Local:* ${address}`);
+    if (host) lines.push(`🏠 *Anfitrião:* ${host}`);
+    lines.push("");
+    lines.push(`👤 *Líder(es):* ${leaders}`);
+    if (coLeaders) lines.push(`👥 *Co-líder(es):* ${coLeaders}`);
+    lines.push("");
+    lines.push(`✅ *Presentes:* ${presentCount}${allMembersCount ? ` / ${allMembersCount}` : ""}`);
+    if (presentNames.length) lines.push(`   ${presentNames.join(", ")}`);
+    if (absentMembers.length) lines.push(`❌ *Ausentes:* ${absentMembers.map((m) => m.name).join(", ")}`);
+    lines.push("");
+    lines.push(`🙋 *Visitantes:* ${visitorsCount}`);
+    if (visitorNames) lines.push(`   ${visitorNames}`);
+    lines.push("");
+    if (offering > 0) lines.push(`💰 *Oferta:* R$ ${fmtMoney(offering)}`);
+    if (snack) lines.push(`🍽️ *Lanche:* ${snack}`);
+    if (foods) lines.push(`🥘 *Alimentos:* ${foods}`);
+    if (discipleship) lines.push(`📖 *Discipulado:* ${discipleship}`);
+    if (communionMinutes) lines.push(`🍷 *Ceia:* ${communionMinutes} min`);
+    lines.push("");
+    lines.push("🌿 Igreja Renovo – Ambiente de Células");
+    return lines.join("\n");
+  }
+
+  function updateReportHistory() {
+    const cellId = $("report-cell")?.value;
+    if (!cellId) return;
+    const cellReports = state.reports
+      .filter((r) => r.cellId === cellId)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+      .slice(0, 20);
+
+    const histCount = $("report-history-count");
+    if (histCount) histCount.textContent = `${cellReports.length} relatório(s)`;
+
+    const histList = $("report-history-list");
+    if (histList) {
+      histList.innerHTML = cellReports.length
+        ? cellReports.map((r) =>
+            `<div class="report-history-item">
+              <div class="report-history-item-head">
+                <strong>${fmtDate(r.date)}</strong>
+                <span style="font-size:0.8rem;color:var(--ink-soft)">${r.presentCount} presentes · ${r.visitorsCount} visitante(s)</span>
+              </div>
+              ${r.leaders ? `<small style="color:var(--ink-soft)">${escHtml(r.leaders)}</small>` : ""}
+              <div style="display:flex;gap:0.4rem;margin-top:0.3rem">
+                <button type="button" class="ghost-btn compact-btn" onclick="window._editReport('${escHtml(r.id)}')">Editar</button>
+                <button type="button" class="ghost-btn compact-btn danger-btn" onclick="window._deleteReport('${escHtml(r.id)}')">Excluir</button>
+              </div>
+            </div>`
+          ).join("")
+        : `<p style="color:var(--ink-soft);font-size:0.9rem">Nenhum relatório registrado.</p>`;
+    }
+
+    if (cellReports.length > 1) {
+      const wrap = $("report-line-wrap");
+      if (wrap) wrap.hidden = false;
+      drawLineChart(cellReports.slice().reverse());
+    }
+  }
+
+  window._editReport = function (reportId) {
+    const report = state.reports.find((r) => r.id === reportId);
+    if (!report) return;
+    editingReportId = reportId;
+    const form = $("report-form");
+    if (!form) return;
+
+    $("report-cell").value = report.cellId;
+    form.elements.date.value = report.date;
+    form.elements.leaders.value = report.leaders || "";
+    form.elements.coLeaders.value = report.coLeaders || "";
+    form.elements.host.value = report.host || "";
+    form.elements.address.value = report.address || "";
+    form.elements.communionMinutes.value = report.communionMinutes || "";
+    form.elements.offering.value = report.offering || "";
+
+    const snackRadio = form.querySelector(`input[name="snack"][value="${escHtml(report.snack || "")}"]`);
+    if (snackRadio) snackRadio.checked = true;
+    const discRadio = form.querySelector(`input[name="discipleship"][value="${escHtml(report.discipleship || "")}"]`);
+    if (discRadio) discRadio.checked = true;
+
+    if (report.foods) {
+      const foodsYes = $("foods-yes");
+      if (foodsYes) foodsYes.checked = true;
+      const wrap = $("foods-list-wrap");
+      if (wrap) wrap.hidden = false;
+      foodItems = report.foods.split(",").map((s) => s.trim()).filter(Boolean);
+      renderFoodItems();
+    }
+
+    populateAttendanceList(report.cellId);
+    setTimeout(() => {
+      (report.presentMemberIds || []).forEach((id) => {
+        const cb = form.querySelector(`input[type='checkbox'][value='${id}']`);
+        if (cb) cb.checked = true;
+      });
+    }, 50);
+
+    renderVisitorSection();
+    setTimeout(() => {
+      const namesTa = $("visitor-names-input");
+      if (namesTa) namesTa.value = report.visitorNames || "";
+      const countInp = $("visitors-count-input");
+      if (countInp) countInp.value = report.visitorsCount || 0;
+    }, 50);
+
+    updateReportHistory();
+    const modeNote = $("report-mode-note");
+    if (modeNote) { modeNote.textContent = `Editando relatório de ${fmtDate(report.date)}.`; modeNote.hidden = false; }
+    openModal("report-modal");
+  };
+
+  window._deleteReport = async function (reportId) {
+    if (!confirm("Excluir este relatório?")) return;
+    try {
+      await fb().deleteReport(reportId);
+      await loadAllData();
+      updateReportHistory();
+      renderAppShell();
+    } catch (err) { alert("Erro ao excluir: " + (err.message || err)); }
+  };
+
+  // ─── CHARTS ───────────────────────────────────────────────────────────────
+  function drawDonutChart(canvasId, legendId, present, absent, visitors) {
+    const canvas = $(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const total = present + absent + visitors;
+    if (!total) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+    const slices = [
+      { value: present, color: "#7a1118" },
+      { value: absent, color: "#b9343a" },
+      { value: visitors, color: "#b68a64" },
+    ];
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const outerR = Math.min(cx, cy) - 4;
+    const innerR = outerR * 0.55;
+    let angle = -Math.PI / 2;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    slices.forEach((sl) => {
+      if (!sl.value) return;
+      const sweep = (sl.value / total) * 2 * Math.PI;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, outerR, angle, angle + sweep);
+      ctx.closePath();
+      ctx.fillStyle = sl.color;
+      ctx.fill();
+      angle += sweep;
+    });
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerR, 0, 2 * Math.PI);
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#fff";
+    ctx.fill();
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#111";
+    ctx.font = `bold ${Math.round(outerR * 0.38)}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(present, cx, cy);
+    const legend = $(legendId);
+    if (legend) {
+      const labels = ["Presentes", "Faltantes", "Visitantes"];
+      const vals = [present, absent, visitors];
+      const colors = ["#7a1118", "#b9343a", "#b68a64"];
+      legend.innerHTML = labels.map((l, i) =>
+        `<span class="chart-legend-item"><span class="chart-legend-dot" style="background:${colors[i]}"></span>${l}: ${vals[i]}</span>`
+      ).join("");
+    }
+  }
+
+  function drawReportCharts(cellId, presentCount, totalMembers, visitorsCount) {
+    const absent = Math.max(0, totalMembers - presentCount);
+    drawDonutChart("report-chart", "report-chart-legend", presentCount, absent, visitorsCount);
+    if ($("report-chart-wrap")) $("report-chart-wrap").hidden = false;
+
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 180);
+    const cellReports = state.reports.filter((r) => r.cellId === cellId && new Date(r.date) >= cutoff);
+    if (cellReports.length) {
+      const avgP = Math.round(cellReports.reduce((s, r) => s + r.presentCount, 0) / cellReports.length);
+      const avgV = Math.round(cellReports.reduce((s, r) => s + r.visitorsCount, 0) / cellReports.length);
+      drawDonutChart("cell-average-chart", "cell-average-legend", avgP, Math.max(0, totalMembers - avgP), avgV);
+    }
+
+    if (isAdminOrPastor()) {
+      const allR = state.reports.filter((r) => new Date(r.date) >= cutoff);
+      if (allR.length) {
+        const avgP = Math.round(allR.reduce((s, r) => s + r.presentCount, 0) / allR.length);
+        const avgV = Math.round(allR.reduce((s, r) => s + r.visitorsCount, 0) / allR.length);
+        drawDonutChart("overall-average-chart", "overall-average-legend", avgP, 0, avgV);
+      }
+      const card = $("overall-average-card");
+      if (card) card.hidden = false;
+    } else {
+      const card = $("overall-average-card");
+      if (card) card.hidden = true;
+    }
+  }
+
+  function drawLineChart(reports) {
+    const canvas = $("report-line-chart");
+    if (!canvas || !reports.length) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    const pad = { top: 10, right: 10, bottom: 24, left: 28 };
+    const chartW = W - pad.left - pad.right;
+    const chartH = H - pad.top - pad.bottom;
+    const maxVal = Math.max(1, ...reports.map((r) => Math.max(r.presentCount, r.visitorsCount)));
+    ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = "#eee"; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (chartH / 4) * i;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+    }
+    const xStep = reports.length > 1 ? chartW / (reports.length - 1) : 0;
+    const yScale = (v) => pad.top + chartH - (v / maxVal) * chartH;
+    function drawLine(data, color) {
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+      data.forEach((v, i) => {
+        const x = pad.left + i * xStep, y = yScale(v);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      data.forEach((v, i) => {
+        ctx.beginPath(); ctx.arc(pad.left + i * xStep, yScale(v), 3, 0, 2 * Math.PI);
+        ctx.fillStyle = color; ctx.fill();
+      });
+    }
+    drawLine(reports.map((r) => r.presentCount), "#7a1118");
+    drawLine(reports.map((r) => r.visitorsCount), "#b68a64");
+    ctx.fillStyle = "#888"; ctx.font = "9px sans-serif"; ctx.textAlign = "center";
+    reports.forEach((r, i) => {
+      ctx.fillText(String(r.date || "").slice(5).replace("-", "/"), pad.left + i * xStep, H - 6);
+    });
+  }
+
+  // ─── MODAL: GERENCIAR ACESSOS ──────────────────────────────────────────────
+  function setupAccessModal() {
+    $("close-access-modal")?.addEventListener("click", () => { closeModal("access-modal"); resetAccessForm(); });
+    $("cancel-access-edit")?.addEventListener("click", resetAccessForm);
+    $("access-form")?.elements?.role?.addEventListener("change", updateAccessFormVisibility);
+    $("access-form")?.addEventListener("submit", async (e) => { e.preventDefault(); await handleAccessSubmit(e.target); });
+  }
+
+  function resetAccessForm() {
+    const form = $("access-form");
+    if (!form) return;
+    form.reset();
+    form.elements.userUid.value = "";
+    editingAccessUid = null;
+    if ($("save-access-button")) $("save-access-button").textContent = "Salvar acesso";
+    if ($("cancel-access-edit")) $("cancel-access-edit").hidden = true;
+    if ($("email-label")) $("email-label").style.display = "";
+    if ($("password-label")) $("password-label").style.display = "";
+    if ($("status-label")) $("status-label").style.display = "none";
+    showFeedback("access-feedback", "");
+    updateAccessFormVisibility();
+  }
+
+  function updateAccessFormVisibility() {
+    const form = $("access-form");
+    if (!form) return;
+    const role = form.elements.role?.value;
+    if ($("assigned-cell-label")) $("assigned-cell-label").style.display = role === "leader" ? "" : "none";
+    if ($("scope-cells-label")) $("scope-cells-label").style.display = role === "coordinator" ? "" : "none";
+    if ($("scope-cells-checkboxes")) $("scope-cells-checkboxes").style.display = role === "coordinator" ? "" : "none";
+  }
+
+  async function openAccessModal() {
+    if (!canManageAccess()) return;
+    await loadAllData();
+    renderAccessUsers();
+    populateAccessCellSelects();
+    resetAccessForm();
+    openModal("access-modal");
+  }
+
+  function populateAccessCellSelects() {
+    const cellSel = $("access-cell-select");
+    if (cellSel) {
+      cellSel.innerHTML = `<option value="">Selecione a célula</option>` +
+        state.cells.map((c) => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("");
+    }
+    const scopeBox = $("scope-cells-checkboxes");
+    if (scopeBox) {
+      scopeBox.innerHTML = state.cells
+        .map((c) =>
+          `<label style="display:flex;align-items:center;gap:0.4rem;padding:0.2rem 0;font-size:0.9rem;cursor:pointer">
+            <input type="checkbox" value="${escHtml(c.id)}" onchange="window._syncScopeTextarea()" />
+            ${escHtml(c.name)}
+          </label>`
+        ).join("");
+    }
+  }
+
+  window._syncScopeTextarea = function () {
+    const checked = Array.from(document.querySelectorAll("#scope-cells-checkboxes input:checked")).map((cb) => cb.value);
+    const ta = $("access-scope-textarea");
+    if (ta) ta.value = checked.join("\n");
+  };
+
+  function renderAccessUsers() {
+    const container = $("access-users-list");
+    if (!container) return;
+    const profiles = state.profiles;
+    if (!profiles.length) {
+      container.innerHTML = `<p style="color:var(--ink-soft)">Nenhum usuário cadastrado.</p>`;
+      return;
+    }
+    const roleLabels = { admin: "Admin", pastor: "Pastor", coordinator: "Coordenador", leader: "Líder", pending: "Pendente" };
+    const statusLabels = { active: "Ativo", inactive: "Inativo", pending: "Pendente" };
+    container.innerHTML = profiles.map((p) =>
+      `<div class="access-user-row">
+        <div>
+          <strong>${escHtml(p.name)}</strong>
+          <small style="display:block;color:var(--ink-soft)">${escHtml(p.email)}</small>
+          <small style="color:var(--ink-soft)">${roleLabels[p.role] || p.role} · ${statusLabels[p.status] || p.status}</small>
+        </div>
+        <div style="display:flex;gap:0.3rem;align-items:center">
+          <button type="button" class="ghost-btn compact-btn" onclick="window._editAccess('${escHtml(p.uid)}')">Editar</button>
+          ${p.uid !== session.uid
+            ? `<button type="button" class="ghost-btn compact-btn danger-btn" onclick="window._toggleAccess('${escHtml(p.uid)}','${escHtml(p.name)}','${escHtml(p.status)}')">${p.status === "inactive" ? "Reativar" : "Desativar"}</button>`
+            : ""}
+        </div>
+      </div>`
+    ).join("");
+  }
+
+  window._editAccess = function (uid) {
+    const p = state.profiles.find((pr) => pr.uid === uid);
+    if (!p) return;
+    editingAccessUid = uid;
+    const form = $("access-form");
+    if (!form) return;
+    form.elements.userUid.value = uid;
+    form.elements.name.value = p.name;
+    form.elements.email.value = p.email;
+    form.elements.role.value = p.role;
+    if ($("password-label")) $("password-label").style.display = "none";
+    if ($("email-label")) $("email-label").style.display = "none";
+    if ($("status-label")) $("status-label").style.display = "";
+    form.elements.status.value = p.status;
+    if (p.role === "leader" && form.elements.assignedCellId) {
+      form.elements.assignedCellId.value = p.primaryCellId || "";
+    }
+    if (p.role === "coordinator") {
+      const scopeIds = p.scopeCellIds || [];
+      document.querySelectorAll("#scope-cells-checkboxes input").forEach((cb) => {
+        cb.checked = scopeIds.includes(cb.value);
+      });
+      window._syncScopeTextarea();
+    }
+    if ($("save-access-button")) $("save-access-button").textContent = "Salvar alterações";
+    if ($("cancel-access-edit")) $("cancel-access-edit").hidden = false;
+    updateAccessFormVisibility();
+  };
+
+  window._toggleAccess = async function (uid, name, currentStatus) {
+    const newStatus = currentStatus === "inactive" ? "active" : "inactive";
+    const label = newStatus === "inactive" ? "Desativar" : "Reativar";
+    if (!confirm(`${label} acesso de "${name}"?`)) return;
+    try {
+      const p = state.profiles.find((pr) => pr.uid === uid);
+      await fb().saveUserProfile(uid, { ...(p || {}), status: newStatus });
+      await loadAllData();
+      renderAccessUsers();
+    } catch (err) { alert("Erro: " + (err.message || err)); }
+  };
+
+  async function handleAccessSubmit(form) {
+    const btn = $("save-access-button");
+    setButtonLoading(btn, true, "Salvando...");
+    showFeedback("access-feedback", "");
+    const uid = form.elements.userUid.value;
+    const name = form.elements.name.value.trim();
+    const email = form.elements.email.value.trim();
+    const password = form.elements.password?.value || "";
+    const role = form.elements.role.value;
+    const status = form.elements.status?.value || "pending";
+    const primaryCellId = role === "leader" ? (form.elements.assignedCellId?.value || "") : "";
+    const scopeIds = role === "coordinator"
+      ? Array.from(document.querySelectorAll("#scope-cells-checkboxes input:checked")).map((cb) => cb.value)
+      : [];
+    try {
+      if (uid) {
+        await fb().saveUserProfile(uid, { name, role, status, primaryCellId, scopeCellIds: scopeIds });
+        showFeedback("access-feedback", "Perfil atualizado!");
+      } else {
+        if (!email || !name) throw new Error("Nome e e-mail são obrigatórios.");
+        if (password.length < 6) throw new Error("Senha temporária: mínimo 6 caracteres.");
+        const { uid: newUid } = await fb().provisionManagedAccess(
+          { name, email, temporaryPassword: password, role: "pending", status: "pending", primaryCellId: "", scopeCellIds: [] },
+          {}
+        );
+        await fb().saveUserProfile(newUid, { name, role, status: "active", primaryCellId, scopeCellIds: scopeIds });
+        showFeedback("access-feedback", `Acesso criado para ${email}!`);
+        form.reset();
+        resetAccessForm();
+      }
+      await loadAllData();
+      renderAccessUsers();
+    } catch (err) {
+      showFeedback("access-feedback", "Erro: " + (err.message || err), true);
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  }
+
+  // ─── MODAL: ESTUDOS ────────────────────────────────────────────────────────
+  function setupStudiesModal() {
+    $("close-studies-modal")?.addEventListener("click", () => closeModal("studies-modal"));
+    $("cancel-study-edit")?.addEventListener("click", resetStudyForm);
+    $("study-form")?.addEventListener("submit", async (e) => { e.preventDefault(); await handleStudySubmit(e.target); });
+  }
+
+  function resetStudyForm() {
+    const form = $("study-form");
+    if (!form) return;
+    form.reset();
+    form.elements.studyId.value = "";
+    editingStudyId = null;
+    if ($("save-study-button")) $("save-study-button").textContent = "Publicar estudo";
+    if ($("cancel-study-edit")) $("cancel-study-edit").hidden = true;
+    showFeedback("study-feedback", "");
+  }
+
+  async function openStudiesModal() {
+    await loadAllData();
+    renderStudiesList();
+    resetStudyForm();
+    const formWrap = $("studies-form-wrap");
+    if (formWrap) formWrap.hidden = !isAdminOrPastor();
+    openModal("studies-modal");
+  }
+
+  function renderStudiesList() {
+    const container = $("studies-list");
+    const countEl = $("studies-count");
+    if (!container) return;
+    if (countEl) countEl.textContent = `${state.studies.length} estudo(s)`;
+    if (!state.studies.length) {
+      container.innerHTML = `<p style="color:var(--ink-soft)">Nenhum estudo publicado ainda.</p>`;
+      return;
+    }
+    container.innerHTML = state.studies.map((s) =>
+      `<div class="study-row" style="display:flex;justify-content:space-between;align-items:flex-start;padding:0.75rem 0;border-bottom:1px solid var(--line);gap:0.5rem">
+        <div style="flex:1;min-width:0">
+          <strong>${escHtml(s.title)}</strong>
+          ${s.description ? `<p style="margin:0.2rem 0 0;font-size:0.85rem;color:var(--ink-soft)">${escHtml(s.description)}</p>` : ""}
+        </div>
+        <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0">
+          ${s.downloadUrl ? `<a href="${escHtml(s.downloadUrl)}" target="_blank" rel="noopener" class="ghost-btn compact-btn">📄 Abrir</a>` : ""}
+          ${isAdminOrPastor()
+            ? `<button type="button" class="ghost-btn compact-btn" onclick="window._editStudy('${escHtml(s.id)}')">Editar</button>
+               <button type="button" class="ghost-btn compact-btn danger-btn" onclick="window._deleteStudy('${escHtml(s.id)}')">Excluir</button>`
+            : ""}
+        </div>
+      </div>`
+    ).join("");
+  }
+
+  window._editStudy = function (studyId) {
+    const s = state.studies.find((st) => st.id === studyId);
+    if (!s) return;
+    editingStudyId = studyId;
+    const form = $("study-form");
+    if (!form) return;
+    form.elements.studyId.value = s.id;
+    form.elements.title.value = s.title;
+    form.elements.description.value = s.description || "";
+    form.elements.pdfUrl.value = s.downloadUrl || "";
+    if ($("save-study-button")) $("save-study-button").textContent = "Salvar alterações";
+    if ($("cancel-study-edit")) $("cancel-study-edit").hidden = false;
+  };
+
+  window._deleteStudy = async function (studyId) {
+    if (!confirm("Excluir este estudo?")) return;
+    try {
+      await fb().deleteStudy(studyId);
+      await loadAllData();
+      renderStudiesList();
+    } catch (err) { alert("Erro: " + (err.message || err)); }
+  };
+
+  async function handleStudySubmit(form) {
+    const btn = $("save-study-button");
+    setButtonLoading(btn, true, "Salvando...");
+    showFeedback("study-feedback", "");
+    const studyId = form.elements.studyId.value;
+    const title = form.elements.title.value.trim();
+    const description = form.elements.description.value.trim();
+    const pdfUrl = form.elements.pdfUrl.value.trim();
+    const fileInput = $("study-pdf-file");
+    const file = fileInput?.files?.[0] || null;
+
+    if (!file && !studyId && !pdfUrl) {
+      showFeedback("study-feedback", "Envie um arquivo PDF ou informe um link.", true);
+      setButtonLoading(btn, false);
+      return;
+    }
+
+    try {
+      if (file) {
+        await fb().saveStudy({ id: studyId || undefined, title, description, file }, session.uid);
+      } else {
+        // URL-based: write directly to Firestore
+        const db = fb().db;
+        const STUDIES = "renovo_plus_studies";
+        const ref = studyId ? db.collection(STUDIES).doc(studyId) : db.collection(STUDIES).doc();
+        const now = new Date().toISOString();
+        const existing = studyId ? await ref.get() : null;
+        const cur = existing?.exists ? existing.data() : null;
+        await ref.set({
+          id: ref.id, title, description,
+          audience: "all",
+          storagePath: cur?.storagePath || "",
+          downloadUrl: pdfUrl || cur?.downloadUrl || "",
+          fileName: cur?.fileName || `${title}.pdf`,
+          createdAt: cur?.createdAt || now,
+          updatedAt: now,
+          createdByUid: cur?.createdByUid || session.uid,
+          updatedByUid: session.uid,
+        }, { merge: true });
+      }
+      resetStudyForm();
+      await loadAllData();
+      renderStudiesList();
+      showFeedback("study-feedback", "Estudo salvo com sucesso!");
+    } catch (err) {
+      showFeedback("study-feedback", "Erro: " + (err.message || err), true);
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  }
+
+  // ─── MODAL: VISITANTES ─────────────────────────────────────────────────────
+  function setupVisitantesModal() {
+    $("close-visitantes-modal")?.addEventListener("click", () => closeModal("visitantes-modal"));
+    $("visitantes-search")?.addEventListener("input", renderVisitantesFiltered);
+    $("visitantes-cell-filter")?.addEventListener("change", renderVisitantesFiltered);
+  }
+
+  async function openVisitantesModal() {
+    await loadAllData();
+    populateVisitantesCellFilter();
+    renderVisitantesFiltered();
+    openModal("visitantes-modal");
+  }
+
+  function populateVisitantesCellFilter() {
+    const sel = $("visitantes-cell-filter");
+    if (!sel) return;
+    sel.innerHTML = `<option value="">Todas as células</option>` +
+      getAccessibleCells().map((c) => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("");
+  }
+
+  function renderVisitantesFiltered() {
+    const search = ($("visitantes-search")?.value || "").toLowerCase();
+    const cellFilter = $("visitantes-cell-filter")?.value || "";
+    const filtered = state.visitors.filter((v) => {
+      if (cellFilter && v.cellId !== cellFilter) return false;
+      if (search && !String(v.name || "").toLowerCase().includes(search)) return false;
+      return true;
+    });
+    const countEl = $("visitantes-count");
+    if (countEl) countEl.textContent = `${filtered.length} visitante(s)`;
+    const container = $("visitantes-list");
+    if (!container) return;
+    if (!filtered.length) {
+      container.innerHTML = `<p style="color:var(--ink-soft);padding:1rem">Nenhum visitante encontrado.</p>`;
+      return;
+    }
+    const cellMap = Object.fromEntries(state.cells.map((c) => [c.id, c.name]));
+    const statusLabels = { new: "Novo", returning: "Recorrente", member: "Membro" };
+    container.innerHTML = filtered.map((v) =>
+      `<div class="visitante-row" style="display:flex;justify-content:space-between;align-items:flex-start;padding:0.65rem 0;border-bottom:1px solid var(--line);gap:0.5rem">
+        <div>
+          <strong>${escHtml(v.name)}</strong>
+          ${v.phone ? `<small style="color:var(--ink-soft)"> · ${escHtml(v.phone)}</small>` : ""}
+          <small style="display:block;color:var(--ink-soft)">${escHtml(cellMap[v.cellId] || v.cellId)}${v.firstVisitAt ? " · " + fmtDate(v.firstVisitAt) : ""}${v.visitCount > 1 ? ` · ${v.visitCount}×` : ""}</small>
+          ${v.status ? `<small style="color:var(--ink-soft)">${statusLabels[v.status] || v.status}</small>` : ""}
+        </div>
+        ${isAdminOrPastor()
+          ? `<button type="button" class="ghost-btn compact-btn danger-btn" onclick="window._deleteVisitor('${escHtml(v.id)}')">Excluir</button>`
+          : ""}
+      </div>`
+    ).join("");
+  }
+
+  window._deleteVisitor = async function (visitorId) {
+    if (!confirm("Excluir este visitante?")) return;
+    try {
+      await fb().deleteVisitor(visitorId);
+      await loadAllData();
+      renderVisitantesFiltered();
+    } catch (err) { alert("Erro: " + (err.message || err)); }
+  };
+
+  // ─── BOOTSTRAP ────────────────────────────────────────────────────────────
+  let authHandled = false;
+
+  async function onAuthUser(user) {
+    if (!user) {
+      session = null;
+      authHandled = true;
+      showScreen("auth-screen");
+      return;
+    }
+
+    // Don't re-run full boot if session already set from same user
+    if (authHandled && session?.uid === user.uid) return;
+    authHandled = true;
+
+    setLoadingText("Verificando perfil...");
+    showScreen("loading-screen");
+
+    try {
+      let profile = await fb().loadUserProfile(user.uid);
+
+      if (!profile) {
+        const hasSome = await fb().hasAnyProfiles();
+        if (!hasSome) {
+          // First user ever: bootstrap admin
+          const name = user.displayName || user.email?.split("@")[0] || "Admin";
+          const claimed = await fb().claimInitialAdminProfile(user, { name, email: user.email });
+          profile = claimed;
+        } else {
+          await fb().signOut();
+          alert("Sua conta ainda não tem perfil vinculado. Fale com o administrador.");
+          showScreen("auth-screen");
+          return;
+        }
+      }
+
+      if (profile.status === "pending") {
+        await fb().signOut();
+        alert("Sua conta está aguardando aprovação. Fale com o administrador.");
+        showScreen("auth-screen");
+        return;
+      }
+      if (profile.status === "inactive") {
+        await fb().signOut();
+        alert("Sua conta está desativada. Fale com o administrador.");
+        showScreen("auth-screen");
+        return;
+      }
+
+      session = {
+        uid: user.uid,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role,
+        status: profile.status,
+        primaryCellId: profile.primaryCellId || "",
+        scopeCellIds: profile.scopeCellIds || [],
+      };
+
+      renderHomeScreen();
+    } catch (err) {
+      console.error("[Renovo+] auth boot:", err);
+      alert("Erro ao carregar perfil: " + (err.message || err));
+      try { await fb().signOut(); } catch (_) {}
+      showScreen("auth-screen");
+    }
+  }
+
+  function init() {
+    setupAuthScreen();
+    setupHomeScreen();
+    setupAppShell();
+    setupCellModal();
+    setupMemberModal();
+    setupImportMembersModal();
+    setupCellsModal();
+    setupReportModal();
+    setupAccessModal();
+    setupStudiesModal();
+    setupVisitantesModal();
+
+    // Close modals on backdrop click
+    document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop) backdrop.hidden = true;
+      });
+    });
+
+    showScreen("loading-screen");
+    setLoadingText("Conectando...");
+
+    fb().waitForAuthReady().then((user) => onAuthUser(user));
+    fb().observeAuth((user) => {
+      // Only react to sign-out after initial boot
+      if (authHandled && !user) {
+        session = null;
+        authHandled = false;
+        state = { cells: [], reports: [], studies: [], visitors: [], profiles: [] };
+        showScreen("auth-screen");
+      } else if (!authHandled) {
+        onAuthUser(user);
+      }
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();

@@ -212,17 +212,27 @@
     }
 
     const offeringNumber = Number(data.offering);
+    const presentMemberIds = Array.isArray(data.presentMemberIds)
+      ? data.presentMemberIds.map((id) => String(id || "").trim()).filter(Boolean)
+      : [];
 
     return {
       id: String(data.id || docId).trim(),
       cellId: String(data.cellId || "").trim(),
       date: String(data.date || "").trim(),
       leaders: String(data.leaders || "").trim(),
+      coLeaders: String(data.coLeaders || "").trim(),
       host: String(data.host || "").trim(),
       address: String(data.address || "").trim(),
-      presentCount: Number(data.presentCount || 0) || 0,
+      presentMemberIds,
+      presentCount: Number(data.presentCount || presentMemberIds.length || 0) || 0,
       visitorsCount: Number(data.visitorsCount || 0) || 0,
+      visitorNames: String(data.visitorNames || "").trim(),
       offering: Number.isFinite(offeringNumber) ? offeringNumber : 0,
+      snack: String(data.snack || "").trim(),
+      discipleship: String(data.discipleship || "").trim(),
+      communionMinutes: String(data.communionMinutes || "").trim(),
+      foods: String(data.foods || "").trim(),
       notes: String(data.notes || "").trim(),
       createdAt: String(data.createdAt || "").trim(),
       updatedAt: String(data.updatedAt || "").trim(),
@@ -1247,7 +1257,10 @@
     const updatedAt = current
       ? now
       : String(patch?.updatedAt || patch?.createdAt || now).trim() || now;
-    const presentCount = Number(patch?.presentCount);
+    const presentMemberIds = Array.isArray(patch?.presentMemberIds)
+      ? patch.presentMemberIds.map((id) => String(id || "").trim()).filter(Boolean)
+      : Array.isArray(current?.presentMemberIds) ? current.presentMemberIds : [];
+    const presentCountRaw = Number(patch?.presentCount);
     const visitorsCount = Number(patch?.visitorsCount);
     const offering = Number(patch?.offering);
 
@@ -1256,11 +1269,18 @@
       cellId: String(patch?.cellId || current?.cellId || "").trim(),
       date: String(patch?.date || current?.date || "").trim(),
       leaders: String(patch?.leaders || current?.leaders || "").trim(),
+      coLeaders: String(patch?.coLeaders !== undefined ? patch.coLeaders : (current?.coLeaders || "")).trim(),
       host: String(patch?.host || current?.host || "").trim(),
       address: String(patch?.address || current?.address || "").trim(),
-      presentCount: Number.isFinite(presentCount) ? presentCount : Number(current?.presentCount || 0) || 0,
+      presentMemberIds,
+      presentCount: Number.isFinite(presentCountRaw) ? presentCountRaw : (presentMemberIds.length || Number(current?.presentCount || 0) || 0),
       visitorsCount: Number.isFinite(visitorsCount) ? visitorsCount : Number(current?.visitorsCount || 0) || 0,
+      visitorNames: String(patch?.visitorNames !== undefined ? patch.visitorNames : (current?.visitorNames || "")).trim(),
       offering: Number.isFinite(offering) ? offering : Number(current?.offering || 0) || 0,
+      snack: String(patch?.snack !== undefined ? patch.snack : (current?.snack || "")).trim(),
+      discipleship: String(patch?.discipleship !== undefined ? patch.discipleship : (current?.discipleship || "")).trim(),
+      communionMinutes: String(patch?.communionMinutes !== undefined ? patch.communionMinutes : (current?.communionMinutes || "")).trim(),
+      foods: String(patch?.foods !== undefined ? patch.foods : (current?.foods || "")).trim(),
       notes: String(patch?.notes || current?.notes || "").trim(),
       createdAt,
       updatedAt,

@@ -15,6 +15,51 @@
     <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <script src="./app-version.js"></script>
+    <script>
+      (function () {
+        if (!("serviceWorker" in navigator)) {
+          return;
+        }
+
+        const url = new URL(window.location.href);
+        const hasResetFlag = url.searchParams.get("sw-reset") === "1";
+        let sessionReset = false;
+
+        try {
+          sessionReset = window.sessionStorage.getItem("renovo-plus-sw-reset") === "1";
+        } catch (_) {}
+
+        if (hasResetFlag || sessionReset) {
+          return;
+        }
+
+        navigator.serviceWorker.getRegistration().then(async function (registration) {
+          const controller = navigator.serviceWorker.controller;
+          const scriptUrl = String(controller?.scriptURL || registration?.active?.scriptURL || "");
+          const isLegacyRootWorker = /\/renovo\/service-worker\.js(?:$|\?)/.test(scriptUrl);
+
+          if (!isLegacyRootWorker) {
+            return;
+          }
+
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(
+            registrations.map(function (item) {
+              return item.unregister().catch(function () {
+                return false;
+              });
+            })
+          );
+
+          try {
+            window.sessionStorage.setItem("renovo-plus-sw-reset", "1");
+          } catch (_) {}
+
+          url.searchParams.set("sw-reset", "1");
+          window.location.replace(url.toString());
+        }).catch(function () {});
+      })();
+    </script>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>

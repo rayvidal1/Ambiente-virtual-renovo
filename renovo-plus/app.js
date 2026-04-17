@@ -22,6 +22,7 @@
   const pageBody = document.getElementById("plus-page-body");
   const profileWarning = document.getElementById("plus-profile-warning");
   const versionLabel = document.getElementById("plus-version-label");
+  const AUTH_BOOT_TIMEOUT_MS = 7000;
 
   const ROLE_LABELS = {
     leader: "Líder",
@@ -1764,6 +1765,13 @@
     shell.hidden = false;
   }
 
+  function showBootstrapFallback(message) {
+    loadingScreen.hidden = true;
+    authScreen.hidden = false;
+    shell.hidden = true;
+    setFeedback(message || "", "soft");
+  }
+
   function updateUserSummary() {
     const role = normalizeRole(state.profile?.role);
     if (!state.authUser) {
@@ -3492,15 +3500,29 @@
     pageBody?.addEventListener("submit", handlePageSubmit);
 
     try {
-      await window.renovoPlusFirebase.waitForAuthReady();
+      let authSettled = false;
       window.renovoPlusFirebase.observeAuth((user) => {
+        authSettled = true;
         refreshProfile(user);
       });
+
+      await Promise.race([
+        window.renovoPlusFirebase.waitForAuthReady(),
+        new Promise((_, reject) => {
+          window.setTimeout(() => {
+            if (!authSettled) {
+              reject(new Error("AUTH_BOOT_TIMEOUT"));
+            }
+          }, AUTH_BOOT_TIMEOUT_MS);
+        }),
+      ]);
     } catch (error) {
       console.warn("[Renovo+] bootstrap:", error?.message || error);
-      loadingScreen.hidden = true;
-      authScreen.hidden = false;
-      setFeedback(error?.message || "Nao foi possivel iniciar a Renovo+.");
+      showBootstrapFallback(
+        error?.message === "AUTH_BOOT_TIMEOUT"
+          ? "A inicializacao da Renovo+ demorou mais que o esperado. Voce ja pode tentar entrar. Se continuar vendo so esta tela, abra o link em uma janela anonima."
+          : (error?.message || "Nao foi possivel iniciar a Renovo+.")
+      );
     }
   }
 

@@ -1090,9 +1090,13 @@
     // Fallback: direct click on save button
     $("save-access-button")?.addEventListener("click", async () => {
       const form = $("access-form");
-      if (!form) return;
+      if (!form) { alert("ERRO: formulario nao encontrado"); return; }
       if (!form.reportValidity()) return;
-      await handleAccessSubmit(form);
+      try {
+        await handleAccessSubmit(form);
+      } catch (err) {
+        alert("ERRO handleAccessSubmit: " + (err?.message || String(err)));
+      }
     });
   }
 

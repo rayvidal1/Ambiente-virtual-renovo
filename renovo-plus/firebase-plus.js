@@ -998,7 +998,7 @@
     const now = new Date().toISOString();
     const payload = {
       name: String(patch?.name || current?.name || "").trim(),
-      email: String(patch?.email || current?.email || "").trim(),
+      email: String(patch?.email || current?.email || "").toLowerCase().trim(),
       role: normalizeRole(patch?.role || current?.role),
       status: normalizeStatus(patch?.status || current?.status),
       primaryCellId: String(patch?.primaryCellId || current?.primaryCellId || "").trim(),
@@ -1043,10 +1043,11 @@
         } catch (_) {}
       }
 
+      const canonicalEmail = String(user.email || normalizedEmail).toLowerCase().trim();
       const now = new Date().toISOString();
       await db.collection(COLLECTIONS.users).doc(user.uid).set({
         name: normalizedName,
-        email: normalizedEmail,
+        email: canonicalEmail,
         role: "pending",
         status: "pending",
         primaryCellId: "",
@@ -1060,12 +1061,13 @@
       return {
         uid: user.uid,
         createdAt: now,
+        canonicalEmail,
       };
     });
 
     const profile = await saveUserProfile(created.uid, {
       name: normalizedName,
-      email: normalizedEmail,
+      email: String(created.canonicalEmail || normalizedEmail).toLowerCase().trim(),
       role: String(patch?.role || "pending").trim(),
       status: String(patch?.status || "pending").trim(),
       primaryCellId: String(patch?.primaryCellId || "").trim(),

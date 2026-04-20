@@ -168,6 +168,9 @@
     if (code.includes("too-many-requests")) return "Muitas tentativas. Aguarde alguns minutos.";
     if (code.includes("network-request-failed")) return "Sem conexão. Verifique sua internet.";
     if (code.includes("invalid-email")) return "E-mail inválido.";
+    if (code.includes("email-already-in-use") || code.includes("EMAIL_EXISTS")) return "Este e-mail já está cadastrado no sistema.";
+    if (code.includes("weak-password")) return "Senha fraca. Use pelo menos 6 caracteres.";
+    if (code.includes("operation-not-allowed")) return "Login por e-mail/senha não está habilitado no Firebase.";
     return err?.message || "Erro ao autenticar.";
   }
 
@@ -1295,8 +1298,9 @@
       renderAccessUsers();
     } catch (err) {
       console.error("[access] error:", err);
-      showFeedback("access-feedback", "Erro: " + (err.message || err), true);
-      alert("Erro ao salvar acesso: " + (err?.message || String(err)));
+      const msg = translateAuthError(err);
+      showFeedback("access-feedback", "Erro: " + msg, true);
+      alert("Erro: " + msg);
     } finally {
       setButtonLoading(btn, false);
     }

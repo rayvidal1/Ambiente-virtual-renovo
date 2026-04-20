@@ -923,12 +923,8 @@
     try {
       return await task({ app, auth, db });
     } finally {
-      try {
-        await auth.signOut();
-      } catch (_) {}
-      try {
-        await app.delete();
-      } catch (_) {}
+      try { auth.signOut(); } catch (_) {}
+      setTimeout(() => { try { app.delete(); } catch (_) {} }, 500);
     }
   }
 

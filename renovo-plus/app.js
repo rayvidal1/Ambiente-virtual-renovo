@@ -770,6 +770,7 @@
       const saved = await fb().saveReport(
         {
           id: targetId,
+          _isNew: !editingReportId,
           cellId, date, leaders, coLeaders, host, address,
           presentMemberIds, presentCount,
           visitorsCount, visitorNames,

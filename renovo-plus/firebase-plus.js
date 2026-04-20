@@ -1249,11 +1249,12 @@
     }
 
     const requestedId = String(patch?.id || "").trim();
+    const isNew = patch?._isNew === true;
     const ref = requestedId
       ? api.db.collection(COLLECTIONS.reports).doc(requestedId)
       : api.db.collection(COLLECTIONS.reports).doc();
 
-    const currentSnapshot = requestedId ? await ref.get() : null;
+    const currentSnapshot = requestedId && !isNew ? await ref.get() : null;
     const current = currentSnapshot?.exists ? normalizeReport(currentSnapshot.id, currentSnapshot.data()) : null;
     const now = new Date().toISOString();
     const createdAt = current?.createdAt || String(patch?.createdAt || now).trim() || now;

@@ -1267,26 +1267,36 @@
     const scopeIds = role === "coordinator"
       ? Array.from(document.querySelectorAll("#scope-cells-checkboxes input:checked")).map((cb) => cb.value)
       : [];
+    console.log("[access] submit uid=%s name=%s email=%s role=%s", uid, name, email, role);
     try {
       if (uid) {
+        console.log("[access] updating existing profile...");
         await fb().saveUserProfile(uid, { name, role, status, primaryCellId, scopeCellIds: scopeIds });
+        console.log("[access] profile updated");
         showFeedback("access-feedback", "Perfil atualizado!");
       } else {
         if (!email || !name) throw new Error("Nome e e-mail são obrigatórios.");
         if (password.length < 6) throw new Error("Senha temporária: mínimo 6 caracteres.");
+        console.log("[access] calling provisionManagedAccess...");
         const { uid: newUid } = await fb().provisionManagedAccess(
           { name, email, temporaryPassword: password, role: "pending", status: "pending", primaryCellId: "", scopeCellIds: [] },
           {}
         );
+        console.log("[access] provisionManagedAccess done, newUid=%s", newUid);
         await fb().saveUserProfile(newUid, { name, role, status: "active", primaryCellId, scopeCellIds: scopeIds });
+        console.log("[access] saveUserProfile done");
         showFeedback("access-feedback", `Acesso criado para ${email}!`);
         form.reset();
         resetAccessForm();
       }
+      console.log("[access] loadAllData...");
       await loadAllData();
+      console.log("[access] done");
       renderAccessUsers();
     } catch (err) {
+      console.error("[access] error:", err);
       showFeedback("access-feedback", "Erro: " + (err.message || err), true);
+      alert("Erro ao salvar acesso: " + (err?.message || String(err)));
     } finally {
       setButtonLoading(btn, false);
     }

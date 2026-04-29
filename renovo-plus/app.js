@@ -24,9 +24,9 @@
   const isAdmin = () => session?.role === "admin";
   const isPastor = () => session?.role === "pastor";
   const isCoordinator = () => session?.role === "coordinator";
-  const isAdminOrPastor = () => isAdmin() || isPastor();
+  const isAdminOrPastor = () => isAdmin() || isPastor() || isCoordinator();
   const canManageCells = () => isAdminOrPastor();
-  const canManageAccess = () => isAdminOrPastor() || isCoordinator();
+  const canManageAccess = () => isAdminOrPastor();
 
   function getAccessibleCells() {
     if (!session) return [];
@@ -263,7 +263,7 @@
     state.studies = studies;
     state.visitors = visitors;
 
-    if (isAdminOrPastor() || isCoordinator()) {
+    if (isAdminOrPastor()) {
       try { state.profiles = await fb().listProfiles(); } catch (_) { state.profiles = []; }
     }
   }
@@ -1139,15 +1139,11 @@
       if (form) {
         const roleSelect = form.querySelector('select[name="role"]');
         if (roleSelect) {
-          if (isCoordinator()) {
-            roleSelect.innerHTML = `<option value="leader">Líder de Célula</option>`;
-          } else {
-            roleSelect.innerHTML = `
+          roleSelect.innerHTML = `
               <option value="leader">Líder de Célula</option>
               <option value="coordinator">Coordenador</option>
               <option value="pastor">Pastor</option>
               <option value="admin">Admin</option>`;
-          }
         }
       }
       openModal("access-modal");
@@ -1157,10 +1153,8 @@
   }
 
   function populateAccessCellSelects() {
-    // Coordinators only see their own scope cells; admin/pastor see all
-    const visibleCells = isCoordinator()
-      ? state.cells.filter((c) => (session.scopeCellIds || []).includes(c.id))
-      : state.cells;
+    // Pastor-level roles see all cells.
+    const visibleCells = state.cells;
 
     const cellSel = $("access-cell-select");
     if (cellSel) {
@@ -1188,11 +1182,8 @@
   function renderAccessUsers() {
     const container = $("access-users-list");
     if (!container) return;
-    // Coordinators only see leaders whose primaryCellId is in their scope
-    const scopeIds = new Set(session.scopeCellIds || []);
-    const profiles = isCoordinator()
-      ? state.profiles.filter((p) => p.role === "leader" && scopeIds.has(p.primaryCellId))
-      : state.profiles;
+    // Pastor-level roles see all profiles except admin changes are still protected by rules.
+    const profiles = state.profiles;
     if (!profiles.length) {
       container.innerHTML = `<p style="color:var(--ink-soft)">Nenhum usuário cadastrado.</p>`;
       return;

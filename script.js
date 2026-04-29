@@ -122,9 +122,9 @@ const ROLE_PERMISSIONS = {
   viewReports: ["leader", "coordinator", "pastor", "admin"],
   viewCells: ["coordinator", "pastor", "admin"],
   deleteCell: ["admin"],
-  manageAccess: ["pastor", "admin"],
+  manageAccess: ["coordinator", "pastor", "admin"],
   viewStudies: ["leader", "coordinator", "pastor", "admin"],
-  manageStudies: ["pastor", "admin"],
+  manageStudies: ["coordinator", "pastor", "admin"],
 };
 
 const ICONS = {
@@ -978,10 +978,6 @@ function bindAppEvents() {
     if (!cell) {
       return;
     }
-    if (session?.role === "coordinator" && !getAccessibleCells().some((entry) => entry.id === cellId)) {
-      return;
-    }
-
     cell.members.push({
       id: createId(),
       name: memberName,
@@ -2597,9 +2593,7 @@ function renderAccessControl() {
       ? `Acesso restrito para alimentar dados da celula ${session.assignedCellName || "-"}.`
       : isPastorJudson
         ? `Leitura de relatorios + gestao completa de acessos (ultimos ${REPORT_AVERAGE_DAYS} dias).`
-      : session.role === "coordinator"
-        ? `Acesso de coordenador restrito as celulas: ${getManagedUserScopeCellNames(session).join(", ") || "-"}.`
-        : hasPermission("manageAccess")
+      : hasPermission("manageAccess")
           ? "Acesso administrativo total liberado (equivalente ao Pastor)."
           : "Acesso conforme seu nivel de permissao.";
 
@@ -2698,7 +2692,7 @@ function renderImportMembersCellOptions() {
 
 function renderMemberCellOptions() {
   const previousValue = memberCellSelect.value;
-  const cellsForMembers = session?.role === "coordinator" ? getAccessibleCells() : state.cells;
+  const cellsForMembers = state.cells;
   if (cellsForMembers.length === 0) {
     memberCellSelect.innerHTML = '<option value="">Cadastre uma celula primeiro</option>';
     memberCellSelect.disabled = true;
@@ -2894,7 +2888,7 @@ function renderLatestReport() {
 }
 
 function getVisibleReportsPool() {
-  if (session?.role === "leader" || session?.role === "coordinator") {
+  if (session?.role === "leader") {
     const accessibleIds = new Set(getAccessibleCells().map((cell) => cell.id));
     return state.reports.filter((report) => accessibleIds.has(report.cellId));
   }
@@ -3479,7 +3473,7 @@ function getAccessibleCells() {
     return [];
   }
 
-  if (session.role !== "leader" && session.role !== "coordinator") {
+  if (session.role !== "leader") {
     return state.cells;
   }
 
@@ -3932,7 +3926,7 @@ function renderVisitantesCellFilterOptions() {
   }
 
   const previousValue = String(select.value || "");
-  const visibleCells = session?.role === "coordinator" ? getAccessibleCells() : state.cells;
+  const visibleCells = state.cells;
   const options = visibleCells
     .slice()
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
@@ -5213,7 +5207,7 @@ function renderVisitantesList() {
   const canConvert = hasPermission("manageMembers");
   const canDelete = !!session;
   const recurringMap = buildRecurringVisitorsMap();
-  const scopedCellIds = session?.role === "coordinator" ? new Set(getAccessibleCells().map((cell) => cell.id)) : null;
+  const scopedCellIds = null;
 
   let entries = loadVisitantesPub();
   entries = entries.slice().sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
@@ -5379,11 +5373,6 @@ function convertRecurringVisitorToMember(visitorId) {
     return;
   }
 
-  if (session?.role === "coordinator" && !getAccessibleCells().some((entry) => entry.id === recurring.cell.id)) {
-    window.alert("Voce so pode converter visitantes das celulas sob sua supervisao.");
-    return;
-  }
-
   const cell = recurring.cell;
   if (!Array.isArray(cell.members)) {
     cell.members = [];
@@ -5524,10 +5513,7 @@ function renderTrackingPanel() {
   if (role === "leader") {
     trackingSection.hidden = false;
     renderLeaderPanel();
-  } else if (role === "coordinator") {
-    trackingSection.hidden = false;
-    renderCoordinatorPanel();
-  } else if (role === "pastor" || role === "admin") {
+  } else if (role === "coordinator" || role === "pastor" || role === "admin") {
     trackingSection.hidden = false;
     renderPastorPanel();
   } else {

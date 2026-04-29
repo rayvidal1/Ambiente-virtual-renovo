@@ -119,6 +119,10 @@
     return "pending";
   }
 
+  function hasPastoralAccess(profile) {
+    return ["admin", "pastor", "coordinator"].includes(String(profile?.role || "").trim());
+  }
+
   function normalizeProfile(uid, data) {
     if (!uid || !data || typeof data !== "object") {
       return null;
@@ -1476,7 +1480,7 @@
       return [];
     }
 
-    if (profile.role === "admin" || profile.role === "pastor") {
+    if (hasPastoralAccess(profile)) {
       const snapshot = await api.db.collection(COLLECTIONS.visitors).limit(limit).get();
       return snapshot.docs
         .map((doc) => normalizeVisitor(doc.id, doc.data()))
@@ -1514,7 +1518,7 @@
       return [];
     }
 
-    if (profile.role === "admin" || profile.role === "pastor") {
+    if (hasPastoralAccess(profile)) {
       const snapshot = await api.db.collection(COLLECTIONS.alerts).limit(limit).get();
       return snapshot.docs
         .map((doc) => normalizeAlert(doc.id, doc.data()))
@@ -1552,7 +1556,7 @@
       return [];
     }
 
-    if (profile.role === "admin" || profile.role === "pastor") {
+    if (hasPastoralAccess(profile)) {
       const snapshot = await api.db.collection(COLLECTIONS.reports).limit(limit).get();
       const reports = snapshot.docs
         .map((doc) => normalizeReport(doc.id, doc.data()))
@@ -1590,7 +1594,7 @@
       return [];
     }
 
-    if (profile.role === "admin" || profile.role === "pastor") {
+    if (hasPastoralAccess(profile)) {
       return listAllCells(200);
     }
 
@@ -1622,7 +1626,7 @@
       return [];
     }
 
-    if (profile.role === "admin" || profile.role === "pastor") {
+    if (hasPastoralAccess(profile)) {
       const snapshot = await api.db.collection(COLLECTIONS.members).limit(limit).get();
       return snapshot.docs
         .map((doc) => normalizeMember(doc.id, doc.data()))

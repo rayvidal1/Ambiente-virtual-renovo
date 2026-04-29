@@ -27,6 +27,11 @@
   const isAdminOrPastor = () => isAdmin() || isPastor() || isCoordinator();
   const canManageCells = () => isAdminOrPastor();
   const canManageAccess = () => isAdmin() || isPastor();
+  const CHART_COLORS = {
+    present: "#2d8a5e",
+    absent: "#c0392b",
+    visitors: "#2980b9",
+  };
 
   function getAccessibleCells() {
     if (!session) return [];
@@ -972,9 +977,9 @@
     const total = present + absent + visitors;
     if (!total) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
     const slices = [
-      { value: present, color: "#7a1118" },
-      { value: absent, color: "#b9343a" },
-      { value: visitors, color: "#b68a64" },
+      { value: present, color: CHART_COLORS.present },
+      { value: absent, color: CHART_COLORS.absent },
+      { value: visitors, color: CHART_COLORS.visitors },
     ];
     const cx = canvas.width / 2, cy = canvas.height / 2;
     const outerR = Math.min(cx, cy) - 4;
@@ -1005,7 +1010,7 @@
     if (legend) {
       const labels = ["Presentes", "Faltantes", "Visitantes"];
       const vals = [present, absent, visitors];
-      const colors = ["#7a1118", "#b9343a", "#b68a64"];
+      const colors = [CHART_COLORS.present, CHART_COLORS.absent, CHART_COLORS.visitors];
       legend.innerHTML = labels.map((l, i) =>
         `<span class="chart-legend-item"><span class="chart-legend-dot" style="background:${colors[i]}"></span>${l}: ${vals[i]}</span>`
       ).join("");
@@ -1048,7 +1053,15 @@
     const pad = { top: 10, right: 10, bottom: 24, left: 28 };
     const chartW = W - pad.left - pad.right;
     const chartH = H - pad.top - pad.bottom;
-    const maxVal = Math.max(1, ...reports.map((r) => Math.max(r.presentCount, r.visitorsCount)));
+    const points = reports.map((r) => {
+      const cell = state.cells.find((c) => c.id === r.cellId);
+      const totalMembers = cell?.members?.length || Number(r.presentCount || 0) || 0;
+      const present = Number(r.presentCount || 0) || 0;
+      const absent = Math.max(0, totalMembers - present);
+      const visitors = Number(r.visitorsCount || 0) || 0;
+      return { report: r, present, absent, visitors };
+    });
+    const maxVal = Math.max(1, ...points.map((p) => Math.max(p.present, p.absent, p.visitors)));
     ctx.clearRect(0, 0, W, H);
     ctx.strokeStyle = "#eee"; ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
@@ -1069,8 +1082,9 @@
         ctx.fillStyle = color; ctx.fill();
       });
     }
-    drawLine(reports.map((r) => r.presentCount), "#7a1118");
-    drawLine(reports.map((r) => r.visitorsCount), "#b68a64");
+    drawLine(points.map((p) => p.present), CHART_COLORS.present);
+    drawLine(points.map((p) => p.absent), CHART_COLORS.absent);
+    drawLine(points.map((p) => p.visitors), CHART_COLORS.visitors);
     ctx.fillStyle = "#888"; ctx.font = "9px sans-serif"; ctx.textAlign = "center";
     reports.forEach((r, i) => {
       ctx.fillText(String(r.date || "").slice(5).replace("-", "/"), pad.left + i * xStep, H - 6);

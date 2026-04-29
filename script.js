@@ -3186,7 +3186,7 @@ function renderReportHistory() {
             data-report-id="${escapeHtml(report.id)}"
           >
             <strong>${escapeHtml(formatDateForReport(report.date))}</strong>
-            <small>Presentes ${stats.present} | Faltaram ${stats.absent} | Visitantes ${stats.visitors}</small>
+            <small>Presentes ${stats.present} | Faltantes ${stats.absent} | Visitantes ${stats.visitors}</small>
           </button>
           ${deleteBtn}
         </div>
@@ -3334,7 +3334,7 @@ function drawMiniDonutChart(canvas, legend, present, absent, visitors) {
 
   const slices = [
     { value: present, color: "#2d8a5e", label: "Presentes" },
-    { value: absent, color: "#c0392b", label: "Faltaram" },
+    { value: absent, color: "#c0392b", label: "Faltantes" },
     { value: visitors, color: "#2980b9", label: "Visitantes" },
   ];
 
@@ -4982,7 +4982,7 @@ function drawReportChart(present, absent, visitors) {
 
   const slices = [
     { value: present, color: "#2d8a5e", label: "Presentes" },
-    { value: absent, color: "#c0392b", label: "Faltaram" },
+    { value: absent, color: "#c0392b", label: "Faltantes" },
     { value: visitors, color: "#2980b9", label: "Visitantes" },
   ];
 
@@ -5564,7 +5564,7 @@ function renderLeaderPanel() {
           <div class="tracking-stat"><strong>${cell.members.length}</strong><span>Membros</span></div>
           ${lastReport ? `
           <div class="tracking-stat"><strong>${presentCount}</strong><span>Presentes</span></div>
-          <div class="tracking-stat"><strong>${cell.members.length - presentCount}</strong><span>Faltaram</span></div>` : ""}
+          <div class="tracking-stat"><strong>${cell.members.length - presentCount}</strong><span>Faltantes</span></div>` : ""}
         </div>
         ${lastReport
           ? `<p class="tracking-meta">Ultimo relatorio: ${escapeHtml(formatDateForReport(lastReport.date))}</p>`

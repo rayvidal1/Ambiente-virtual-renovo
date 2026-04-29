@@ -122,7 +122,7 @@ const ROLE_PERMISSIONS = {
   viewReports: ["leader", "coordinator", "pastor", "admin"],
   viewCells: ["coordinator", "pastor", "admin"],
   deleteCell: ["admin"],
-  manageAccess: ["coordinator", "pastor", "admin"],
+  manageAccess: ["pastor", "admin"],
   viewStudies: ["leader", "coordinator", "pastor", "admin"],
   manageStudies: ["coordinator", "pastor", "admin"],
 };

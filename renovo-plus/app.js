@@ -26,7 +26,7 @@
   const isCoordinator = () => session?.role === "coordinator";
   const isAdminOrPastor = () => isAdmin() || isPastor() || isCoordinator();
   const canManageCells = () => isAdminOrPastor();
-  const canManageAccess = () => isAdminOrPastor();
+  const canManageAccess = () => isAdmin() || isPastor();
 
   function getAccessibleCells() {
     if (!session) return [];
@@ -263,7 +263,7 @@
     state.studies = studies;
     state.visitors = visitors;
 
-    if (isAdminOrPastor()) {
+    if (canManageAccess()) {
       try { state.profiles = await fb().listProfiles(); } catch (_) { state.profiles = []; }
     }
   }

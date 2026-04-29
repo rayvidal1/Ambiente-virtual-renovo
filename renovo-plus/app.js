@@ -17,6 +17,7 @@
   let editingCellId = null;
   let editingStudyId = null;
   let editingAccessUid = null;
+  let selectedReportPreviewId = null;
 
   // ─── HELPERS ──────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
@@ -556,6 +557,7 @@
     });
 
     $("report-cell")?.addEventListener("change", () => {
+      selectedReportPreviewId = null;
       populateAttendanceList($("report-cell").value);
       updateReportHistory();
     });
@@ -897,22 +899,28 @@
 
     const histList = $("report-history-list");
     if (histList) {
+      if (!selectedReportPreviewId || !cellReports.some((r) => r.id === selectedReportPreviewId)) {
+        selectedReportPreviewId = cellReports[0]?.id || null;
+      }
       histList.innerHTML = cellReports.length
         ? cellReports.map((r) =>
-            `<div class="report-history-item">
+            `<div class="report-history-item${r.id === selectedReportPreviewId ? " is-selected" : ""}" onclick="window._previewReport('${escHtml(r.id)}')">
               <div class="report-history-item-head">
                 <strong>${fmtDate(r.date)}</strong>
                 <span style="font-size:0.8rem;color:var(--ink-soft)">${r.presentCount} presentes · ${r.visitorsCount} visitante(s)</span>
               </div>
               ${r.leaders ? `<small style="color:var(--ink-soft)">${escHtml(r.leaders)}</small>` : ""}
               <div style="display:flex;gap:0.4rem;margin-top:0.3rem">
-                <button type="button" class="ghost-btn compact-btn" onclick="window._editReport('${escHtml(r.id)}')">Editar</button>
-                <button type="button" class="ghost-btn compact-btn danger-btn" onclick="window._deleteReport('${escHtml(r.id)}')">Excluir</button>
+                <button type="button" class="ghost-btn compact-btn" onclick="event.stopPropagation(); window._editReport('${escHtml(r.id)}')">Editar</button>
+                <button type="button" class="ghost-btn compact-btn danger-btn" onclick="event.stopPropagation(); window._deleteReport('${escHtml(r.id)}')">Excluir</button>
               </div>
             </div>`
           ).join("")
         : `<p style="color:var(--ink-soft);font-size:0.9rem">Nenhum relatório registrado.</p>`;
     }
+
+    const preview = cellReports.find((r) => r.id === selectedReportPreviewId);
+    renderReportPreview(preview || null);
 
     if (cellReports.length > 1) {
       const wrap = $("report-line-wrap");
@@ -920,6 +928,72 @@
       drawLineChart(cellReports.slice().reverse());
     }
   }
+
+  function renderReportPreview(report) {
+    const output = $("report-output");
+    const gallery = $("report-images-gallery");
+    if (!output) return;
+
+    if (!report) {
+      output.value = "";
+      if (gallery) {
+        gallery.hidden = true;
+        gallery.innerHTML = "";
+      }
+      return;
+    }
+
+    const cell = state.cells.find((c) => c.id === report.cellId);
+    const members = Array.isArray(cell?.members) ? cell.members : [];
+    const presentIds = new Set(Array.isArray(report.presentMemberIds) ? report.presentMemberIds : []);
+    const presentNames = members.filter((m) => presentIds.has(m.id)).map((m) => m.name);
+    const absentMembers = members.filter((m) => !presentIds.has(m.id));
+    const presentCount = Number(report.presentCount || presentNames.length || 0) || 0;
+
+    output.value = buildReportText({
+      cell,
+      date: report.date,
+      leaders: report.leaders,
+      coLeaders: report.coLeaders,
+      host: report.host,
+      address: report.address,
+      presentNames,
+      presentCount,
+      allMembersCount: members.length,
+      absentMembers,
+      visitorsCount: Number(report.visitorsCount || 0) || 0,
+      visitorNames: report.visitorNames,
+      offering: Number(report.offering || 0) || 0,
+      snack: report.snack,
+      discipleship: report.discipleship,
+      communionMinutes: report.communionMinutes,
+      foods: report.foods,
+    });
+
+    const imageUrls = Array.isArray(report.imageUrls) ? report.imageUrls.filter(Boolean) : [];
+    if (gallery) {
+      if (imageUrls.length) {
+        gallery.hidden = false;
+        gallery.innerHTML = `<p style="font-size:0.85rem;font-weight:600;margin:0 0 0.5rem">Fotos (${imageUrls.length})</p>` +
+          `<div style="display:flex;flex-wrap:wrap;gap:0.4rem">` +
+          imageUrls.map((url) =>
+            `<a href="${escHtml(url)}" target="_blank" rel="noopener">
+              <img src="${escHtml(url)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:0.4rem;display:block" />
+            </a>`
+          ).join("") + `</div>`;
+      } else {
+        gallery.hidden = true;
+        gallery.innerHTML = "";
+      }
+    }
+  }
+
+  window._previewReport = function (reportId) {
+    const report = state.reports.find((r) => r.id === reportId);
+    if (!report) return;
+    selectedReportPreviewId = reportId;
+    updateReportHistory();
+  };
 
   window._editReport = function (reportId) {
     const report = state.reports.find((r) => r.id === reportId);

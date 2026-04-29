@@ -2752,7 +2752,17 @@ button:hover {
   padding: 0.6rem 0.7rem;
   background: #fff;
   margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
+
+.report-history-item:hover,
+.report-history-item.is-selected {
+  border-color: rgba(45, 138, 94, 0.5);
+  background: rgba(45, 138, 94, 0.06);
+  box-shadow: 0 8px 22px rgba(45, 138, 94, 0.1);
+}
+
 .report-history-item:last-child { margin-bottom: 0; }
 
 .report-history-item-head {

@@ -26,7 +26,7 @@
   const isCoordinator = () => session?.role === "coordinator";
   const isAdminOrPastor = () => isAdmin() || isPastor() || isCoordinator();
   const canManageCells = () => isAdminOrPastor();
-  const canManageAccess = () => isAdmin() || isPastor();
+  const canManageAccess = () => isAdmin() || isPastor() || isCoordinator();
   const CHART_COLORS = {
     present: "#2d8a5e",
     absent: "#c0392b",
@@ -40,6 +40,25 @@
       [session.primaryCellId, ...(session.scopeCellIds || [])].filter(Boolean)
     );
     return state.cells.filter((c) => ids.has(c.id));
+  }
+
+  function getAssignableAccessRoles() {
+    if (isAdmin()) return ["leader", "coordinator", "pastor", "admin"];
+    if (isPastor()) return ["leader", "coordinator"];
+    if (isCoordinator()) return ["leader"];
+    return [];
+  }
+
+  function canAssignAccessRole(role) {
+    return getAssignableAccessRoles().includes(String(role || "").trim());
+  }
+
+  function canManageProfile(profile) {
+    const role = String(profile?.role || "").trim();
+    if (isAdmin()) return true;
+    if (isPastor()) return role === "leader" || role === "coordinator" || role === "pending";
+    if (isCoordinator()) return role === "leader" || role === "pending";
+    return false;
   }
 
   function extractLeaderFromNotes(notes) {
@@ -269,7 +288,7 @@
     state.visitors = visitors;
 
     if (canManageAccess()) {
-      try { state.profiles = await fb().listProfiles(); } catch (_) { state.profiles = []; }
+      try { state.profiles = await fb().listProfiles(session); } catch (_) { state.profiles = []; }
     }
   }
 
@@ -1142,17 +1161,30 @@
     if ($("scope-cells-checkboxes")) $("scope-cells-checkboxes").style.display = role === "coordinator" ? "" : "none";
   }
 
+  function populateAccessRoleSelect(selectedRole) {
+    const form = $("access-form");
+    const roleSelect = form?.querySelector('select[name="role"]');
+    if (!roleSelect) return;
+    const labels = { leader: "Lider de Celula", coordinator: "Coordenador", pastor: "Pastor", admin: "Admin" };
+    const roles = getAssignableAccessRoles();
+    roleSelect.innerHTML = roles
+      .map((role) => `<option value="${role}">${labels[role] || role}</option>`)
+      .join("");
+    roleSelect.value = roles.includes(selectedRole) ? selectedRole : roles[0] || "leader";
+  }
+
   async function openAccessModal() {
     try {
       if (!canManageAccess()) return;
       await loadAllData();
       renderAccessUsers();
       populateAccessCellSelects();
+      populateAccessRoleSelect("leader");
       resetAccessForm();
       const form = $("access-form");
       if (form) {
         const roleSelect = form.querySelector('select[name="role"]');
-        if (roleSelect) {
+        if (false && roleSelect) {
           roleSelect.innerHTML = `
               <option value="leader">Líder de Célula</option>
               <option value="coordinator">Coordenador</option>
@@ -1196,7 +1228,7 @@
   function renderAccessUsers() {
     const container = $("access-users-list");
     if (!container) return;
-    // Pastor-level roles see all profiles except admin changes are still protected by rules.
+    // Access managers only see profiles allowed by Firestore rules.
     const profiles = state.profiles;
     if (!profiles.length) {
       container.innerHTML = `<p style="color:var(--ink-soft)">Nenhum usuário cadastrado.</p>`;
@@ -1212,8 +1244,8 @@
           <small style="color:var(--ink-soft)">${roleLabels[p.role] || p.role} · ${statusLabels[p.status] || p.status}</small>
         </div>
         <div style="display:flex;gap:0.3rem;align-items:center">
-          <button type="button" class="ghost-btn compact-btn" onclick="window._editAccess('${escHtml(p.uid)}')">Editar</button>
-          ${p.uid !== session.uid
+          ${canManageProfile(p) ? `<button type="button" class="ghost-btn compact-btn" onclick="window._editAccess('${escHtml(p.uid)}')">Editar</button>` : ""}
+          ${p.uid !== session.uid && canManageProfile(p)
             ? `<button type="button" class="ghost-btn compact-btn danger-btn" onclick="window._toggleAccess('${escHtml(p.uid)}','${escHtml(p.name)}','${escHtml(p.status)}')">${p.status === "inactive" ? "Reativar" : "Desativar"}</button>`
             : ""}
         </div>
@@ -1224,13 +1256,15 @@
   window._editAccess = function (uid) {
     const p = state.profiles.find((pr) => pr.uid === uid);
     if (!p) return;
+    if (!canManageProfile(p)) return;
     editingAccessUid = uid;
     const form = $("access-form");
     if (!form) return;
     form.elements.userUid.value = uid;
     form.elements.name.value = p.name;
     form.elements.email.value = p.email;
-    form.elements.role.value = p.role;
+    populateAccessRoleSelect(p.role);
+    form.elements.role.value = canAssignAccessRole(p.role) ? p.role : getAssignableAccessRoles()[0] || "leader";
     if ($("password-label")) $("password-label").style.display = "none";
     if ($("email-label")) $("email-label").style.display = "none";
     if ($("status-label")) $("status-label").style.display = "";
@@ -1256,6 +1290,7 @@
     if (!confirm(`${label} acesso de "${name}"?`)) return;
     try {
       const p = state.profiles.find((pr) => pr.uid === uid);
+      if (!canManageProfile(p)) return;
       await fb().saveUserProfile(uid, { ...(p || {}), status: newStatus });
       await loadAllData();
       renderAccessUsers();
@@ -1278,7 +1313,14 @@
       : [];
     console.log("[access] submit uid=%s name=%s email=%s role=%s", uid, name, email, role);
     try {
+      if (!canAssignAccessRole(role)) {
+        throw new Error("Seu perfil nao pode criar ou alterar este nivel de acesso.");
+      }
       if (uid) {
+        const existing = state.profiles.find((p) => p.uid === uid);
+        if (!canManageProfile(existing)) {
+          throw new Error("Seu perfil nao pode gerenciar este usuario.");
+        }
         console.log("[access] updating existing profile...");
         await fb().saveUserProfile(uid, { name, role, status, primaryCellId, scopeCellIds: scopeIds });
         console.log("[access] profile updated");

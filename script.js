@@ -122,7 +122,7 @@ const ROLE_PERMISSIONS = {
   viewReports: ["leader", "coordinator", "pastor", "admin"],
   viewCells: ["coordinator", "pastor", "admin"],
   deleteCell: ["admin"],
-  manageAccess: ["pastor", "admin"],
+  manageAccess: ["coordinator", "pastor", "admin"],
   viewStudies: ["leader", "coordinator", "pastor", "admin"],
   manageStudies: ["coordinator", "pastor", "admin"],
 };
@@ -547,7 +547,7 @@ function bindAppEvents() {
     }
 
     if (!canCurrentSessionAssignRole(role)) {
-      setAccessFeedback("Somente admin pode criar ou promover outro usuario para admin.");
+      setAccessFeedback("Seu perfil nao pode criar ou alterar este nivel de acesso.");
       return;
     }
 
@@ -567,7 +567,7 @@ function bindAppEvents() {
         return;
       }
       if (!canCurrentSessionManageUser(existingUser)) {
-        setAccessFeedback("Somente admin pode gerenciar contas admin.");
+        setAccessFeedback("Seu perfil nao pode gerenciar este usuario.");
         return;
       }
 
@@ -681,7 +681,7 @@ function bindAppEvents() {
       return;
     }
     if (!canCurrentSessionManageUser(user)) {
-      setAccessFeedback("Somente admin pode gerenciar contas admin.");
+      setAccessFeedback("Seu perfil nao pode gerenciar este usuario.");
       return;
     }
 
@@ -2006,11 +2006,10 @@ function canCurrentSessionAssignRole(role) {
   }
 
   const normalizedRole = sanitizeManagedRole(role);
-  if (normalizedRole === "admin") {
-    return session.role === "admin";
-  }
-
-  return true;
+  if (session.role === "admin") return true;
+  if (session.role === "pastor") return normalizedRole === "leader" || normalizedRole === "coordinator";
+  if (session.role === "coordinator") return normalizedRole === "leader";
+  return false;
 }
 
 function canCurrentSessionManageUser(user) {
@@ -2018,11 +2017,11 @@ function canCurrentSessionManageUser(user) {
     return false;
   }
 
-  if (sanitizeManagedRole(user.role) === "admin" && session.role !== "admin") {
-    return false;
-  }
-
-  return true;
+  const role = sanitizeManagedRole(user.role);
+  if (session.role === "admin") return true;
+  if (session.role === "pastor") return role === "leader" || role === "coordinator";
+  if (session.role === "coordinator") return role === "leader";
+  return false;
 }
 
 function syncAccessFormRoleFields() {
@@ -2031,15 +2030,15 @@ function syncAccessFormRoleFields() {
   }
 
   let role = sanitizeManagedRole(accessRoleSelect.value);
-  const canAssignAdmin = session?.role === "admin";
-  const adminOption = accessRoleSelect.querySelector('option[value="admin"]');
-  if (adminOption) {
-    adminOption.hidden = !canAssignAdmin;
-    adminOption.disabled = !canAssignAdmin;
-  }
-  if (role === "admin" && !canAssignAdmin) {
-    accessRoleSelect.value = "pastor";
-    role = "pastor";
+  Array.from(accessRoleSelect.options).forEach((option) => {
+    const allowed = canCurrentSessionAssignRole(option.value);
+    option.hidden = !allowed;
+    option.disabled = !allowed;
+  });
+  if (!canCurrentSessionAssignRole(role)) {
+    const firstAllowed = Array.from(accessRoleSelect.options).find((option) => canCurrentSessionAssignRole(option.value));
+    accessRoleSelect.value = firstAllowed?.value || "leader";
+    role = accessRoleSelect.value;
   }
 
   const isLeader = role === "leader";

@@ -969,10 +969,18 @@
     return snapshot.exists ? normalizeProfile(snapshot.id, snapshot.data()) : null;
   }
 
-  async function listProfiles() {
+  async function listProfiles(profile) {
     initialize();
     if (!api.db) {
       return [];
+    }
+
+    if (profile?.role === "coordinator") {
+      const snapshot = await api.db.collection(COLLECTIONS.users).where("role", "==", "leader").limit(200).get();
+      return snapshot.docs
+        .map((doc) => normalizeProfile(doc.id, doc.data()))
+        .filter(Boolean)
+        .sort((left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")));
     }
 
     const snapshot = await api.db.collection(COLLECTIONS.users).orderBy("createdAt", "asc").limit(200).get();

@@ -27,13 +27,19 @@
           if (!isLegacyRootWorker) return;
           const registrations = await navigator.serviceWorker.getRegistrations();
           await Promise.all(registrations.map(function (item) { return item.unregister().catch(function () { return false; }); }));
+          if ("caches" in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.filter(function (key) {
+              return /^renovo-/.test(key);
+            }).map(function (key) { return caches.delete(key); }));
+          }
           try { window.sessionStorage.setItem("renovo-plus-sw-reset", "1"); } catch (_) {}
           url.searchParams.set("sw-reset", "1");
           window.location.replace(url.toString());
         }).catch(function () {});
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.0-alpha.7" />
   </head>
   <body>
     <!-- Tela de carregamento -->
@@ -618,8 +624,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-    <script src="./firebase-plus.js"></script>
-    <script src="./app.js"></script>
+    <script src="./firebase-plus.js?v=0.1.0-alpha.7"></script>
+    <script src="./app.js?v=0.1.0-alpha.7"></script>
     <script>
       (function () {
         const debugEl = document.getElementById("loading-debug");

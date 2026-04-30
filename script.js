@@ -122,9 +122,9 @@ const ROLE_PERMISSIONS = {
   viewReports: ["leader", "coordinator", "pastor", "admin"],
   viewCells: ["coordinator", "pastor", "admin"],
   deleteCell: ["admin"],
-  manageAccess: ["pastor", "admin"],
+  manageAccess: ["coordinator", "pastor", "admin"],
   viewStudies: ["leader", "coordinator", "pastor", "admin"],
-  manageStudies: ["pastor", "admin"],
+  manageStudies: ["coordinator", "pastor", "admin"],
 };
 
 const ICONS = {
@@ -200,13 +200,15 @@ function bindAuthEvents() {
   loginForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(loginForm);
-    const username = normalizeUsername(formData.get("username"));
+    const username = normalizeUsername(formData.get("email") || formData.get("username"));
     const password = String(formData.get("password") || "");
     const hashedInput = await hashPassword(password);
 
     let user = null;
     for (const entry of users) {
-      if (normalizeUsername(entry.username) !== username) continue;
+      const entryUsername = normalizeUsername(entry.username);
+      const entryEmail = normalizeUsername(entry.email);
+      if (entryUsername !== username && entryEmail !== username) continue;
       const stored = String(entry.password || "");
       if (isPasswordHashed(stored)) {
         if (stored === hashedInput) { user = entry; break; }
@@ -222,7 +224,7 @@ function bindAuthEvents() {
     }
 
     if (!user) {
-      setAuthFeedback("Usuario ou senha invalidos.");
+      setAuthFeedback("E-mail ou senha invalidos.");
       return;
     }
 
@@ -547,7 +549,7 @@ function bindAppEvents() {
     }
 
     if (!canCurrentSessionAssignRole(role)) {
-      setAccessFeedback("Somente admin pode criar ou promover outro usuario para admin.");
+      setAccessFeedback("Seu perfil nao pode criar ou alterar este nivel de acesso.");
       return;
     }
 
@@ -567,7 +569,7 @@ function bindAppEvents() {
         return;
       }
       if (!canCurrentSessionManageUser(existingUser)) {
-        setAccessFeedback("Somente admin pode gerenciar contas admin.");
+        setAccessFeedback("Seu perfil nao pode gerenciar este usuario.");
         return;
       }
 
@@ -681,7 +683,7 @@ function bindAppEvents() {
       return;
     }
     if (!canCurrentSessionManageUser(user)) {
-      setAccessFeedback("Somente admin pode gerenciar contas admin.");
+      setAccessFeedback("Seu perfil nao pode gerenciar este usuario.");
       return;
     }
 
@@ -978,10 +980,6 @@ function bindAppEvents() {
     if (!cell) {
       return;
     }
-    if (session?.role === "coordinator" && !getAccessibleCells().some((entry) => entry.id === cellId)) {
-      return;
-    }
-
     cell.members.push({
       id: createId(),
       name: memberName,
@@ -2010,11 +2008,10 @@ function canCurrentSessionAssignRole(role) {
   }
 
   const normalizedRole = sanitizeManagedRole(role);
-  if (normalizedRole === "admin") {
-    return session.role === "admin";
-  }
-
-  return true;
+  if (session.role === "admin") return true;
+  if (session.role === "pastor") return normalizedRole === "leader" || normalizedRole === "coordinator";
+  if (session.role === "coordinator") return normalizedRole === "leader";
+  return false;
 }
 
 function canCurrentSessionManageUser(user) {
@@ -2022,11 +2019,11 @@ function canCurrentSessionManageUser(user) {
     return false;
   }
 
-  if (sanitizeManagedRole(user.role) === "admin" && session.role !== "admin") {
-    return false;
-  }
-
-  return true;
+  const role = sanitizeManagedRole(user.role);
+  if (session.role === "admin") return true;
+  if (session.role === "pastor") return role === "leader" || role === "coordinator";
+  if (session.role === "coordinator") return role === "leader";
+  return false;
 }
 
 function syncAccessFormRoleFields() {
@@ -2035,15 +2032,15 @@ function syncAccessFormRoleFields() {
   }
 
   let role = sanitizeManagedRole(accessRoleSelect.value);
-  const canAssignAdmin = session?.role === "admin";
-  const adminOption = accessRoleSelect.querySelector('option[value="admin"]');
-  if (adminOption) {
-    adminOption.hidden = !canAssignAdmin;
-    adminOption.disabled = !canAssignAdmin;
-  }
-  if (role === "admin" && !canAssignAdmin) {
-    accessRoleSelect.value = "pastor";
-    role = "pastor";
+  Array.from(accessRoleSelect.options).forEach((option) => {
+    const allowed = canCurrentSessionAssignRole(option.value);
+    option.hidden = !allowed;
+    option.disabled = !allowed;
+  });
+  if (!canCurrentSessionAssignRole(role)) {
+    const firstAllowed = Array.from(accessRoleSelect.options).find((option) => canCurrentSessionAssignRole(option.value));
+    accessRoleSelect.value = firstAllowed?.value || "leader";
+    role = accessRoleSelect.value;
   }
 
   const isLeader = role === "leader";
@@ -2597,9 +2594,7 @@ function renderAccessControl() {
       ? `Acesso restrito para alimentar dados da celula ${session.assignedCellName || "-"}.`
       : isPastorJudson
         ? `Leitura de relatorios + gestao completa de acessos (ultimos ${REPORT_AVERAGE_DAYS} dias).`
-      : session.role === "coordinator"
-        ? `Acesso de coordenador restrito as celulas: ${getManagedUserScopeCellNames(session).join(", ") || "-"}.`
-        : hasPermission("manageAccess")
+      : hasPermission("manageAccess")
           ? "Acesso administrativo total liberado (equivalente ao Pastor)."
           : "Acesso conforme seu nivel de permissao.";
 
@@ -2698,7 +2693,7 @@ function renderImportMembersCellOptions() {
 
 function renderMemberCellOptions() {
   const previousValue = memberCellSelect.value;
-  const cellsForMembers = session?.role === "coordinator" ? getAccessibleCells() : state.cells;
+  const cellsForMembers = state.cells;
   if (cellsForMembers.length === 0) {
     memberCellSelect.innerHTML = '<option value="">Cadastre uma celula primeiro</option>';
     memberCellSelect.disabled = true;
@@ -2894,7 +2889,7 @@ function renderLatestReport() {
 }
 
 function getVisibleReportsPool() {
-  if (session?.role === "leader" || session?.role === "coordinator") {
+  if (session?.role === "leader") {
     const accessibleIds = new Set(getAccessibleCells().map((cell) => cell.id));
     return state.reports.filter((report) => accessibleIds.has(report.cellId));
   }
@@ -3192,7 +3187,7 @@ function renderReportHistory() {
             data-report-id="${escapeHtml(report.id)}"
           >
             <strong>${escapeHtml(formatDateForReport(report.date))}</strong>
-            <small>Presentes ${stats.present} | Faltaram ${stats.absent} | Visitantes ${stats.visitors}</small>
+            <small>Presentes ${stats.present} | Faltantes ${stats.absent} | Visitantes ${stats.visitors}</small>
           </button>
           ${deleteBtn}
         </div>
@@ -3340,7 +3335,7 @@ function drawMiniDonutChart(canvas, legend, present, absent, visitors) {
 
   const slices = [
     { value: present, color: "#2d8a5e", label: "Presentes" },
-    { value: absent, color: "#c0392b", label: "Faltaram" },
+    { value: absent, color: "#c0392b", label: "Faltantes" },
     { value: visitors, color: "#2980b9", label: "Visitantes" },
   ];
 
@@ -3479,7 +3474,7 @@ function getAccessibleCells() {
     return [];
   }
 
-  if (session.role !== "leader" && session.role !== "coordinator") {
+  if (session.role !== "leader") {
     return state.cells;
   }
 
@@ -3932,7 +3927,7 @@ function renderVisitantesCellFilterOptions() {
   }
 
   const previousValue = String(select.value || "");
-  const visibleCells = session?.role === "coordinator" ? getAccessibleCells() : state.cells;
+  const visibleCells = state.cells;
   const options = visibleCells
     .slice()
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
@@ -4988,7 +4983,7 @@ function drawReportChart(present, absent, visitors) {
 
   const slices = [
     { value: present, color: "#2d8a5e", label: "Presentes" },
-    { value: absent, color: "#c0392b", label: "Faltaram" },
+    { value: absent, color: "#c0392b", label: "Faltantes" },
     { value: visitors, color: "#2980b9", label: "Visitantes" },
   ];
 
@@ -5213,7 +5208,7 @@ function renderVisitantesList() {
   const canConvert = hasPermission("manageMembers");
   const canDelete = !!session;
   const recurringMap = buildRecurringVisitorsMap();
-  const scopedCellIds = session?.role === "coordinator" ? new Set(getAccessibleCells().map((cell) => cell.id)) : null;
+  const scopedCellIds = null;
 
   let entries = loadVisitantesPub();
   entries = entries.slice().sort((a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""));
@@ -5379,11 +5374,6 @@ function convertRecurringVisitorToMember(visitorId) {
     return;
   }
 
-  if (session?.role === "coordinator" && !getAccessibleCells().some((entry) => entry.id === recurring.cell.id)) {
-    window.alert("Voce so pode converter visitantes das celulas sob sua supervisao.");
-    return;
-  }
-
   const cell = recurring.cell;
   if (!Array.isArray(cell.members)) {
     cell.members = [];
@@ -5524,10 +5514,7 @@ function renderTrackingPanel() {
   if (role === "leader") {
     trackingSection.hidden = false;
     renderLeaderPanel();
-  } else if (role === "coordinator") {
-    trackingSection.hidden = false;
-    renderCoordinatorPanel();
-  } else if (role === "pastor" || role === "admin") {
+  } else if (role === "coordinator" || role === "pastor" || role === "admin") {
     trackingSection.hidden = false;
     renderPastorPanel();
   } else {
@@ -5578,7 +5565,7 @@ function renderLeaderPanel() {
           <div class="tracking-stat"><strong>${cell.members.length}</strong><span>Membros</span></div>
           ${lastReport ? `
           <div class="tracking-stat"><strong>${presentCount}</strong><span>Presentes</span></div>
-          <div class="tracking-stat"><strong>${cell.members.length - presentCount}</strong><span>Faltaram</span></div>` : ""}
+          <div class="tracking-stat"><strong>${cell.members.length - presentCount}</strong><span>Faltantes</span></div>` : ""}
         </div>
         ${lastReport
           ? `<p class="tracking-meta">Ultimo relatorio: ${escapeHtml(formatDateForReport(lastReport.date))}</p>`

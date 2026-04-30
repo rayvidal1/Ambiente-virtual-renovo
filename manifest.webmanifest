@@ -1,8 +1,9 @@
 {
   "name": "Ambiente Digital",
   "short_name": "Ambiente Digital",
+  "id": "/renovo/ambiente-digital",
   "description": "Aplicacao da Igreja Renovo para celulas, membros e visitantes.",
-  "start_url": "./renovo-plus/",
+  "start_url": "./renovo-plus/index.html?source=pwa",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",

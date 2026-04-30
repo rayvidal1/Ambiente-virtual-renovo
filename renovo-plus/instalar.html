@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Instalar Ambiente Digital</title>
+    <meta name="theme-color" content="#7c1d18" />
+    <link rel="icon" type="image/png" href="../icon.png" />
+    <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+    <script src="./app-version.js?v=0.1.0-alpha.8"></script>
+    <script>
+      (function () {
+        const url = new URL(window.location.href);
+        const clean = url.searchParams.get("clean") === "1";
+        if (!clean && "serviceWorker" in navigator) {
+          window.__ambienteDigitalCleaning = true;
+          Promise.all([
+            navigator.serviceWorker.getRegistrations()
+              .then((items) => Promise.all(items.map((item) => item.unregister().catch(() => false))))
+              .catch(() => []),
+            "caches" in window
+              ? caches.keys().then((keys) =>
+                  Promise.all(keys.filter((key) => /^renovo-/.test(key) || /^ambiente-digital-/.test(key)).map((key) => caches.delete(key)))
+                ).catch(() => [])
+              : Promise.resolve([]),
+          ]).finally(() => {
+            url.searchParams.set("clean", "1");
+            window.location.replace(url.toString());
+          });
+          return;
+        }
+
+        const manifest = document.createElement("link");
+        manifest.rel = "manifest";
+        manifest.href = "./manifest.webmanifest?v=0.1.0-alpha.8";
+        document.head.appendChild(manifest);
+      })();
+    </script>
+    <style>
+      :root {
+        color-scheme: light;
+        --brand: #8b0d12;
+        --brand-strong: #67070b;
+        --ink: #241a19;
+        --muted: #756765;
+        --surface: rgba(255, 250, 248, 0.92);
+        --line: rgba(139, 13, 18, 0.16);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          linear-gradient(rgba(36, 18, 18, 0.38), rgba(36, 18, 18, 0.62)),
+          url("../entrada renovo.png") center / cover fixed;
+        display: grid;
+        place-items: center;
+        padding: 1.2rem;
+      }
+      main {
+        width: min(100%, 380px);
+        padding: 1.35rem;
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        background: var(--surface);
+        box-shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
+      }
+      img {
+        width: 72px;
+        height: 72px;
+        border-radius: 18px;
+        display: block;
+        margin-bottom: 1rem;
+      }
+      .eyebrow {
+        margin: 0 0 0.45rem;
+        color: var(--brand);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(2rem, 9vw, 2.75rem);
+        line-height: 1;
+      }
+      p {
+        margin: 0.85rem 0 1.1rem;
+        color: var(--muted);
+        font-size: 0.98rem;
+        line-height: 1.45;
+      }
+      button,
+      a {
+        width: 100%;
+        min-height: 48px;
+        border-radius: 999px;
+        font: inherit;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+      }
+      button {
+        border: 0;
+        background: var(--brand);
+        color: white;
+      }
+      button:disabled {
+        opacity: 0.7;
+      }
+      a {
+        margin-top: 0.7rem;
+        border: 1px solid var(--brand);
+        color: var(--brand);
+        background: rgba(255, 255, 255, 0.5);
+      }
+      .status {
+        min-height: 1.3rem;
+        margin: 0.8rem 0 0;
+        font-size: 0.88rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="../icon.png" alt="" />
+      <p class="eyebrow">Igreja Renovo</p>
+      <h1>Ambiente Digital</h1>
+      <p>Instale o app novo com login por e-mail.</p>
+      <button type="button" id="install-button" hidden>Instalar Ambiente Digital</button>
+      <a href="./index.html">Abrir Ambiente Digital</a>
+      <p class="status" id="install-status">Preparando instalador...</p>
+    </main>
+
+    <script>
+      (function () {
+        if (window.__ambienteDigitalCleaning) return;
+
+        const button = document.getElementById("install-button");
+        const status = document.getElementById("install-status");
+        const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+        let deferredPrompt = null;
+
+        function setStatus(message) {
+          status.textContent = message;
+        }
+
+        if (standalone) {
+          setStatus("Ambiente Digital ja esta instalado.");
+          return;
+        }
+
+        if ("serviceWorker" in navigator) {
+          window.addEventListener("load", async () => {
+            try {
+              const version = encodeURIComponent(String(window.RENOVO_PLUS_VERSION || "dev"));
+              const registration = await navigator.serviceWorker.register(`./service-worker.js?v=${version}`, {
+                scope: "./",
+                updateViaCache: "none",
+              });
+              await registration.update().catch(() => {});
+              setStatus("Toque no botao para instalar.");
+            } catch (_) {
+              setStatus("Abra no Chrome e toque no menu para instalar.");
+            }
+          });
+        }
+
+        window.addEventListener("beforeinstallprompt", (event) => {
+          event.preventDefault();
+          deferredPrompt = event;
+          button.hidden = false;
+          setStatus("Pronto para instalar.");
+        });
+
+        button.addEventListener("click", async () => {
+          if (!deferredPrompt) {
+            setStatus("No Chrome: menu > Instalar app.");
+            return;
+          }
+          button.disabled = true;
+          deferredPrompt.prompt();
+          const choice = await deferredPrompt.userChoice;
+          deferredPrompt = null;
+          button.hidden = true;
+          button.disabled = false;
+          setStatus(choice.outcome === "accepted" ? "Instalacao iniciada." : "Instalacao cancelada.");
+        });
+
+        window.addEventListener("appinstalled", () => {
+          button.hidden = true;
+          setStatus("Instalado com sucesso.");
+        });
+
+        setTimeout(() => {
+          if (!deferredPrompt) setStatus("Se o botao nao aparecer: menu do Chrome > Instalar app.");
+        }, 2500);
+      })();
+    </script>
+  </body>
+</html>

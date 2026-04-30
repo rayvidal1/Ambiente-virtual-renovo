@@ -3,182 +3,665 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Renovo+</title>
-    <meta name="theme-color" content="#7c1d18" />
+    <title>Ambiente Digital</title>
+    <meta name="theme-color" content="#8b0d12" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="icon" type="image/png" href="../icon.png" />
     <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
-    <link rel="manifest" href="./manifest.webmanifest" />
-    <script src="./app-version.js"></script>
+    <link rel="manifest" href="./manifest.webmanifest?v=0.1.0-alpha.8" />
+    <script src="./app-version.js?v=0.1.0-alpha.8"></script>
     <script>
       (function () {
-        if (!("serviceWorker" in navigator)) {
-          return;
-        }
-
+        if (!("serviceWorker" in navigator)) return;
         const url = new URL(window.location.href);
         const hasResetFlag = url.searchParams.get("sw-reset") === "1";
         let sessionReset = false;
-
-        try {
-          sessionReset = window.sessionStorage.getItem("renovo-plus-sw-reset") === "1";
-        } catch (_) {}
-
-        if (hasResetFlag || sessionReset) {
-          return;
-        }
-
+        try { sessionReset = window.sessionStorage.getItem("renovo-plus-sw-reset") === "1"; } catch (_) {}
+        if (hasResetFlag || sessionReset) return;
         navigator.serviceWorker.getRegistration().then(async function (registration) {
           const controller = navigator.serviceWorker.controller;
           const scriptUrl = String(controller?.scriptURL || registration?.active?.scriptURL || "");
           const isLegacyRootWorker = /\/renovo\/service-worker\.js(?:$|\?)/.test(scriptUrl);
-
-          if (!isLegacyRootWorker) {
-            return;
-          }
-
+          if (!isLegacyRootWorker) return;
           const registrations = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(
-            registrations.map(function (item) {
-              return item.unregister().catch(function () {
-                return false;
-              });
-            })
-          );
-
-          try {
-            window.sessionStorage.setItem("renovo-plus-sw-reset", "1");
-          } catch (_) {}
-
+          await Promise.all(registrations.map(function (item) { return item.unregister().catch(function () { return false; }); }));
+          if ("caches" in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.filter(function (key) {
+              return /^renovo-/.test(key);
+            }).map(function (key) { return caches.delete(key); }));
+          }
+          try { window.sessionStorage.setItem("renovo-plus-sw-reset", "1"); } catch (_) {}
           url.searchParams.set("sw-reset", "1");
           window.location.replace(url.toString());
         }).catch(function () {});
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.0-alpha.8" />
   </head>
   <body>
-    <div class="plus-background" aria-hidden="true">
-      <div class="plus-orb plus-orb-a"></div>
-      <div class="plus-orb plus-orb-b"></div>
-      <div class="plus-grid"></div>
-    </div>
-
-    <div id="plus-loading-screen" class="plus-loading-screen">
-      <div class="plus-loading-card">
-        <p class="plus-eyebrow">Renovo+ V2</p>
-        <h1>Preparando a Renovo+</h1>
-        <p>Carregando autenticação, módulos e dados do seu acesso.</p>
+    <!-- Tela de carregamento -->
+    <div id="loading-screen" class="loading-screen">
+      <div class="loading-inner">
+        <p class="eyebrow">Igreja Renovo</p>
+        <h1 class="loading-title">Ambiente Digital</h1>
+        <p class="loading-text">Preparando autenticação e dados do sistema.</p>
+        <div class="loading-spinner"></div>
+        <p id="loading-debug" class="loading-debug" hidden></p>
       </div>
     </div>
 
-    <div id="plus-auth-screen" class="plus-auth-screen" hidden>
-      <section class="plus-auth-card">
-        <div class="plus-auth-copy">
-          <p class="plus-eyebrow">Igreja Renovo</p>
-          <h1>Renovo+</h1>
-          <p class="plus-auth-lead">
-            Base nova da Igreja Renovo com autenticação real, acessos por papel e dados organizados por módulo.
-          </p>
-          <div class="plus-auth-highlights">
-            <article>
-              <strong>Auth</strong>
-              <span>Login com e-mail e senha, sessão persistente e redefinição de acesso.</span>
-            </article>
-            <article>
-              <strong>Escopo</strong>
-              <span>Cada pessoa acessa só as células liberadas no próprio perfil.</span>
-            </article>
-            <article>
-              <strong>Gestão</strong>
-              <span>Admin e pastor podem criar acessos, migrar dados e organizar a base nova.</span>
-            </article>
-          </div>
-        </div>
+    <div class="bg-shape bg-shape-1" aria-hidden="true"></div>
+    <div class="bg-shape bg-shape-2" aria-hidden="true"></div>
 
-        <form id="plus-auth-form" class="plus-auth-form">
-          <div class="plus-auth-head">
-            <span class="plus-chip">Acesso oficial da V2</span>
-            <p>Entre com o e-mail liberado para a sua conta na Renovo+.</p>
-          </div>
-
+    <!-- TELA DE LOGIN -->
+    <div id="auth-screen" class="auth-screen" hidden>
+      <div class="auth-card">
+        <p class="eyebrow">Igreja Renovo</p>
+        <h2 style="margin:0 0 1rem;font-size:clamp(2rem,5vw,3rem)">Ambiente Digital</h2>
+        <form id="login-form" class="auth-form">
           <label>
             E-mail
-            <input id="plus-email-input" name="email" type="email" autocomplete="email" placeholder="lider@igrejarenovo.com" required />
+            <input name="email" type="email" required autocomplete="email" placeholder="lider@exemplo.com" />
           </label>
-
           <label>
             Senha
-            <input id="plus-password-input" name="password" type="password" autocomplete="current-password" placeholder="Sua senha" required />
+            <div class="password-wrap">
+              <input name="password" type="password" required autocomplete="current-password" placeholder="Sua senha" />
+              <button type="button" class="eye-btn" id="toggle-password" aria-label="Mostrar senha">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
           </label>
-
-          <div class="plus-auth-actions">
-            <button id="plus-login-button" type="submit">Entrar na Renovo+</button>
-            <button id="plus-reset-password-button" type="button" class="plus-secondary-button">Esqueci minha senha</button>
-          </div>
-          <p class="plus-auth-help">Se o acesso ainda não foi criado, um admin ou pastor precisa liberar sua conta primeiro.</p>
-          <p id="plus-auth-feedback" class="plus-auth-feedback" aria-live="polite"></p>
+          <button type="submit">Entrar</button>
+          <button type="button" id="forgot-password-btn" class="ghost-btn" style="width:100%">Esqueci minha senha</button>
+          <p id="auth-feedback" class="auth-feedback"></p>
+          <p class="auth-hint">Não tem acesso ainda? Fale com o admin ou pastor para liberar sua conta.</p>
         </form>
-      </section>
+      </div>
     </div>
 
-    <div id="plus-shell" class="plus-shell" hidden>
-      <aside class="plus-sidebar">
-        <div class="plus-brand-block">
-          <p class="plus-eyebrow">Igreja Renovo</p>
-          <h1>Renovo+</h1>
-          <p class="plus-version">Versão <span id="plus-version-label"></span></p>
-        </div>
-
-        <nav id="plus-nav" class="plus-nav" aria-label="Navegação principal">
-          <button type="button" class="plus-nav-item is-active" data-route="dashboard">Painel</button>
-          <button type="button" class="plus-nav-item" data-route="cells">Células</button>
-          <button type="button" class="plus-nav-item" data-route="members">Membros</button>
-          <button type="button" class="plus-nav-item" data-route="reports">Relatórios</button>
-          <button type="button" class="plus-nav-item" data-route="studies">Estudos</button>
-          <button type="button" class="plus-nav-item" data-route="visitors">Visitantes</button>
-          <button type="button" class="plus-nav-item" data-route="alerts">Acompanhamento</button>
-          <button type="button" class="plus-nav-item" data-route="access">Acessos</button>
-        </nav>
-
-        <div class="plus-sidebar-footer">
-          <p>Esta base segue separada da V1 enquanto a migração e a validação da nova estrutura acontecem.</p>
-        </div>
-      </aside>
-
-      <main class="plus-main">
-        <header class="plus-topbar">
-          <div>
-            <p id="plus-page-kicker" class="plus-page-kicker">Mapa da Renovo+</p>
-            <h2 id="plus-page-title">Painel</h2>
-            <p id="plus-page-description" class="plus-page-description"></p>
-          </div>
-
-          <div class="plus-topbar-side">
-            <div class="plus-user-summary">
-              <span id="plus-status-pill" class="plus-status-pill">Preparando</span>
-              <strong id="plus-user-name">-</strong>
-              <span id="plus-user-meta">-</span>
+    <!-- TELA INICIAL (pós login) -->
+    <div id="home-screen" hidden>
+      <main class="page home-page">
+        <header class="hero">
+          <div class="hero-top-row">
+            <div>
+              <p class="eyebrow">Igreja Renovo</p>
+              <h1>Bem-vindo(a), <span id="home-username"></span>!</h1>
             </div>
-            <button id="plus-signout-button" type="button" class="plus-ghost-button">Sair</button>
+            <button id="home-logout-button" type="button" class="ghost-btn">Sair</button>
           </div>
+          <p class="subtitle">Escolha onde deseja acessar.</p>
         </header>
 
-        <section id="plus-profile-warning" class="plus-profile-warning" hidden></section>
-        <section id="plus-page-body" class="plus-page-body"></section>
+        <section class="home-cards">
+          <button class="home-card home-card-celulas" id="go-to-celulas" type="button">
+            <span class="home-card-icon">🌿</span>
+            <strong>Ambiente Digital</strong>
+            <small>Gerencie células, membros e relatórios semanais.</small>
+          </button>
+        </section>
       </main>
     </div>
 
+    <!-- APP PRINCIPAL -->
+    <div id="app-shell" hidden>
+      <main class="page">
+        <header class="hero">
+          <div class="hero-top-row">
+            <div>
+              <p class="eyebrow">Igreja Renovo</p>
+              <h1>Ambiente Digital</h1>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <button id="back-to-home-button" type="button" class="ghost-btn">← Início</button>
+              <button id="logout-button" type="button" class="ghost-btn">Sair</button>
+            </div>
+          </div>
+          <p class="subtitle">Base para liderança acompanhar células, membros e crescimento.</p>
+          <div class="access-strip">
+            <p id="access-badge" class="access-badge"></p>
+            <p id="access-note" class="access-note"></p>
+          </div>
+        </header>
+
+        <section class="stats" aria-label="Resumo">
+          <article class="stat-card">
+            <p>Total de celulas</p>
+            <strong id="total-cells">0</strong>
+          </article>
+          <article class="stat-card">
+            <p>Total de membros</p>
+            <strong id="total-members">0</strong>
+          </article>
+        </section>
+
+        <section class="action-cards">
+          <button class="action-card action-card-create" id="create-cell-card" type="button">
+            <span class="action-icon">+</span>
+            <span class="action-content">
+              <strong>Criar nova celula</strong>
+              <small>Cadastre a celula com lider, dia e horario.</small>
+            </span>
+          </button>
+
+          <button class="action-card action-card-member" id="add-member-card" type="button">
+            <span class="action-icon">+</span>
+            <span class="action-content">
+              <strong>Adicionar membro</strong>
+              <small>Vincule membros as celulas cadastradas.</small>
+            </span>
+          </button>
+
+          <button class="action-card action-card-member" id="import-members-card" type="button" hidden>
+            <span class="action-icon">&#128229;</span>
+            <span class="action-content">
+              <strong>Importar membros</strong>
+              <small>Cole uma lista de nomes de uma vez.</small>
+            </span>
+          </button>
+
+          <button class="action-card action-card-report" id="weekly-report-card" type="button">
+            <span class="action-icon">&#128203;</span>
+            <span class="action-content">
+              <strong>Informações das celulas</strong>
+              <small>Preencha presenca e dados da reuniao semanal.</small>
+            </span>
+          </button>
+
+          <button class="action-card action-card-access" id="manage-access-card" type="button">
+            <span class="action-icon">&#128275;</span>
+            <span class="action-content">
+              <strong>Gerenciar acessos</strong>
+              <small>Controle usuarios e permissoes do sistema.</small>
+            </span>
+          </button>
+
+          <button class="action-card action-card-studies" id="view-studies-card" type="button">
+            <span class="action-icon">&#128214;</span>
+            <span class="action-content">
+              <strong>Estudos em PDF</strong>
+              <small>Pastor/Admin publicam estudos; demais acessam em leitura.</small>
+            </span>
+          </button>
+
+          <button class="action-card action-card-visitantes" id="view-visitantes-card" type="button">
+            <span class="action-icon">&#128101;</span>
+            <span class="action-content">
+              <strong>Visitantes</strong>
+              <small>Registre e acompanhe visitantes das celulas.</small>
+            </span>
+          </button>
+        </section>
+
+        <section id="tracking-section" class="tracking-section" hidden></section>
+      </main>
+    </div>
+
+    <!-- MODAL: Nova celula -->
+    <div class="modal-backdrop" id="cell-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cell-modal-title">
+        <div class="modal-head">
+          <h2 id="cell-modal-title">Nova celula</h2>
+          <button type="button" class="ghost-btn modal-close" id="close-cell-modal">Fechar</button>
+        </div>
+        <form id="cell-form">
+          <label>
+            Nome da celula
+            <input name="name" required maxlength="80" />
+          </label>
+          <label>
+            Endereco
+            <input name="neighborhood" required maxlength="120" />
+          </label>
+          <label>
+            Dia da reuniao
+            <select name="meetingDay" required>
+              <option value="">Selecione...</option>
+              <option>Segunda</option>
+              <option>Terca</option>
+              <option>Quarta</option>
+              <option>Quinta</option>
+              <option>Sexta</option>
+              <option>Sabado</option>
+              <option>Domingo</option>
+            </select>
+          </label>
+          <label>
+            Horario
+            <input name="meetingTime" type="time" required />
+          </label>
+          <label>
+            Lider
+            <input name="leader" required maxlength="80" />
+          </label>
+          <button type="submit">Salvar celula</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Novo membro -->
+    <div class="modal-backdrop" id="member-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="member-modal-title">
+        <div class="modal-head">
+          <h2 id="member-modal-title">Novo membro</h2>
+          <button type="button" class="ghost-btn modal-close" id="close-member-modal">Fechar</button>
+        </div>
+        <form id="member-form">
+          <label>
+            Celula
+            <select name="cellId" id="member-cell" required>
+              <option value="">Cadastre uma celula primeiro</option>
+            </select>
+          </label>
+          <label>
+            Nome do membro
+            <input name="memberName" required maxlength="80" />
+          </label>
+          <label>
+            Telefone
+            <input name="memberPhone" maxlength="20" placeholder="(11) 99999-9999" />
+          </label>
+          <button type="submit">Adicionar membro</button>
+        </form>
+        <hr style="margin:1rem 0;border:none;border-top:1px solid var(--line)" />
+        <button type="button" id="view-cells-card" class="ghost-btn" style="width:100%;text-align:left;padding:0.5rem 0.25rem;font-size:0.9rem">
+          &#128101; Ver e excluir membros das celulas
+        </button>
+      </div>
+    </div>
+
+    <!-- MODAL: Importar membros (admin) -->
+    <div class="modal-backdrop" id="import-members-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="import-members-title">
+        <div class="modal-head">
+          <h2 id="import-members-title">Importar membros</h2>
+          <button type="button" class="ghost-btn modal-close" id="close-import-members-modal">Fechar</button>
+        </div>
+        <form id="import-members-form">
+          <label>
+            Célula
+            <select name="cellId" id="import-members-cell" required>
+              <option value="">Selecione a célula</option>
+            </select>
+          </label>
+          <label>
+            Lista de nomes <small style="font-weight:400;color:var(--ink-soft)">(um por linha)</small>
+            <textarea name="memberNames" id="import-members-textarea" rows="10"
+              placeholder="João Silva&#10;Maria Souza&#10;Pedro Santos" required
+              style="font-family:inherit;font-size:0.95rem;resize:vertical"></textarea>
+          </label>
+          <p id="import-members-preview" style="font-size:0.85rem;color:var(--ink-soft);margin:0"></p>
+          <button type="submit">Importar</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Ver celulas -->
+    <div class="modal-backdrop" id="cells-modal" hidden>
+      <div class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="cells-modal-title">
+        <div class="modal-head">
+          <h2 id="cells-modal-title">Celulas cadastradas</h2>
+          <button type="button" class="ghost-btn modal-close" id="close-cells-modal">Fechar</button>
+        </div>
+        <div id="cells-list" class="cells-list"></div>
+      </div>
+    </div>
+
+    <!-- MODAL: Informações semanais -->
+    <div class="modal-backdrop" id="report-modal" hidden>
+      <div class="modal-card modal-card-xl" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="report-modal-title">Informações semanais da celula</h2>
+            <p class="panel-sub">Preencha presenca e dados da reuniao semanal.</p>
+            <p id="report-mode-note" class="report-mode-note" hidden></p>
+          </div>
+          <button type="button" class="ghost-btn modal-close" id="close-report-modal">Fechar</button>
+        </div>
+
+        <div class="report-grid">
+          <form id="report-form" class="report-form">
+            <label>
+              Celula
+              <select name="cellId" id="report-cell" required>
+                <option value="">Cadastre uma celula primeiro</option>
+              </select>
+            </label>
+
+            <label>
+              Data
+              <input type="date" name="date" required />
+            </label>
+
+            <label>
+              Lideres
+              <input name="leaders" required maxlength="120" placeholder="Ex: Sabrina e Filipe" />
+            </label>
+
+            <label>
+              Co-lideres
+              <input name="coLeaders" maxlength="120" placeholder="Ex: Ian Vieira" />
+            </label>
+
+            <label>
+              Anfitriao (dono da casa)
+              <input name="host" maxlength="120" placeholder="Ex: Salipe" />
+            </label>
+
+            <label>
+              Local / Endereco
+              <input name="address" maxlength="120" placeholder="Ex: Rua das Flores, 123 - Bairro" />
+            </label>
+
+            <label>
+              Tempo de comunhao
+              <select name="communionMinutes">
+                <option value="">Selecione o tempo</option>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">60 min</option>
+              </select>
+            </label>
+
+            <div class="attendance-box">
+              <div class="attendance-head">
+                <p>Presenca dos membros</p>
+                <div class="attendance-actions">
+                  <button type="button" class="ghost-btn compact-btn" id="mark-all-attendance">Marcar todos</button>
+                  <button type="button" class="ghost-btn compact-btn" id="clear-attendance">Limpar</button>
+                </div>
+              </div>
+              <div id="attendance-list" class="attendance-list"></div>
+            </div>
+
+            <div class="yn-field">
+              <span class="yn-field-label">Lanche</span>
+              <div class="yn-toggle">
+                <label class="yn-option"><input type="radio" name="snack" value="Sim" /> Sim</label>
+                <label class="yn-option"><input type="radio" name="snack" value="Não" /> Não</label>
+              </div>
+            </div>
+
+            <div class="yn-field">
+              <span class="yn-field-label">Discipulado</span>
+              <div class="yn-toggle">
+                <label class="yn-option"><input type="radio" name="discipleship" value="Sim" /> Sim</label>
+                <label class="yn-option"><input type="radio" name="discipleship" value="Não" /> Não</label>
+              </div>
+            </div>
+
+            <label>
+              Oferta recebida (R$)
+              <input type="number" name="offering" id="offering-input" min="0" step="0.01" placeholder="0,00" />
+            </label>
+
+            <div class="yn-field" id="foods-section">
+              <div class="yn-field-head">
+                <span class="yn-field-label">Alimentos</span>
+                <div class="yn-toggle">
+                  <label class="yn-option"><input type="radio" name="foodsToggle" value="sim" id="foods-yes" /> Sim</label>
+                  <label class="yn-option"><input type="radio" name="foodsToggle" value="nao" id="foods-no" /> Não</label>
+                </div>
+              </div>
+              <div id="foods-list-wrap" hidden>
+                <div id="foods-items-list"></div>
+                <button type="button" class="ghost-btn compact-btn" id="add-food-btn">+ Adicionar item</button>
+              </div>
+            </div>
+
+            <div class="visitors-section">
+              <span class="visitors-section-label">Visitantes</span>
+              <div class="visitor-panel" id="visitor-panel-first"></div>
+            </div>
+
+            <div class="images-section" id="report-images-section">
+              <div class="images-section-head">
+                <span class="images-section-label">Fotos da célula</span>
+                <span id="images-count-label" class="images-count"></span>
+                <button type="button" id="add-image-btn" class="ghost-btn small-btn">+ Adicionar foto</button>
+              </div>
+              <div id="images-list" class="images-grid"></div>
+              <input type="file" id="image-file-input" accept="image/*" multiple hidden />
+            </div>
+
+            <button type="submit" id="generate-report-btn">Gerar relatorio</button>
+          </form>
+
+          <aside class="report-output-box">
+            <div class="report-output-head">
+              <h3>Resultado final</h3>
+              <button type="button" class="ghost-btn" id="copy-report">Copiar texto</button>
+            </div>
+            <div id="report-chart-wrap" hidden>
+              <canvas id="report-chart" width="220" height="220"></canvas>
+              <div id="report-chart-legend" class="chart-legend"></div>
+            </div>
+            <section class="report-averages-box">
+              <h4>Medias dos ultimos 180 dias</h4>
+              <div class="report-averages-grid">
+                <article class="mini-chart-card">
+                  <p>Media da celula</p>
+                  <canvas id="cell-average-chart" width="170" height="170"></canvas>
+                  <div id="cell-average-legend" class="chart-legend"></div>
+                </article>
+                <article class="mini-chart-card" id="overall-average-card">
+                  <p>Media geral</p>
+                  <canvas id="overall-average-chart" width="170" height="170"></canvas>
+                  <div id="overall-average-legend" class="chart-legend"></div>
+                </article>
+              </div>
+            </section>
+            <section class="report-history-box">
+              <div class="report-history-head">
+                <h4>Historico de relatorios</h4>
+                <p id="report-history-count"></p>
+              </div>
+              <div id="report-line-wrap" hidden>
+                <canvas id="report-line-chart" width="340" height="130"></canvas>
+                <div id="report-line-legend" class="chart-legend">
+                  <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#2d8a5e"></span>Presentes</span>
+                  <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#c0392b"></span>Faltantes</span>
+                  <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#2980b9"></span>Visitantes</span>
+                </div>
+              </div>
+              <div id="report-history-list" class="report-history-list"></div>
+            </section>
+            <div id="report-images-gallery" class="report-images-gallery" hidden></div>
+            <textarea id="report-output" rows="24" readonly placeholder="O relatorio sera exibido aqui."></textarea>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Gerenciar acessos -->
+    <div class="modal-backdrop" id="access-modal" hidden>
+      <div class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="access-modal-title">
+        <div class="modal-head">
+          <h2 id="access-modal-title">Gerenciar acessos</h2>
+          <button type="button" class="ghost-btn modal-close" id="close-access-modal">Fechar</button>
+        </div>
+
+        <div class="access-grid">
+          <div class="access-form">
+            <form id="access-form">
+              <input name="userUid" type="hidden" value="" />
+              <label>
+                Nome completo
+                <input name="name" required maxlength="80" />
+              </label>
+              <label id="email-label">
+                E-mail
+                <input name="email" type="email" required maxlength="120" placeholder="lider@exemplo.com" />
+              </label>
+              <label id="password-label">
+                Senha temporaria
+                <input name="password" type="password" required minlength="6" maxlength="80" placeholder="Minimo 6 caracteres" />
+              </label>
+              <label>
+                Cargo
+                <select name="role">
+                  <option value="leader">Lider de Celula</option>
+                  <option value="coordinator">Coordenador</option>
+                  <option value="pastor">Pastor</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </label>
+              <label id="assigned-cell-label">
+                Celula vinculada (para lideres)
+                <select name="assignedCellId" id="access-cell-select">
+                  <option value="">Selecione a celula</option>
+                </select>
+              </label>
+              <label id="scope-cells-label">
+                Celulas supervisionadas (para coordenadores)
+                <textarea name="scopeCellIds" id="access-scope-textarea" rows="3"
+                  placeholder="Selecione as celulas abaixo"></textarea>
+              </label>
+              <div id="scope-cells-checkboxes" style="display:none;border:1px solid var(--line);border-radius:0.6rem;padding:0.6rem;background:var(--surface-2);max-height:160px;overflow-y:auto;margin-top:-0.5rem"></div>
+              <label id="status-label" style="display:none">
+                Status
+                <select name="status">
+                  <option value="active">Ativo</option>
+                  <option value="inactive">Inativo</option>
+                  <option value="pending">Pendente</option>
+                </select>
+              </label>
+              <div class="access-form-actions">
+                <button type="button" id="save-access-button">Salvar acesso</button>
+                <button type="button" class="ghost-btn" id="cancel-access-edit" hidden>Cancelar edicao</button>
+              </div>
+              <p id="access-feedback" class="access-feedback"></p>
+            </form>
+          </div>
+
+          <div class="access-users-box">
+            <div class="access-users-head">
+              <h3>Usuarios cadastrados</h3>
+            </div>
+            <div id="access-users-list" class="access-users-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Visitantes -->
+    <div class="modal-backdrop" id="visitantes-modal" hidden>
+      <div class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="visitantes-modal-title">
+        <div class="modal-head">
+          <h2 id="visitantes-modal-title">Visitantes</h2>
+          <button type="button" class="ghost-btn modal-close" id="close-visitantes-modal">Fechar</button>
+        </div>
+
+        <div class="visitantes-toolbar">
+          <input id="visitantes-search" type="search" placeholder="Buscar por nome..." class="visitantes-search" />
+          <select id="visitantes-cell-filter" class="visitantes-search">
+            <option value="">Todas as celulas</option>
+          </select>
+          <span id="visitantes-count" class="visitantes-count"></span>
+        </div>
+
+        <div id="visitantes-list" class="visitantes-list"></div>
+      </div>
+    </div>
+
+    <!-- MODAL: Estudos em PDF -->
+    <div class="modal-backdrop" id="studies-modal" hidden>
+      <div class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="studies-modal-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="studies-modal-title">Estudos em PDF</h2>
+            <p class="panel-sub">Pastor/Admin podem publicar. Demais níveis acessam em leitura.</p>
+          </div>
+          <button type="button" class="ghost-btn modal-close" id="close-studies-modal">Fechar</button>
+        </div>
+
+        <div class="studies-grid">
+          <section class="studies-form-wrap" id="studies-form-wrap">
+            <form id="study-form" class="studies-form">
+              <input type="hidden" name="studyId" />
+              <label>
+                Título do estudo
+                <input name="title" maxlength="120" required />
+              </label>
+              <label>
+                Descrição (opcional)
+                <textarea name="description" rows="4" placeholder="Resumo do estudo"></textarea>
+              </label>
+              <label>
+                Link do PDF (opcional)
+                <input name="pdfUrl" type="url" placeholder="https://..." />
+              </label>
+              <label>
+                Ou enviar arquivo PDF (opcional)
+                <input name="pdfFile" id="study-pdf-file" type="file" accept="application/pdf" />
+              </label>
+              <div class="access-form-actions">
+                <button type="submit" id="save-study-button">Publicar estudo</button>
+                <button type="button" class="ghost-btn" id="cancel-study-edit" hidden>Cancelar edicao</button>
+              </div>
+              <p id="study-feedback" class="access-feedback"></p>
+            </form>
+          </section>
+
+          <section class="studies-list-wrap">
+            <div class="studies-list-head">
+              <h3>Biblioteca de estudos</h3>
+              <p id="studies-count"></p>
+            </div>
+            <div id="studies-list" class="studies-list"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-    <script src="./firebase-plus.js"></script>
-    <script src="./app.js"></script>
+    <script src="./firebase-plus.js?v=0.1.0-alpha.8"></script>
+    <script src="./app.js?v=0.1.0-alpha.8"></script>
+    <script>
+      (function () {
+        const debugEl = document.getElementById("loading-debug");
+        const showDebug = (msg) => {
+          if (!debugEl) return;
+          debugEl.hidden = false;
+          debugEl.textContent = msg;
+        };
+        window.__renovoShowLoadingDebug = showDebug;
+        window.addEventListener("error", (e) => {
+          const src = e.filename ? e.filename.split("/").pop() : "arquivo-desconhecido";
+          showDebug("Erro: " + (e.message || "falha desconhecida") + " [" + src + "]");
+        });
+        window.addEventListener("unhandledrejection", (e) => {
+          const msg = (e.reason && typeof e.reason === "object" && e.reason.message) || String(e.reason || "promessa rejeitada");
+          showDebug("Falha: " + msg);
+        });
+        setTimeout(() => {
+          const ls = document.getElementById("loading-screen");
+          if (ls && !ls.hidden) showDebug("Inicializacao demorando. Verifique internet e atualize.");
+        }, 10000);
+      })();
+    </script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", async () => {
+          try {
+            const version = encodeURIComponent(String(window.RENOVO_PLUS_VERSION || "dev"));
+            const registration = await navigator.serviceWorker.register(`./service-worker.js?v=${version}`, {
+              scope: "./",
+              updateViaCache: "none",
+            });
+            registration.update().catch(() => {});
+          } catch (_) {}
+        });
+      }
+    </script>
   </body>
 </html>

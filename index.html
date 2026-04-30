@@ -11,6 +11,15 @@
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="manifest.webmanifest" />
+    <meta http-equiv="refresh" content="0; url=./renovo-plus/" />
+    <script>
+      (function () {
+        const target = new URL("./renovo-plus/", window.location.href);
+        target.search = window.location.search;
+        target.hash = window.location.hash;
+        window.location.replace(target.toString());
+      })();
+    </script>
     <script src="app-version.js"></script>
     <link rel="stylesheet" href="styles.css" />
   </head>

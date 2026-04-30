@@ -1,8 +1,9 @@
 {
   "name": "Ambiente Digital",
   "short_name": "Ambiente Digital",
+  "id": "/renovo/ambiente-digital",
   "description": "Base da Renovo+ com autenticacao real, modulos separados e governanca por usuario.",
-  "start_url": "./index.html",
+  "start_url": "./index.html?source=pwa",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",

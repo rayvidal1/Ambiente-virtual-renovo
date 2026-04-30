@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Renovo Celulas</title>
+    <title>Ambiente Digital</title>
     <meta name="theme-color" content="#8b0d12" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="icon" type="image/png" href="../icon.png" />
     <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
-    <link rel="manifest" href="./manifest.webmanifest" />
-    <script src="./app-version.js"></script>
+    <link rel="manifest" href="./manifest.webmanifest?v=0.1.0-alpha.8" />
+    <script src="./app-version.js?v=0.1.0-alpha.8"></script>
     <script>
       (function () {
         if (!("serviceWorker" in navigator)) return;
@@ -39,14 +39,14 @@
         }).catch(function () {});
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=0.1.0-alpha.7" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.0-alpha.8" />
   </head>
   <body>
     <!-- Tela de carregamento -->
     <div id="loading-screen" class="loading-screen">
       <div class="loading-inner">
         <p class="eyebrow">Igreja Renovo</p>
-        <h1 class="loading-title">Ambiente de Células</h1>
+        <h1 class="loading-title">Ambiente Digital</h1>
         <p class="loading-text">Preparando autenticação e dados do sistema.</p>
         <div class="loading-spinner"></div>
         <p id="loading-debug" class="loading-debug" hidden></p>
@@ -60,7 +60,7 @@
     <div id="auth-screen" class="auth-screen" hidden>
       <div class="auth-card">
         <p class="eyebrow">Igreja Renovo</p>
-        <h2 style="margin:0 0 1rem;font-size:clamp(2rem,5vw,3rem)">Ambiente de Células</h2>
+        <h2 style="margin:0 0 1rem;font-size:clamp(2rem,5vw,3rem)">Ambiente Digital</h2>
         <form id="login-form" class="auth-form">
           <label>
             E-mail
@@ -100,7 +100,7 @@
         <section class="home-cards">
           <button class="home-card home-card-celulas" id="go-to-celulas" type="button">
             <span class="home-card-icon">🌿</span>
-            <strong>Ambiente de Células</strong>
+            <strong>Ambiente Digital</strong>
             <small>Gerencie células, membros e relatórios semanais.</small>
           </button>
         </section>
@@ -114,7 +114,7 @@
           <div class="hero-top-row">
             <div>
               <p class="eyebrow">Igreja Renovo</p>
-              <h1>Ambiente de Celulas</h1>
+              <h1>Ambiente Digital</h1>
             </div>
             <div style="display:flex;gap:0.5rem;align-items:center">
               <button id="back-to-home-button" type="button" class="ghost-btn">← Início</button>
@@ -624,8 +624,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-    <script src="./firebase-plus.js?v=0.1.0-alpha.7"></script>
-    <script src="./app.js?v=0.1.0-alpha.7"></script>
+    <script src="./firebase-plus.js?v=0.1.0-alpha.8"></script>
+    <script src="./app.js?v=0.1.0-alpha.8"></script>
     <script>
       (function () {
         const debugEl = document.getElementById("loading-debug");
@@ -648,6 +648,20 @@
           if (ls && !ls.hidden) showDebug("Inicializacao demorando. Verifique internet e atualize.");
         }, 10000);
       })();
+    </script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", async () => {
+          try {
+            const version = encodeURIComponent(String(window.RENOVO_PLUS_VERSION || "dev"));
+            const registration = await navigator.serviceWorker.register(`./service-worker.js?v=${version}`, {
+              scope: "./",
+              updateViaCache: "none",
+            });
+            registration.update().catch(() => {});
+          } catch (_) {}
+        });
+      }
     </script>
   </body>
 </html>

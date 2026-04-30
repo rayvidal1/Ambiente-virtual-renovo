@@ -200,13 +200,15 @@ function bindAuthEvents() {
   loginForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(loginForm);
-    const username = normalizeUsername(formData.get("username"));
+    const username = normalizeUsername(formData.get("email") || formData.get("username"));
     const password = String(formData.get("password") || "");
     const hashedInput = await hashPassword(password);
 
     let user = null;
     for (const entry of users) {
-      if (normalizeUsername(entry.username) !== username) continue;
+      const entryUsername = normalizeUsername(entry.username);
+      const entryEmail = normalizeUsername(entry.email);
+      if (entryUsername !== username && entryEmail !== username) continue;
       const stored = String(entry.password || "");
       if (isPasswordHashed(stored)) {
         if (stored === hashedInput) { user = entry; break; }
@@ -222,7 +224,7 @@ function bindAuthEvents() {
     }
 
     if (!user) {
-      setAuthFeedback("Usuario ou senha invalidos.");
+      setAuthFeedback("E-mail ou senha invalidos.");
       return;
     }
 

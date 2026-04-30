@@ -1,6 +1,6 @@
 {
-  "name": "Renovo+",
-  "short_name": "Renovo+",
+  "name": "Ambiente Digital",
+  "short_name": "Ambiente Digital",
   "description": "Base da Renovo+ com autenticacao real, modulos separados e governanca por usuario.",
   "start_url": "./index.html",
   "scope": "./",

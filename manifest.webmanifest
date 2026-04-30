@@ -1,6 +1,6 @@
 {
-  "name": "Renovo+",
-  "short_name": "Renovo+",
+  "name": "Ambiente Digital",
+  "short_name": "Ambiente Digital",
   "description": "Aplicacao da Igreja Renovo para celulas, membros e visitantes.",
   "start_url": "./renovo-plus/",
   "scope": "./",

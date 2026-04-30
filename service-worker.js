@@ -1,6 +1,7 @@
 importScripts("./app-version.js");
 
 const CACHE_NAME = "renovo-static-" + String(self.RENOVO_APP_VERSION || "dev");
+const RENOVO_PLUS_URL = new URL("./renovo-plus/", self.registration.scope);
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -45,10 +46,19 @@ self.addEventListener("fetch", (event) => {
 
   const requestUrl = new URL(request.url);
   const isSameOrigin = requestUrl.origin === self.location.origin;
+  const isRootLegacyApp = isSameOrigin && (
+    requestUrl.pathname === new URL("./", self.registration.scope).pathname
+    || requestUrl.pathname === new URL("./index.html", self.registration.scope).pathname
+  );
   const isIsolatedV2Route = isSameOrigin && (
     requestUrl.pathname.includes("/renovo-plus/")
     || /\/plus(\/|$)/.test(requestUrl.pathname)
   );
+
+  if (request.mode === "navigate" && isRootLegacyApp) {
+    event.respondWith(Response.redirect(RENOVO_PLUS_URL.href, 302));
+    return;
+  }
 
   // The Renovo+ route is evolving separately from the V1 PWA.
   // Let the browser fetch it directly so the root SW does not pin old JS/CSS.

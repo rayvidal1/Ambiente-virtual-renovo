@@ -1,13 +1,13 @@
-﻿{
-  "name": "Ambiente Digital Renovo",
-  "short_name": "Renovo",
+{
+  "name": "Renovo+",
+  "short_name": "Renovo+",
   "description": "Aplicacao da Igreja Renovo para celulas, membros e visitantes.",
-  "start_url": "./index.html",
+  "start_url": "./renovo-plus/",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#ffffff",
-  "theme_color": "#8b0d12",
+  "background_color": "#f5eadf",
+  "theme_color": "#7c1d18",
   "icons": [
     {
       "src": "./pwa-192.png",
@@ -23,4 +23,3 @@
     }
   ]
 }
-

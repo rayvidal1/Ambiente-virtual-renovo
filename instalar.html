@@ -7,7 +7,34 @@
     <meta name="theme-color" content="#8b0d12" />
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <link rel="manifest" href="manifest.webmanifest" />
+    <script>
+      (function () {
+        const url = new URL(window.location.href);
+        const alreadyReset = url.searchParams.get("cache-reset") === "1";
+        if (!alreadyReset && "serviceWorker" in navigator) {
+          window.__renovoInstallerResetting = true;
+          Promise.all([
+            navigator.serviceWorker.getRegistrations()
+              .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister().catch(() => false))))
+              .catch(() => []),
+            "caches" in window
+              ? caches.keys()
+                  .then((keys) => Promise.all(keys.filter((key) => /^renovo-/.test(key)).map((key) => caches.delete(key))))
+                  .catch(() => [])
+              : Promise.resolve([]),
+          ]).finally(() => {
+            url.searchParams.set("cache-reset", "1");
+            window.location.replace(url.toString());
+          });
+          return;
+        }
+
+        const manifest = document.createElement("link");
+        manifest.rel = "manifest";
+        manifest.href = "manifest.webmanifest?v=20260430-install-clean";
+        document.head.appendChild(manifest);
+      })();
+    </script>
     <script src="app-version.js"></script>
     <link rel="stylesheet" href="styles.css" />
     <style>
@@ -124,6 +151,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script>
       (function () {
+        if (window.__renovoInstallerResetting) return;
         const canvas = document.getElementById("qr-canvas");
         const url = "https://devr1136.github.io/renovo/instalar.html?install=1";
         new QRCode(canvas, {
@@ -151,6 +179,7 @@
     </script>
     <script>
       (function () {
+        if (window.__renovoInstallerResetting) return;
         const ua = navigator.userAgent || "";
         const isIOS = /iphone|ipad|ipod/i.test(ua) && !window.MSStream;
         const isAndroid = /android/i.test(ua);
@@ -214,10 +243,12 @@
         }
       })();
 
-      if ("serviceWorker" in navigator) {
+      if (!window.__renovoInstallerResetting && "serviceWorker" in navigator) {
         window.addEventListener("load", async () => {
           try {
-            const reg = await navigator.serviceWorker.register("./service-worker.js");
+            const reg = await navigator.serviceWorker.register("./service-worker.js?v=20260430-install-clean", {
+              updateViaCache: "none",
+            });
             reg.update().catch(() => {});
             navigator.serviceWorker.addEventListener("controllerchange", () => {
               window.location.reload();

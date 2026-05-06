@@ -12,6 +12,7 @@
     profiles: [],  // only loaded for admin/pastor
     arenaKidsCadastros: [],
     visitantesCulto: [],
+    bannerHome: null,
   };
 
   // current items being edited
@@ -65,6 +66,10 @@
 
   function canAccessAdmin() {
     return isAdmin() || isPastor();
+  }
+
+  function currentIgrejaId() {
+    return String(session?.igrejaId || "renovo").trim() || "renovo";
   }
 
   function canAccessCelulas() {
@@ -266,6 +271,10 @@
     $("go-to-arena-kids")?.addEventListener("click", enterArenaKidsScreen);
     $("go-to-recepcao")?.addEventListener("click", enterRecepcaoScreen);
     $("go-to-admin")?.addEventListener("click", enterAdminScreen);
+    $("home-banner-wrap")?.addEventListener("click", (event) => {
+      const link = event.target.closest("[data-banner-link]")?.dataset.bannerLink;
+      if (link) window.open(link, "_blank", "noopener");
+    });
   }
 
   function renderHomeScreen() {
@@ -282,8 +291,41 @@
     if (arenaKidsCard) arenaKidsCard.hidden = !canAccessArenaKids();
     if (recepcaoCard) recepcaoCard.hidden = !canAccessRecepcao();
     if (adminCard) adminCard.hidden = !canAccessAdmin();
+    renderHomeBanner(null);
+    loadAndRenderHomeBanner();
 
     showScreen("home-screen", { replace: true });
+  }
+
+  async function loadAndRenderHomeBanner() {
+    if (isAdmin()) {
+      renderHomeBanner(null);
+      return;
+    }
+    try {
+      const banner = await fb().loadBannerHome(currentIgrejaId());
+      state.bannerHome = banner;
+      renderHomeBanner(banner);
+    } catch (err) {
+      console.warn("[Renovo+] banner home:", err?.message || err);
+      renderHomeBanner(null);
+    }
+  }
+
+  function renderHomeBanner(banner) {
+    const wrap = $("home-banner-wrap");
+    if (!wrap) return;
+    if (!banner || banner.ativo !== true || !banner.imageUrl) {
+      wrap.hidden = true;
+      wrap.innerHTML = "";
+      return;
+    }
+    const image = `<img src="${escHtml(banner.imageUrl)}" alt="" loading="lazy" />`;
+    const text = banner.text ? `<p>${escHtml(banner.text)}</p>` : "";
+    wrap.innerHTML = banner.link
+      ? `<button type="button" class="home-banner-card" data-banner-link="${escHtml(banner.link)}">${image}${text}</button>`
+      : `<div class="home-banner-card">${image}${text}</div>`;
+    wrap.hidden = false;
   }
 
   // ─── APP SHELL ────────────────────────────────────────────────────────────
@@ -350,6 +392,7 @@
       renderCellsList();
       openModal("cells-modal");
     });
+    $("banner-home-form")?.addEventListener("submit", handleBannerHomeSubmit);
   }
 
   async function enterAdminScreen() {
@@ -358,6 +401,7 @@
     setLoadingText("Carregando administra\u00e7\u00e3o...");
     try {
       await loadAllData();
+      state.bannerHome = await fb().loadBannerHome(currentIgrejaId());
       renderAdminScreen();
       showScreen("admin-screen");
     } catch (err) {
@@ -372,6 +416,45 @@
     const totalCells = $("admin-total-cells");
     if (totalUsers) totalUsers.textContent = state.profiles.length;
     if (totalCells) totalCells.textContent = state.cells.length;
+    populateBannerHomeForm();
+  }
+
+  function populateBannerHomeForm() {
+    const form = $("banner-home-form");
+    if (!form) return;
+    const banner = state.bannerHome || {};
+    form.elements.imageUrl.value = banner.imageUrl || "";
+    form.elements.link.value = banner.link || "";
+    form.elements.text.value = banner.text || "";
+    form.elements.ativo.checked = banner.ativo !== false;
+    showFeedback("banner-home-feedback", "");
+  }
+
+  async function handleBannerHomeSubmit(event) {
+    event.preventDefault();
+    if (!canAccessAdmin()) return;
+    const form = event.currentTarget;
+    const btn = $("save-banner-home-button");
+    const imageUrl = form.elements.imageUrl.value.trim();
+    if (!imageUrl) {
+      showFeedback("banner-home-feedback", "Informe a URL da imagem.", true);
+      form.elements.imageUrl.focus();
+      return;
+    }
+    setButtonLoading(btn, true, "Salvando...");
+    try {
+      state.bannerHome = await fb().saveBannerHome(currentIgrejaId(), {
+        imageUrl,
+        link: form.elements.link.value.trim(),
+        text: form.elements.text.value.trim(),
+        ativo: form.elements.ativo.checked,
+      }, session.uid);
+      showFeedback("banner-home-feedback", "Banner salvo!");
+    } catch (err) {
+      showFeedback("banner-home-feedback", "Erro: " + (err?.message || err), true);
+    } finally {
+      setButtonLoading(btn, false);
+    }
   }
 
   // ─── DATA LOADING ─────────────────────────────────────────────────────────
@@ -406,7 +489,7 @@
   async function handleLogout() {
     try { await fb().signOut(); } catch (_) {}
     session = null;
-    state = { cells: [], reports: [], studies: [], visitors: [], profiles: [], arenaKidsCadastros: [], visitantesCulto: [] };
+    state = { cells: [], reports: [], studies: [], visitors: [], profiles: [], arenaKidsCadastros: [], visitantesCulto: [], bannerHome: null };
   }
 
   function setLoadingText(msg) {
@@ -1507,7 +1590,7 @@
           throw new Error("Seu perfil nao pode gerenciar este usuario.");
         }
         console.log("[access] updating existing profile...");
-        await fb().saveUserProfile(uid, { name, role, status, primaryCellId, scopeCellIds: scopeIds });
+        await fb().saveUserProfile(uid, { name, role, status, igrejaId: currentIgrejaId(), primaryCellId, scopeCellIds: scopeIds });
         console.log("[access] profile updated");
         showFeedback("access-feedback", "Perfil atualizado!");
       } else {
@@ -1515,11 +1598,11 @@
         if (password.length < 6) throw new Error("Senha temporária: mínimo 6 caracteres.");
         console.log("[access] calling provisionManagedAccess...");
         const { uid: newUid } = await fb().provisionManagedAccess(
-          { name, email, temporaryPassword: password, role: "pending", status: "pending", primaryCellId: "", scopeCellIds: [] },
+          { name, email, temporaryPassword: password, role: "pending", status: "pending", igrejaId: currentIgrejaId(), primaryCellId: "", scopeCellIds: [] },
           {}
         );
         console.log("[access] provisionManagedAccess done, newUid=%s", newUid);
-        await fb().saveUserProfile(newUid, { name, role, status: "active", primaryCellId, scopeCellIds: scopeIds });
+        await fb().saveUserProfile(newUid, { name, role, status: "active", igrejaId: currentIgrejaId(), primaryCellId, scopeCellIds: scopeIds });
         console.log("[access] saveUserProfile done");
         showFeedback("access-feedback", `Acesso criado para ${email}!`);
         form.reset();
@@ -2063,6 +2146,7 @@
         email: profile.email,
         role: profile.role,
         status: profile.status,
+        igrejaId: profile.igrejaId || "renovo",
         primaryCellId: profile.primaryCellId || "",
         scopeCellIds: profile.scopeCellIds || [],
       };
@@ -2112,7 +2196,7 @@
       if (!user) {
         session = null;
         authHandled = false;
-        state = { cells: [], reports: [], studies: [], visitors: [], profiles: [], arenaKidsCadastros: [], visitantesCulto: [] };
+        state = { cells: [], reports: [], studies: [], visitors: [], profiles: [], arenaKidsCadastros: [], visitantesCulto: [], bannerHome: null };
         showScreen("auth-screen");
       } else if (newUid !== currentUid) {
         // New user signed in (or first load with existing session)

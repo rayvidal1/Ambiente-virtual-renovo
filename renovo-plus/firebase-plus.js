@@ -3,6 +3,7 @@
   const COLLECTIONS = {
     users: "renovo_plus_users",
     meta: "renovo_plus_meta",
+    igrejas: "igrejas",
     cells: "renovo_plus_cells",
     members: "renovo_plus_members",
     reports: "renovo_plus_reports",
@@ -39,6 +40,7 @@
     storage: null,
     currentUser: null,
   };
+  const DEFAULT_IGREJA_ID = "renovo";
 
   const authListeners = new Set();
   let initialized = false;
@@ -119,6 +121,11 @@
     return "pending";
   }
 
+  function normalizeIgrejaId(value) {
+    const normalized = String(value || "").trim();
+    return normalized || DEFAULT_IGREJA_ID;
+  }
+
   function hasPastoralAccess(profile) {
     return ["admin", "pastor", "coordinator"].includes(String(profile?.role || "").trim());
   }
@@ -138,6 +145,7 @@
       email: String(data.email || "").trim(),
       role: normalizeRole(data.role),
       status: normalizeStatus(data.status),
+      igrejaId: normalizeIgrejaId(data.igrejaId),
       primaryCellId: String(data.primaryCellId || "").trim(),
       scopeCellIds,
       ministryName: String(data.ministryName || "").trim(),
@@ -324,6 +332,24 @@
       updatedAt: String(data.updatedAt || "").trim(),
       createdByUid: String(data.createdByUid || "").trim(),
       updatedByUid: String(data.updatedByUid || "").trim(),
+    };
+  }
+
+  function normalizeBannerHome(data) {
+    if (!data || typeof data !== "object") {
+      return null;
+    }
+    const imageUrl = String(data.imageUrl || "").trim();
+    if (!imageUrl) {
+      return null;
+    }
+    return {
+      imageUrl,
+      link: String(data.link || "").trim(),
+      text: String(data.text || "").trim(),
+      ativo: data.ativo !== false,
+      updatedAt: data.updatedAt || "",
+      updatedBy: String(data.updatedBy || "").trim(),
     };
   }
 
@@ -867,6 +893,7 @@
       email: normalizedEmail,
       role: isFirstProfile ? "admin" : "pending",
       status: isFirstProfile ? "active" : "pending",
+      igrejaId: DEFAULT_IGREJA_ID,
       primaryCellId: "",
       scopeCellIds: [],
       ministryName: "",
@@ -901,6 +928,42 @@
       throw new Error("Informe um e-mail para redefinir a senha.");
     }
     return api.auth.sendPasswordResetEmail(normalizedEmail);
+  }
+
+  function igrejaConfigDoc(igrejaId, docId) {
+    return api.db
+      .collection(COLLECTIONS.igrejas)
+      .doc(normalizeIgrejaId(igrejaId))
+      .collection("config")
+      .doc(docId);
+  }
+
+  async function loadBannerHome(igrejaId) {
+    initialize();
+    if (!api.db) return null;
+    const snapshot = await igrejaConfigDoc(igrejaId, "bannerHome").get();
+    return snapshot.exists ? normalizeBannerHome(snapshot.data()) : null;
+  }
+
+  async function saveBannerHome(igrejaId, patch, uid) {
+    initialize();
+    if (!api.db) {
+      throw new Error("Firestore indisponivel na Renovo+.");
+    }
+    const imageUrl = String(patch?.imageUrl || "").trim();
+    if (!imageUrl) {
+      throw new Error("Informe a URL da imagem do banner.");
+    }
+    const payload = {
+      imageUrl,
+      link: String(patch?.link || "").trim(),
+      text: String(patch?.text || "").trim(),
+      ativo: patch?.ativo !== false,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: String(uid || api.currentUser?.uid || "").trim(),
+    };
+    await igrejaConfigDoc(igrejaId, "bannerHome").set(payload, { merge: true });
+    return normalizeBannerHome({ ...payload, updatedAt: new Date() });
   }
 
   function createSecondaryApp() {
@@ -1013,6 +1076,7 @@
       email: String(patch?.email || current?.email || "").toLowerCase().trim(),
       role: normalizeRole(patch?.role || current?.role),
       status: normalizeStatus(patch?.status || current?.status),
+      igrejaId: normalizeIgrejaId(patch?.igrejaId || current?.igrejaId),
       primaryCellId: String(patch?.primaryCellId || current?.primaryCellId || "").trim(),
       scopeCellIds: Array.isArray(patch?.scopeCellIds)
         ? patch.scopeCellIds.map((id) => String(id || "").trim()).filter(Boolean)
@@ -1062,6 +1126,7 @@
         email: canonicalEmail,
         role: "pending",
         status: "pending",
+        igrejaId: normalizeIgrejaId(patch?.igrejaId),
         primaryCellId: "",
         scopeCellIds: [],
         ministryName: "",
@@ -1082,6 +1147,7 @@
       email: String(created.canonicalEmail || normalizedEmail).toLowerCase().trim(),
       role: String(patch?.role || "pending").trim(),
       status: String(patch?.status || "pending").trim(),
+      igrejaId: normalizeIgrejaId(patch?.igrejaId),
       primaryCellId: String(patch?.primaryCellId || "").trim(),
       scopeCellIds: Array.isArray(patch?.scopeCellIds) ? patch.scopeCellIds : [],
       ministryName: String(patch?.ministryName || "").trim(),
@@ -2124,6 +2190,8 @@
     signUpWithEmail,
     signOut,
     sendPasswordReset,
+    loadBannerHome,
+    saveBannerHome,
     loadUserProfile,
     listProfiles,
     hasAnyProfiles,

@@ -10,8 +10,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="icon" type="image/png" href="../icon.png" />
     <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=0.1.0-alpha.13" />
-    <script src="./app-version.js?v=0.1.0-alpha.13"></script>
+    <link rel="manifest" href="./manifest.webmanifest?v=0.1.0-alpha.14" />
+    <script src="./app-version.js?v=0.1.0-alpha.14"></script>
     <script>
       (function () {
         if (!("serviceWorker" in navigator)) return;
@@ -39,7 +39,7 @@
         }).catch(function () {});
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=0.1.0-alpha.13" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.0-alpha.14" />
   </head>
   <body>
     <!-- Tela de carregamento -->
@@ -119,6 +119,8 @@
             <small>Gerencie usu&aacute;rios, c&eacute;lulas e configura&ccedil;&otilde;es da igreja.</small>
           </button>
         </section>
+
+        <section id="home-banner-wrap" class="home-banner-wrap" hidden></section>
       </main>
     </div>
 
@@ -268,6 +270,35 @@
               <small>Veja, edite e organize as c&eacute;lulas cadastradas.</small>
             </span>
           </button>
+        </section>
+
+        <section class="admin-banner-panel">
+          <div class="admin-banner-head">
+            <div>
+              <h2>Gerenciar Banner da Home</h2>
+              <p>Configure o banner exibido para a opera&ccedil;&atilde;o da igreja.</p>
+            </div>
+          </div>
+          <form id="banner-home-form" class="env-form admin-banner-form">
+            <label>
+              URL da imagem <span class="req-mark">*</span>
+              <input name="imageUrl" type="url" required placeholder="https://..." />
+            </label>
+            <label>
+              Link ao clicar
+              <input name="link" type="url" placeholder="https://..." />
+            </label>
+            <label>
+              Texto
+              <textarea name="text" rows="3" placeholder="Texto opcional do banner"></textarea>
+            </label>
+            <label class="inline-check-label">
+              <input name="ativo" type="checkbox" checked />
+              Ativo
+            </label>
+            <p id="banner-home-feedback" class="access-feedback"></p>
+            <button type="submit" id="save-banner-home-button" class="env-submit-btn">Salvar banner</button>
+          </form>
         </section>
       </main>
     </div>
@@ -809,8 +840,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-    <script src="./firebase-plus.js?v=0.1.0-alpha.13"></script>
-    <script src="./app.js?v=0.1.0-alpha.13"></script>
+    <script src="./firebase-plus.js?v=0.1.0-alpha.14"></script>
+    <script src="./app.js?v=0.1.0-alpha.14"></script>
     <script>
       (function () {
         const debugEl = document.getElementById("loading-debug");

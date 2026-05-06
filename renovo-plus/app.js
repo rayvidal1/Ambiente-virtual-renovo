@@ -10,6 +10,8 @@
     studies: [],
     visitors: [],
     profiles: [],  // only loaded for admin/pastor
+    arenaKidsCadastros: [],
+    visitantesCulto: [],
   };
 
   // current items being edited
@@ -117,7 +119,7 @@
 
   // ─── SCREEN MANAGEMENT ────────────────────────────────────────────────────
   function showScreen(name) {
-    ["loading-screen", "auth-screen", "home-screen", "app-shell"].forEach((id) => {
+    ["loading-screen", "auth-screen", "home-screen", "app-shell", "arena-kids-screen", "recepcao-screen"].forEach((id) => {
       const el = $(id);
       if (el) el.hidden = id !== name;
     });
@@ -203,6 +205,8 @@
   function setupHomeScreen() {
     $("home-logout-button")?.addEventListener("click", handleLogout);
     $("go-to-celulas")?.addEventListener("click", enterAppShell);
+    $("go-to-arena-kids")?.addEventListener("click", enterArenaKidsScreen);
+    $("go-to-recepcao")?.addEventListener("click", enterRecepcaoScreen);
   }
 
   function renderHomeScreen() {
@@ -297,7 +301,7 @@
   async function handleLogout() {
     try { await fb().signOut(); } catch (_) {}
     session = null;
-    state = { cells: [], reports: [], studies: [], visitors: [], profiles: [] };
+    state = { cells: [], reports: [], studies: [], visitors: [], profiles: [], arenaKidsCadastros: [], visitantesCulto: [] };
   }
 
   function setLoadingText(msg) {
@@ -1618,6 +1622,283 @@
     } catch (err) { alert("Erro: " + (err.message || err)); }
   };
 
+  // ─── ARENA KIDS ───────────────────────────────────────────────────────────
+  let lastCreatedArenaKidsId = null;
+
+  function setupArenaKidsScreen() {
+    $("arena-kids-back")?.addEventListener("click", () => showScreen("home-screen"));
+    $("arena-kids-logout")?.addEventListener("click", handleLogout);
+    $("arena-kids-new-btn")?.addEventListener("click", () => {
+      $("arena-kids-list-section").hidden = true;
+      $("arena-kids-form-section").hidden = false;
+      $("arena-kids-form")?.reset();
+      const errEl = $("arena-kids-form-error");
+      if (errEl) errEl.hidden = true;
+      setTimeout(() => $("arena-kids-form")?.querySelector('[name="nomeCrianca"]')?.focus(), 50);
+    });
+    $("arena-kids-cancel-form")?.addEventListener("click", () => {
+      $("arena-kids-form-section").hidden = true;
+      $("arena-kids-list-section").hidden = false;
+    });
+    $("arena-kids-search")?.addEventListener("input", renderArenaKidsList);
+    $("arena-kids-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await handleArenaKidsSubmit(e.target);
+    });
+  }
+
+  async function enterArenaKidsScreen() {
+    showScreen("arena-kids-screen");
+    $("arena-kids-form-section").hidden = true;
+    $("arena-kids-list-section").hidden = false;
+    const loadingEl = $("arena-kids-loading");
+    const emptyEl = $("arena-kids-empty");
+    const listEl = $("arena-kids-list");
+    if (loadingEl) loadingEl.hidden = false;
+    if (emptyEl) emptyEl.hidden = true;
+    if (listEl) listEl.innerHTML = "";
+    try {
+      state.arenaKidsCadastros = await fb().listArenaKidsCadastros();
+    } catch (err) {
+      console.error("[Renovo+] arenaKids load:", err);
+      state.arenaKidsCadastros = [];
+    }
+    if (loadingEl) loadingEl.hidden = true;
+    renderArenaKidsList();
+  }
+
+  function renderArenaKidsList() {
+    const search = ($("arena-kids-search")?.value || "").toLowerCase().trim();
+    const list = state.arenaKidsCadastros.filter((item) => {
+      if (!search) return true;
+      return (
+        String(item.nomeCrianca || "").toLowerCase().includes(search) ||
+        String(item.nomeResponsavel || "").toLowerCase().includes(search) ||
+        String(item.telefone || "").includes(search)
+      );
+    });
+    const container = $("arena-kids-list");
+    const emptyEl = $("arena-kids-empty");
+    if (!container) return;
+    if (!list.length) {
+      container.innerHTML = "";
+      if (emptyEl) emptyEl.hidden = false;
+      return;
+    }
+    if (emptyEl) emptyEl.hidden = true;
+    container.innerHTML = list.map((item) => {
+      const phone = String(item.telefone || "").replace(/\D/g, "");
+      const waLink = phone
+        ? `<a href="https://wa.me/55${phone}" target="_blank" rel="noopener" class="whatsapp-btn">WhatsApp</a>`
+        : "";
+      const isNew = item.id === lastCreatedArenaKidsId;
+      return `<div class="env-list-item${isNew ? " env-item-new" : ""}" data-id="${escHtml(item.id)}">
+        <div class="env-item-main">
+          <strong class="env-item-name">${escHtml(item.nomeCrianca)}</strong>
+          ${item.idade ? `<span class="env-item-detail">${escHtml(item.idade)}</span>` : ""}
+          <small class="env-item-sub">Resp: ${escHtml(item.nomeResponsavel)}</small>
+          ${item.telefone ? `<small class="env-item-sub">${escHtml(item.telefone)}</small>` : ""}
+        </div>
+        ${waLink ? `<div class="env-item-actions">${waLink}</div>` : ""}
+      </div>`;
+    }).join("");
+  }
+
+  async function handleArenaKidsSubmit(form) {
+    const nomeCrianca = form.elements.nomeCrianca.value.trim();
+    const nomeResponsavel = form.elements.nomeResponsavel.value.trim();
+    const telefone = form.elements.telefone.value.trim();
+    const errEl = $("arena-kids-form-error");
+
+    if (!nomeCrianca) {
+      if (errEl) { errEl.textContent = "Informe o nome da criança."; errEl.hidden = false; }
+      form.elements.nomeCrianca.focus();
+      return;
+    }
+    if (!nomeResponsavel) {
+      if (errEl) { errEl.textContent = "Informe o nome do responsável."; errEl.hidden = false; }
+      form.elements.nomeResponsavel.focus();
+      return;
+    }
+    if (!telefone) {
+      if (errEl) { errEl.textContent = "Informe o telefone do responsável."; errEl.hidden = false; }
+      form.elements.telefone.focus();
+      return;
+    }
+
+    const btn = $("arena-kids-submit-btn");
+    setButtonLoading(btn, true, "Salvando...");
+    if (errEl) errEl.hidden = true;
+
+    try {
+      const saved = await fb().saveArenaKidsCadastro({
+        nomeCrianca,
+        idade: form.elements.idade.value.trim(),
+        nomeResponsavel,
+        telefone,
+        endereco: form.elements.endereco.value.trim(),
+        observacoes: form.elements.observacoes.value.trim(),
+        igrejaId: "",
+      }, session.uid);
+
+      lastCreatedArenaKidsId = saved.id;
+      state.arenaKidsCadastros = await fb().listArenaKidsCadastros();
+
+      form.reset();
+      $("arena-kids-form-section").hidden = true;
+      $("arena-kids-list-section").hidden = false;
+      renderArenaKidsList();
+      showEnvFeedback("Cadastro realizado ✅");
+
+      setTimeout(() => {
+        lastCreatedArenaKidsId = null;
+        renderArenaKidsList();
+      }, 3000);
+    } catch (err) {
+      if (errEl) { errEl.textContent = "Erro ao salvar: " + (err.message || err); errEl.hidden = false; }
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  }
+
+  // ─── RECEPÇÃO ─────────────────────────────────────────────────────────────
+  let lastCreatedRecepcaoId = null;
+
+  function setupRecepcaoScreen() {
+    $("recepcao-back")?.addEventListener("click", () => showScreen("home-screen"));
+    $("recepcao-logout")?.addEventListener("click", handleLogout);
+    $("recepcao-new-btn")?.addEventListener("click", () => {
+      $("recepcao-list-section").hidden = true;
+      $("recepcao-form-section").hidden = false;
+      $("recepcao-form")?.reset();
+      const errEl = $("recepcao-form-error");
+      if (errEl) errEl.hidden = true;
+      setTimeout(() => $("recepcao-form")?.querySelector('[name="nome"]')?.focus(), 50);
+    });
+    $("recepcao-cancel-form")?.addEventListener("click", () => {
+      $("recepcao-form-section").hidden = true;
+      $("recepcao-list-section").hidden = false;
+    });
+    $("recepcao-search")?.addEventListener("input", renderRecepcaoList);
+    $("recepcao-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await handleRecepcaoSubmit(e.target);
+    });
+  }
+
+  async function enterRecepcaoScreen() {
+    showScreen("recepcao-screen");
+    $("recepcao-form-section").hidden = true;
+    $("recepcao-list-section").hidden = false;
+    const loadingEl = $("recepcao-loading");
+    const emptyEl = $("recepcao-empty");
+    const listEl = $("recepcao-list");
+    if (loadingEl) loadingEl.hidden = false;
+    if (emptyEl) emptyEl.hidden = true;
+    if (listEl) listEl.innerHTML = "";
+    try {
+      state.visitantesCulto = await fb().listVisitantesCulto();
+    } catch (err) {
+      console.error("[Renovo+] recepcao load:", err);
+      state.visitantesCulto = [];
+    }
+    if (loadingEl) loadingEl.hidden = true;
+    renderRecepcaoList();
+  }
+
+  function renderRecepcaoList() {
+    const search = ($("recepcao-search")?.value || "").toLowerCase().trim();
+    const list = state.visitantesCulto.filter((item) => {
+      if (!search) return true;
+      return (
+        String(item.nome || "").toLowerCase().includes(search) ||
+        String(item.telefone || "").includes(search)
+      );
+    });
+    const container = $("recepcao-list");
+    const emptyEl = $("recepcao-empty");
+    if (!container) return;
+    if (!list.length) {
+      container.innerHTML = "";
+      if (emptyEl) emptyEl.hidden = false;
+      return;
+    }
+    if (emptyEl) emptyEl.hidden = true;
+    container.innerHTML = list.map((item) => {
+      const phone = String(item.telefone || "").replace(/\D/g, "");
+      const waLink = phone
+        ? `<a href="https://wa.me/55${phone}" target="_blank" rel="noopener" class="whatsapp-btn">WhatsApp</a>`
+        : "";
+      const isNew = item.id === lastCreatedRecepcaoId;
+      return `<div class="env-list-item${isNew ? " env-item-new" : ""}" data-id="${escHtml(item.id)}">
+        <div class="env-item-main">
+          <strong class="env-item-name">${escHtml(item.nome)}</strong>
+          ${item.telefone ? `<small class="env-item-sub">${escHtml(item.telefone)}</small>` : ""}
+        </div>
+        ${waLink ? `<div class="env-item-actions">${waLink}</div>` : ""}
+      </div>`;
+    }).join("");
+  }
+
+  async function handleRecepcaoSubmit(form) {
+    const nome = form.elements.nome.value.trim();
+    const errEl = $("recepcao-form-error");
+
+    if (!nome) {
+      if (errEl) { errEl.textContent = "Informe o nome do visitante."; errEl.hidden = false; }
+      form.elements.nome.focus();
+      return;
+    }
+
+    const btn = $("recepcao-submit-btn");
+    setButtonLoading(btn, true, "Salvando...");
+    if (errEl) errEl.hidden = true;
+
+    try {
+      const saved = await fb().saveVisitanteCulto({
+        nome,
+        telefone: form.elements.telefone.value.trim(),
+        observacoes: form.elements.observacoes.value.trim(),
+        igrejaId: "",
+      }, session.uid);
+
+      lastCreatedRecepcaoId = saved.id;
+      state.visitantesCulto = await fb().listVisitantesCulto();
+
+      form.reset();
+      $("recepcao-form-section").hidden = true;
+      $("recepcao-list-section").hidden = false;
+      renderRecepcaoList();
+      showEnvFeedback("Cadastro realizado ✅");
+
+      setTimeout(() => {
+        lastCreatedRecepcaoId = null;
+        renderRecepcaoList();
+      }, 3000);
+    } catch (err) {
+      if (errEl) { errEl.textContent = "Erro ao salvar: " + (err.message || err); errEl.hidden = false; }
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  }
+
+  function showEnvFeedback(msg) {
+    const existing = document.getElementById("env-feedback-toast");
+    if (existing) existing.remove();
+    const toast = document.createElement("div");
+    toast.id = "env-feedback-toast";
+    toast.className = "env-feedback-toast";
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { toast.classList.add("env-feedback-toast--visible"); });
+    });
+    setTimeout(() => {
+      toast.classList.remove("env-feedback-toast--visible");
+      setTimeout(() => toast.remove(), 400);
+    }, 2600);
+  }
+
   // ─── BOOTSTRAP ────────────────────────────────────────────────────────────
   let authHandled = false;
 
@@ -1698,6 +1979,8 @@
     setupAccessModal();
     setupStudiesModal();
     setupVisitantesModal();
+    setupArenaKidsScreen();
+    setupRecepcaoScreen();
 
     // Close modals on backdrop click
     document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
@@ -1715,7 +1998,7 @@
       if (!user) {
         session = null;
         authHandled = false;
-        state = { cells: [], reports: [], studies: [], visitors: [], profiles: [] };
+        state = { cells: [], reports: [], studies: [], visitors: [], profiles: [], arenaKidsCadastros: [], visitantesCulto: [] };
         showScreen("auth-screen");
       } else if (newUid !== currentUid) {
         // New user signed in (or first load with existing session)

@@ -2055,6 +2055,67 @@
     return summary;
   }
 
+  async function saveArenaKidsCadastro(data, actorUid) {
+    initialize();
+    if (!api.db) throw new Error("Firestore indisponivel.");
+    const col = "arenaKidsCadastros";
+    const ref = data.id ? api.db.collection(col).doc(data.id) : api.db.collection(col).doc();
+    const now = new Date().toISOString();
+    const doc = {
+      id: ref.id,
+      nomeCrianca: String(data.nomeCrianca || "").trim(),
+      idade: String(data.idade || "").trim(),
+      nomeResponsavel: String(data.nomeResponsavel || "").trim(),
+      telefone: String(data.telefone || "").trim(),
+      endereco: String(data.endereco || "").trim(),
+      observacoes: String(data.observacoes || "").trim(),
+      criadoEm: data.criadoEm || now,
+      criadoPor: String(actorUid || "").trim(),
+      igrejaId: String(data.igrejaId || "").trim(),
+    };
+    await ref.set(doc);
+    return doc;
+  }
+
+  async function listArenaKidsCadastros() {
+    initialize();
+    if (!api.db) throw new Error("Firestore indisponivel.");
+    const snap = await api.db.collection("arenaKidsCadastros")
+      .orderBy("criadoEm", "desc")
+      .limit(500)
+      .get();
+    return snap.docs.map((d) => d.data());
+  }
+
+  async function saveVisitanteCulto(data, actorUid) {
+    initialize();
+    if (!api.db) throw new Error("Firestore indisponivel.");
+    const col = "visitantesCulto";
+    const ref = data.id ? api.db.collection(col).doc(data.id) : api.db.collection(col).doc();
+    const now = new Date().toISOString();
+    const doc = {
+      id: ref.id,
+      nome: String(data.nome || "").trim(),
+      telefone: String(data.telefone || "").trim(),
+      observacoes: String(data.observacoes || "").trim(),
+      criadoEm: data.criadoEm || now,
+      criadoPor: String(actorUid || "").trim(),
+      igrejaId: String(data.igrejaId || "").trim(),
+    };
+    await ref.set(doc);
+    return doc;
+  }
+
+  async function listVisitantesCulto() {
+    initialize();
+    if (!api.db) throw new Error("Firestore indisponivel.");
+    const snap = await api.db.collection("visitantesCulto")
+      .orderBy("criadoEm", "desc")
+      .limit(500)
+      .get();
+    return snap.docs.map((d) => d.data());
+  }
+
   window.renovoPlusFirebase = {
     initialize,
     waitForAuthReady,
@@ -2090,6 +2151,10 @@
     listAllCells,
     loadLegacySummary,
     importLegacyData,
+    saveArenaKidsCadastro,
+    listArenaKidsCadastros,
+    saveVisitanteCulto,
+    listVisitantesCulto,
     get collections() {
       return COLLECTIONS;
     },

@@ -103,6 +103,16 @@
             <strong>Ambiente Digital</strong>
             <small>Gerencie células, membros e relatórios semanais.</small>
           </button>
+          <button class="home-card home-card-arena-kids" id="go-to-arena-kids" type="button">
+            <span class="home-card-icon">🎈</span>
+            <strong>Arena Kids</strong>
+            <small>Cadastre crianças, responsáveis e informações importantes.</small>
+          </button>
+          <button class="home-card home-card-recepcao" id="go-to-recepcao" type="button">
+            <span class="home-card-icon">👋</span>
+            <strong>Recepção</strong>
+            <small>Registre visitantes do culto de forma rápida.</small>
+          </button>
         </section>
       </main>
     </div>
@@ -617,6 +627,120 @@
           </section>
         </div>
       </div>
+    </div>
+
+    <!-- TELA: Arena Kids -->
+    <div id="arena-kids-screen" hidden>
+      <main class="page">
+        <header class="hero">
+          <div class="hero-top-row">
+            <div>
+              <p class="eyebrow">Igreja Renovo</p>
+              <h1>Arena Kids</h1>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <button id="arena-kids-back" type="button" class="ghost-btn">← Início</button>
+              <button id="arena-kids-logout" type="button" class="ghost-btn">Sair</button>
+            </div>
+          </div>
+        </header>
+
+        <div id="arena-kids-form-section" hidden>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+            <h2 style="margin:0;font-size:1.2rem;font-weight:700">Novo cadastro</h2>
+            <button type="button" class="ghost-btn" id="arena-kids-cancel-form">← Voltar</button>
+          </div>
+          <form id="arena-kids-form" class="env-form">
+            <label>
+              Nome da criança <span class="req-mark">*</span>
+              <input name="nomeCrianca" maxlength="80" autocomplete="off" placeholder="Nome da criança" />
+            </label>
+            <label>
+              Idade
+              <input name="idade" maxlength="10" placeholder="Ex: 7 anos" autocomplete="off" />
+            </label>
+            <label>
+              Nome do responsável <span class="req-mark">*</span>
+              <input name="nomeResponsavel" maxlength="80" autocomplete="off" placeholder="Nome do pai/mãe/responsável" />
+            </label>
+            <label>
+              Telefone <span class="req-mark">*</span>
+              <input name="telefone" maxlength="20" placeholder="(11) 99999-9999" autocomplete="tel" inputmode="tel" />
+            </label>
+            <label>
+              Endereço
+              <input name="endereco" maxlength="120" autocomplete="off" placeholder="Rua, bairro..." />
+            </label>
+            <label>
+              Observações
+              <textarea name="observacoes" rows="3" placeholder="Alergias, necessidades especiais..."></textarea>
+            </label>
+            <p id="arena-kids-form-error" class="env-error" hidden></p>
+            <button type="submit" id="arena-kids-submit-btn" class="env-submit-btn">Salvar cadastro</button>
+          </form>
+        </div>
+
+        <div id="arena-kids-list-section">
+          <button type="button" id="arena-kids-new-btn" class="env-new-btn">➕ Novo cadastro</button>
+          <input id="arena-kids-search" type="search" placeholder="Buscar por nome ou telefone..." class="env-search" />
+          <div id="arena-kids-loading" class="env-loading" hidden>
+            <div class="loading-spinner" style="width:28px;height:28px;margin:0 auto"></div>
+          </div>
+          <p id="arena-kids-empty" class="env-empty" hidden>Nenhum cadastro ainda.</p>
+          <div id="arena-kids-list" class="env-list"></div>
+        </div>
+      </main>
+    </div>
+
+    <!-- TELA: Recepção -->
+    <div id="recepcao-screen" hidden>
+      <main class="page">
+        <header class="hero">
+          <div class="hero-top-row">
+            <div>
+              <p class="eyebrow">Igreja Renovo</p>
+              <h1>Recepção</h1>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <button id="recepcao-back" type="button" class="ghost-btn">← Início</button>
+              <button id="recepcao-logout" type="button" class="ghost-btn">Sair</button>
+            </div>
+          </div>
+        </header>
+
+        <div id="recepcao-form-section" hidden>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+            <h2 style="margin:0;font-size:1.2rem;font-weight:700">Novo visitante</h2>
+            <button type="button" class="ghost-btn" id="recepcao-cancel-form">← Voltar</button>
+          </div>
+          <form id="recepcao-form" class="env-form">
+            <label>
+              Nome <span class="req-mark">*</span>
+              <input name="nome" maxlength="80" autocomplete="off" placeholder="Nome do visitante" />
+            </label>
+            <label>
+              Telefone <small style="font-weight:400;color:var(--ink-soft)">(opcional)</small>
+              <input name="telefone" maxlength="20" placeholder="(11) 99999-9999" autocomplete="tel" inputmode="tel" />
+            </label>
+            <label>
+              Observações
+              <textarea name="observacoes" rows="2" placeholder="Como chegou até nós..."></textarea>
+            </label>
+            <p id="recepcao-form-error" class="env-error" hidden></p>
+            <button type="submit" id="recepcao-submit-btn" class="env-submit-btn">Registrar visitante</button>
+          </form>
+        </div>
+
+        <div id="recepcao-list-section">
+          <button type="button" id="recepcao-new-btn" class="env-new-btn">➕ Novo visitante</button>
+          <input id="recepcao-search" type="search" placeholder="Buscar por nome ou telefone..." class="env-search" />
+          <div id="recepcao-loading" class="env-loading" hidden>
+            <div class="loading-spinner" style="width:28px;height:28px;margin:0 auto"></div>
+          </div>
+          <p id="recepcao-empty" class="env-empty" hidden>Nenhum cadastro ainda.</p>
+          <div id="recepcao-list" class="env-list"></div>
+        </div>
+      </main>
     </div>
 
     <!-- Firebase SDK -->

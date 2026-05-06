@@ -902,13 +902,19 @@ button {
   color: #fff5f5;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 140ms ease, box-shadow 140ms ease;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
   box-shadow: 0 8px 20px rgba(139, 13, 18, 0.2);
 }
 
 button:hover {
   transform: translateY(-1px);
   box-shadow: 0 12px 28px rgba(139, 13, 18, 0.3);
+}
+
+button:active {
+  transform: scale(0.96);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  filter: brightness(0.9);
 }
 
 .cells-list {
@@ -921,7 +927,20 @@ button:hover {
   background: rgba(255, 251, 249, 0.96);
   border-radius: 1rem;
   padding: 0.9rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
   animation: card-in 320ms ease both;
+}
+
+.home-card:active,
+.action-card:active,
+.stat-card:active,
+.cell-card:active,
+.tracking-card:active,
+.access-user-row:active,
+.report-history-item:active,
+.env-list-item:active {
+  transform: scale(0.97);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .cell-head {

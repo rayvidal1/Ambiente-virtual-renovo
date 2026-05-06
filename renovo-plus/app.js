@@ -133,11 +133,41 @@
   }
 
   // ─── SCREEN MANAGEMENT ────────────────────────────────────────────────────
-  function showScreen(name) {
-    ["loading-screen", "auth-screen", "home-screen", "app-shell", "arena-kids-screen", "recepcao-screen"].forEach((id) => {
+  const SCREEN_IDS = ["loading-screen", "auth-screen", "home-screen", "app-shell", "arena-kids-screen", "recepcao-screen"];
+  const HISTORY_SCREEN_IDS = new Set(["home-screen", "app-shell", "arena-kids-screen", "recepcao-screen"]);
+  let isApplyingHistoryState = false;
+
+  function normalizeScreenName(name) {
+    return name === "home" ? "home-screen" : name;
+  }
+
+  function renderScreen(name) {
+    let screenName = normalizeScreenName(name) || "home-screen";
+    if (!session && HISTORY_SCREEN_IDS.has(screenName)) {
+      screenName = "auth-screen";
+    } else if (session) {
+      if (screenName === "app-shell" && !canAccessCelulas()) screenName = "home-screen";
+      if (screenName === "arena-kids-screen" && !canAccessArenaKids()) screenName = "home-screen";
+      if (screenName === "recepcao-screen" && !canAccessRecepcao()) screenName = "home-screen";
+    }
+    SCREEN_IDS.forEach((id) => {
       const el = $(id);
-      if (el) el.hidden = id !== name;
+      if (el) el.hidden = id !== screenName;
     });
+    return screenName;
+  }
+
+  function showScreen(name, options = {}) {
+    const screenName = renderScreen(name);
+
+    if (window.history && HISTORY_SCREEN_IDS.has(screenName) && !isApplyingHistoryState) {
+      const state = { screen: screenName };
+      if (options.replace) {
+        window.history.replaceState(state, "", "");
+      } else {
+        window.history.pushState(state, "", "");
+      }
+    }
   }
 
   function openModal(id) {
@@ -149,6 +179,15 @@
     const el = $(id);
     if (el) el.hidden = true;
   }
+
+  window.addEventListener("popstate", (event) => {
+    isApplyingHistoryState = true;
+    document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
+      backdrop.hidden = true;
+    });
+    renderScreen(event.state && event.state.screen ? event.state.screen : "home-screen");
+    isApplyingHistoryState = false;
+  });
 
   // ─── AUTH SCREEN ──────────────────────────────────────────────────────────
   function setupAuthScreen() {
@@ -235,7 +274,7 @@
     if (arenaKidsCard) arenaKidsCard.hidden = !canAccessArenaKids();
     if (recepcaoCard) recepcaoCard.hidden = !canAccessRecepcao();
 
-    showScreen("home-screen");
+    showScreen("home-screen", { replace: true });
   }
 
   // ─── APP SHELL ────────────────────────────────────────────────────────────
@@ -2016,6 +2055,10 @@
         if (e.target === backdrop) backdrop.hidden = true;
       });
     });
+
+    if (window.history) {
+      window.history.replaceState({ screen: "home-screen" }, "", "");
+    }
 
     showScreen("loading-screen");
     setLoadingText("Conectando...");

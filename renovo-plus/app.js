@@ -46,8 +46,8 @@
   }
 
   function getAssignableAccessRoles() {
-    if (isAdmin()) return ["leader", "coordinator", "pastor", "admin"];
-    if (isPastor()) return ["leader", "coordinator"];
+    if (isAdmin()) return ["leader", "coordinator", "pastor", "kids", "recepcao", "admin"];
+    if (isPastor()) return ["leader", "coordinator", "pastor", "kids", "recepcao"];
     if (isCoordinator()) return ["leader"];
     return [];
   }
@@ -59,9 +59,24 @@
   function canManageProfile(profile) {
     const role = String(profile?.role || "").trim();
     if (isAdmin()) return true;
-    if (isPastor()) return role === "leader" || role === "coordinator" || role === "pending";
+    if (isPastor()) return ["leader", "coordinator", "pastor", "kids", "recepcao", "pending"].includes(role);
     if (isCoordinator()) return role === "leader" || role === "pending";
     return false;
+  }
+
+  function canAccessCelulas() {
+    const r = session?.role;
+    return r === "admin" || r === "pastor" || r === "coordinator" || r === "leader";
+  }
+
+  function canAccessArenaKids() {
+    const r = session?.role;
+    return r === "admin" || r === "pastor" || r === "kids";
+  }
+
+  function canAccessRecepcao() {
+    const r = session?.role;
+    return r === "admin" || r === "pastor" || r === "recepcao";
   }
 
   function extractLeaderFromNotes(notes) {
@@ -212,6 +227,14 @@
   function renderHomeScreen() {
     const nameEl = $("home-username");
     if (nameEl) nameEl.textContent = session?.name || session?.email || "líder";
+
+    const celulasCard = $("go-to-celulas");
+    const arenaKidsCard = $("go-to-arena-kids");
+    const recepcaoCard = $("go-to-recepcao");
+    if (celulasCard) celulasCard.hidden = !canAccessCelulas();
+    if (arenaKidsCard) arenaKidsCard.hidden = !canAccessArenaKids();
+    if (recepcaoCard) recepcaoCard.hidden = !canAccessRecepcao();
+
     showScreen("home-screen");
   }
 
@@ -230,6 +253,7 @@
   }
 
   async function enterAppShell() {
+    if (!canAccessCelulas()) { showScreen("home-screen"); return; }
     showScreen("loading-screen");
     setLoadingText("Carregando dados das células...");
     try {
@@ -247,7 +271,7 @@
     const badge = $("access-badge");
     const note = $("access-note");
     if (badge) {
-      const labels = { admin: "Admin", pastor: "Pastor", coordinator: "Coordenador", leader: "Líder", pending: "Pendente" };
+      const labels = { admin: "Admin", pastor: "Pastor", coordinator: "Coordenador", leader: "Líder", kids: "Arena Kids", recepcao: "Recepção", pending: "Pendente" };
       badge.textContent = labels[session?.role] || session?.role || "";
     }
     if (note) {
@@ -1243,7 +1267,7 @@
     const form = $("access-form");
     const roleSelect = form?.querySelector('select[name="role"]');
     if (!roleSelect) return;
-    const labels = { leader: "Lider de Celula", coordinator: "Coordenador", pastor: "Pastor", admin: "Admin" };
+    const labels = { leader: "Líder de Célula", coordinator: "Coordenador", pastor: "Pastor", admin: "Admin", kids: "Arena Kids", recepcao: "Recepção" };
     const roles = getAssignableAccessRoles();
     roleSelect.innerHTML = roles
       .map((role) => `<option value="${role}">${labels[role] || role}</option>`)
@@ -1277,8 +1301,7 @@
   }
 
   function populateAccessCellSelects() {
-    // Pastor-level roles see all cells.
-    const visibleCells = state.cells;
+    const visibleCells = (isAdmin() || isPastor()) ? state.cells : getAccessibleCells();
 
     const cellSel = $("access-cell-select");
     if (cellSel) {
@@ -1312,7 +1335,7 @@
       container.innerHTML = `<p style="color:var(--ink-soft)">Nenhum usuário cadastrado.</p>`;
       return;
     }
-    const roleLabels = { admin: "Admin", pastor: "Pastor", coordinator: "Coordenador", leader: "Líder", pending: "Pendente" };
+    const roleLabels = { admin: "Admin", pastor: "Pastor", coordinator: "Coordenador", leader: "Líder", kids: "Arena Kids", recepcao: "Recepção", pending: "Pendente" };
     const statusLabels = { active: "Ativo", inactive: "Inativo", pending: "Pendente" };
     container.innerHTML = profiles.map((p) =>
       `<div class="access-user-row">
@@ -1392,7 +1415,10 @@
     console.log("[access] submit uid=%s name=%s email=%s role=%s", uid, name, email, role);
     try {
       if (!canAssignAccessRole(role)) {
-        throw new Error("Seu perfil nao pode criar ou alterar este nivel de acesso.");
+        throw new Error("Seu perfil não pode criar ou alterar este nível de acesso.");
+      }
+      if (role === "leader" && !primaryCellId) {
+        throw new Error("Selecione uma célula para vincular ao líder.");
       }
       if (uid) {
         const existing = state.profiles.find((p) => p.uid === uid);
@@ -1648,6 +1674,7 @@
   }
 
   async function enterArenaKidsScreen() {
+    if (!canAccessArenaKids()) { showScreen("home-screen"); return; }
     showScreen("arena-kids-screen");
     $("arena-kids-form-section").hidden = true;
     $("arena-kids-list-section").hidden = false;
@@ -1787,6 +1814,7 @@
   }
 
   async function enterRecepcaoScreen() {
+    if (!canAccessRecepcao()) { showScreen("home-screen"); return; }
     showScreen("recepcao-screen");
     $("recepcao-form-section").hidden = true;
     $("recepcao-list-section").hidden = false;

@@ -7,9 +7,9 @@ const APP_SHELL = [
   "./index.html",
   "./manifest.webmanifest",
   "./app-version.js",
-  "./styles.css?v=0.1.0-alpha.12",
-  "./firebase-plus.js?v=0.1.0-alpha.12",
-  "./app.js?v=0.1.0-alpha.12",
+  "./styles.css?v=0.1.0-alpha.13",
+  "./firebase-plus.js?v=0.1.0-alpha.13",
+  "./app.js?v=0.1.0-alpha.13",
   "../icon.png",
   "../pwa-192.png",
   "../pwa-512.png",
@@ -56,7 +56,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(request, { ignoreSearch: true }).then((cached) => {
+    caches.match(request).then((cached) => {
       if (cached) return cached;
 
       return fetch(request).then((response) => {

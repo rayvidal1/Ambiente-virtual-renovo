@@ -637,6 +637,7 @@ h1 {
 .action-card-access { background: linear-gradient(155deg, rgba(255, 251, 249, 0.95), rgba(239, 232, 246, 0.92)); }
 .action-card-visitantes { background: linear-gradient(155deg, rgba(255, 251, 249, 0.95), rgba(243, 232, 241, 0.92)); }
 .action-card-studies { background: linear-gradient(155deg, rgba(255, 251, 249, 0.95), rgba(244, 229, 230, 0.92)); }
+.home-card-admin { background: linear-gradient(155deg, rgba(255, 251, 249, 0.95), rgba(235, 232, 246, 0.92)); }
 
 /* Visitantes modal */
 .visitantes-toolbar {

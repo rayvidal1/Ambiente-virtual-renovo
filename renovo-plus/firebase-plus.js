@@ -105,7 +105,7 @@
 
   function normalizeRole(role) {
     const value = String(role || "").trim().toLowerCase();
-    if (["leader", "coordinator", "pastor", "admin"].includes(value)) {
+    if (["leader", "coordinator", "pastor", "admin", "kids", "recepcao"].includes(value)) {
       return value;
     }
     return "pending";

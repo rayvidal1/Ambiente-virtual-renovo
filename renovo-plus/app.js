@@ -46,8 +46,7 @@
   }
 
   function getAssignableAccessRoles() {
-    if (isAdmin()) return ["leader", "coordinator", "pastor", "kids", "recepcao", "admin"];
-    if (isPastor()) return ["leader", "coordinator", "pastor", "kids", "recepcao"];
+    if (isAdmin() || isPastor()) return ["leader", "coordinator", "pastor", "kids", "recepcao", "admin"];
     if (isCoordinator()) return ["leader"];
     return [];
   }
@@ -59,9 +58,13 @@
   function canManageProfile(profile) {
     const role = String(profile?.role || "").trim();
     if (isAdmin()) return true;
-    if (isPastor()) return ["leader", "coordinator", "pastor", "kids", "recepcao", "pending"].includes(role);
+    if (isPastor()) return ["leader", "coordinator", "pastor", "admin", "kids", "recepcao", "pending"].includes(role);
     if (isCoordinator()) return role === "leader" || role === "pending";
     return false;
+  }
+
+  function canAccessAdmin() {
+    return isAdmin() || isPastor();
   }
 
   function canAccessCelulas() {
@@ -133,8 +136,8 @@
   }
 
   // ─── SCREEN MANAGEMENT ────────────────────────────────────────────────────
-  const SCREEN_IDS = ["loading-screen", "auth-screen", "home-screen", "app-shell", "arena-kids-screen", "recepcao-screen"];
-  const HISTORY_SCREEN_IDS = new Set(["home-screen", "app-shell", "arena-kids-screen", "recepcao-screen"]);
+  const SCREEN_IDS = ["loading-screen", "auth-screen", "home-screen", "app-shell", "admin-screen", "arena-kids-screen", "recepcao-screen"];
+  const HISTORY_SCREEN_IDS = new Set(["home-screen", "app-shell", "admin-screen", "arena-kids-screen", "recepcao-screen"]);
   let isApplyingHistoryState = false;
 
   function normalizeScreenName(name) {
@@ -147,6 +150,7 @@
       screenName = "auth-screen";
     } else if (session) {
       if (screenName === "app-shell" && !canAccessCelulas()) screenName = "home-screen";
+      if (screenName === "admin-screen" && !canAccessAdmin()) screenName = "home-screen";
       if (screenName === "arena-kids-screen" && !canAccessArenaKids()) screenName = "home-screen";
       if (screenName === "recepcao-screen" && !canAccessRecepcao()) screenName = "home-screen";
     }
@@ -261,6 +265,7 @@
     $("go-to-celulas")?.addEventListener("click", enterAppShell);
     $("go-to-arena-kids")?.addEventListener("click", enterArenaKidsScreen);
     $("go-to-recepcao")?.addEventListener("click", enterRecepcaoScreen);
+    $("go-to-admin")?.addEventListener("click", enterAdminScreen);
   }
 
   function renderHomeScreen() {
@@ -270,9 +275,13 @@
     const celulasCard = $("go-to-celulas");
     const arenaKidsCard = $("go-to-arena-kids");
     const recepcaoCard = $("go-to-recepcao");
+    const adminCard = $("go-to-admin");
+    const celulasTitle = celulasCard?.querySelector("strong");
+    if (celulasTitle) celulasTitle.textContent = "Ambiente de C\u00e9lulas";
     if (celulasCard) celulasCard.hidden = !canAccessCelulas();
     if (arenaKidsCard) arenaKidsCard.hidden = !canAccessArenaKids();
     if (recepcaoCard) recepcaoCard.hidden = !canAccessRecepcao();
+    if (adminCard) adminCard.hidden = !canAccessAdmin();
 
     showScreen("home-screen", { replace: true });
   }
@@ -329,7 +338,40 @@
     if (importCard) importCard.hidden = !isAdminOrPastor();
 
     const accessCard = $("manage-access-card");
-    if (accessCard) accessCard.hidden = !canManageAccess();
+    if (accessCard) accessCard.hidden = !isCoordinator();
+  }
+
+  function setupAdminScreen() {
+    $("admin-back")?.addEventListener("click", () => showScreen("home-screen"));
+    $("admin-logout")?.addEventListener("click", handleLogout);
+    $("admin-manage-access-card")?.addEventListener("click", openAccessModal);
+    $("admin-create-cell-card")?.addEventListener("click", openCreateCellModal);
+    $("admin-manage-cells-card")?.addEventListener("click", () => {
+      renderCellsList();
+      openModal("cells-modal");
+    });
+  }
+
+  async function enterAdminScreen() {
+    if (!canAccessAdmin()) { showScreen("home-screen"); return; }
+    showScreen("loading-screen");
+    setLoadingText("Carregando administra\u00e7\u00e3o...");
+    try {
+      await loadAllData();
+      renderAdminScreen();
+      showScreen("admin-screen");
+    } catch (err) {
+      console.error("[Renovo+] enterAdminScreen:", err);
+      alert("Erro ao carregar administra\u00e7\u00e3o: " + (err.message || err));
+      showScreen("home-screen");
+    }
+  }
+
+  function renderAdminScreen() {
+    const totalUsers = $("admin-total-users");
+    const totalCells = $("admin-total-cells");
+    if (totalUsers) totalUsers.textContent = state.profiles.length;
+    if (totalCells) totalCells.textContent = state.cells.length;
   }
 
   // ─── DATA LOADING ─────────────────────────────────────────────────────────
@@ -2038,6 +2080,7 @@
     setupAuthScreen();
     setupHomeScreen();
     setupAppShell();
+    setupAdminScreen();
     setupCellModal();
     setupMemberModal();
     setupImportMembersModal();

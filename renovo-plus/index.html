@@ -10,8 +10,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="icon" type="image/png" href="../icon.png" />
     <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=0.1.0-alpha.11" />
-    <script src="./app-version.js?v=0.1.0-alpha.11"></script>
+    <link rel="manifest" href="./manifest.webmanifest?v=0.1.0-alpha.12" />
+    <script src="./app-version.js?v=0.1.0-alpha.12"></script>
     <script>
       (function () {
         if (!("serviceWorker" in navigator)) return;
@@ -39,7 +39,7 @@
         }).catch(function () {});
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=0.1.0-alpha.11" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.0-alpha.12" />
   </head>
   <body>
     <!-- Tela de carregamento -->
@@ -112,6 +112,11 @@
             <span class="home-card-icon">👋</span>
             <strong>Recepção</strong>
             <small>Registre visitantes do culto de forma rápida.</small>
+          </button>
+          <button class="home-card home-card-admin" id="go-to-admin" type="button">
+            <span class="home-card-icon">&#9881;</span>
+            <strong>Administra&ccedil;&atilde;o</strong>
+            <small>Gerencie usu&aacute;rios, c&eacute;lulas e configura&ccedil;&otilde;es da igreja.</small>
           </button>
         </section>
       </main>
@@ -208,6 +213,62 @@
         </section>
 
         <section id="tracking-section" class="tracking-section" hidden></section>
+      </main>
+    </div>
+
+    <!-- TELA: ADMINISTRACAO -->
+    <div id="admin-screen" hidden>
+      <main class="page">
+        <header class="hero">
+          <div class="hero-top-row">
+            <div>
+              <p class="eyebrow">Igreja Renovo</p>
+              <h1>Administra&ccedil;&atilde;o</h1>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <button id="admin-back" type="button" class="ghost-btn">&larr; In&iacute;cio</button>
+              <button id="admin-logout" type="button" class="ghost-btn">Sair</button>
+            </div>
+          </div>
+          <p class="subtitle">Gest&atilde;o geral de usu&aacute;rios, c&eacute;lulas e estrutura da igreja.</p>
+        </header>
+
+        <section class="stats" aria-label="Resumo administrativo">
+          <article class="stat-card">
+            <p>Usu&aacute;rios</p>
+            <strong id="admin-total-users">0</strong>
+          </article>
+          <article class="stat-card">
+            <p>C&eacute;lulas</p>
+            <strong id="admin-total-cells">0</strong>
+          </article>
+        </section>
+
+        <section class="action-cards">
+          <button class="action-card action-card-access" id="admin-manage-access-card" type="button">
+            <span class="action-icon">&#128275;</span>
+            <span class="action-content">
+              <strong>Gerenciar usu&aacute;rios</strong>
+              <small>Crie acessos de admin, pastor, coordenador, kids e recep&ccedil;&atilde;o.</small>
+            </span>
+          </button>
+
+          <button class="action-card action-card-create" id="admin-create-cell-card" type="button">
+            <span class="action-icon">+</span>
+            <span class="action-content">
+              <strong>Criar c&eacute;lula</strong>
+              <small>Cadastre uma nova c&eacute;lula da igreja.</small>
+            </span>
+          </button>
+
+          <button class="action-card action-card-cells" id="admin-manage-cells-card" type="button">
+            <span class="action-icon">&#128101;</span>
+            <span class="action-content">
+              <strong>Gerenciar c&eacute;lulas</strong>
+              <small>Veja, edite e organize as c&eacute;lulas cadastradas.</small>
+            </span>
+          </button>
+        </section>
       </main>
     </div>
 
@@ -748,8 +809,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-    <script src="./firebase-plus.js?v=0.1.0-alpha.11"></script>
-    <script src="./app.js?v=0.1.0-alpha.11"></script>
+    <script src="./firebase-plus.js?v=0.1.0-alpha.12"></script>
+    <script src="./app.js?v=0.1.0-alpha.12"></script>
     <script>
       (function () {
         const debugEl = document.getElementById("loading-debug");

@@ -3113,3 +3113,140 @@ button:active {
 .admin-banner-form {
   max-width: none;
 }
+
+/* ─── DASHBOARD DE CÉLULAS ───────────────────────────────────────────────── */
+.action-card-dashboard {
+  background: linear-gradient(155deg, rgba(255, 251, 249, 0.95), rgba(230, 242, 237, 0.92));
+}
+
+.dash-filters {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.dash-filter-select {
+  padding: 0.4rem 0.7rem;
+  border: 1.5px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.85rem;
+  min-width: 140px;
+  cursor: pointer;
+}
+
+.dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1.2rem;
+}
+
+.dash-kpi-card {
+  border: 1px solid rgba(122, 76, 70, 0.14);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(248, 235, 229, 0.9));
+  box-shadow: var(--shadow);
+  border-radius: 1rem;
+  padding: 0.8rem 1rem;
+}
+
+.dash-kpi-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+.dash-kpi-card strong {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 1.9rem;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  color: var(--brand-strong);
+}
+
+.dash-kpi-alert strong {
+  color: #b45309;
+}
+
+.dash-section {
+  margin-top: 1.4rem;
+}
+
+.dash-section-title {
+  margin: 0 0 0.7rem;
+  font-size: 1rem;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 700;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.35rem;
+}
+
+.dash-charts-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.dash-charts-col-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dash-chart-card {
+  border: 1px solid rgba(122, 76, 70, 0.12);
+  background: rgba(255, 250, 247, 0.8);
+  border-radius: 1rem;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dash-chart-full {
+  align-items: stretch;
+}
+
+.dash-chart-title {
+  margin: 0;
+  font-size: 0.79rem;
+  color: var(--ink-soft);
+  text-align: center;
+  font-weight: 500;
+}
+
+.dash-chart-full .dash-chart-title {
+  text-align: left;
+}
+
+.dash-col-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dash-col-wrap canvas {
+  display: block;
+}
+
+.dash-empty {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  padding: 1.5rem 0;
+}
+
+@media (max-width: 540px) {
+  .dash-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dash-charts-row {
+    grid-template-columns: 1fr;
+  }
+}

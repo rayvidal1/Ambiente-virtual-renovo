@@ -340,6 +340,7 @@
     $("manage-access-card")?.addEventListener("click", openAccessModal);
     $("view-studies-card")?.addEventListener("click", openStudiesModal);
     $("view-visitantes-card")?.addEventListener("click", openVisitantesModal);
+    $("dashboard-celulas-card")?.addEventListener("click", openDashboardCelulas);
   }
 
   async function enterAppShell() {
@@ -381,6 +382,9 @@
 
     const accessCard = $("manage-access-card");
     if (accessCard) accessCard.hidden = !isCoordinator();
+
+    const dashCard = $("dashboard-celulas-card");
+    if (dashCard) dashCard.hidden = !isAdminOrPastor();
   }
 
   function setupAdminScreen() {
@@ -2160,6 +2164,340 @@
     }
   }
 
+  // ─── DASHBOARD DE CÉLULAS ─────────────────────────────────────────────────
+  function getDashboardDateRange(period) {
+    const today = new Date();
+    const toStr = (d) => d.toISOString().slice(0, 10);
+
+    if (period === "week") {
+      const dow = today.getDay();
+      const diff = dow === 0 ? -6 : 1 - dow;
+      const monday = new Date(today);
+      monday.setDate(today.getDate() + diff);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return { from: toStr(monday), to: toStr(sunday) };
+    }
+
+    if (period === "month") {
+      const from = new Date(today.getFullYear(), today.getMonth(), 1);
+      const to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      return { from: toStr(from), to: toStr(to) };
+    }
+
+    // quarter: últimos 90 dias
+    const from = new Date(today);
+    from.setDate(from.getDate() - 89);
+    return { from: toStr(from), to: toStr(today) };
+  }
+
+  function getDashboardCellStatus(cellId, periodReports, memberCount) {
+    const cellReports = periodReports.filter((r) => r.cellId === cellId);
+    if (!cellReports.length) return "no-report";
+    const avgPresence = cellReports.reduce((s, r) => s + r.presentCount, 0) / cellReports.length;
+    const rate = memberCount > 0 ? avgPresence / memberCount : (avgPresence > 0 ? 1 : 0);
+    return rate >= 0.5 ? "healthy" : "alert";
+  }
+
+  function computeDashboardStats({ cells, reports, period, filterCellId, filterStatus, filterCoordinator }) {
+    const { from, to } = getDashboardDateRange(period);
+    const periodReports = reports.filter((r) => r.date >= from && r.date <= to);
+
+    let filteredCells = filterCellId ? cells.filter((c) => c.id === filterCellId) : cells;
+
+    if (filterCoordinator && (isAdmin() || isPastor())) {
+      const coordProfile = state.profiles.find((p) => p.uid === filterCoordinator);
+      if (coordProfile) {
+        const coordCellIds = new Set(coordProfile.scopeCellIds || []);
+        filteredCells = filteredCells.filter((c) => coordCellIds.has(c.id));
+      }
+    }
+
+    const cellStats = filteredCells.map((cell) => {
+      const memberCount = cell.members?.length || 0;
+      const cellReports = periodReports.filter((r) => r.cellId === cell.id);
+      const totalPresent = cellReports.reduce((s, r) => s + r.presentCount, 0);
+      const totalVisitors = cellReports.reduce((s, r) => s + r.visitorsCount, 0);
+      const totalAbsent = cellReports.reduce((s, r) => s + Math.max(0, memberCount - r.presentCount), 0);
+      const avgPresence = cellReports.length ? Math.round(totalPresent / cellReports.length) : 0;
+      const status = getDashboardCellStatus(cell.id, periodReports, memberCount);
+      return { cell, memberCount, reportCount: cellReports.length, totalPresent, totalVisitors, totalAbsent, avgPresence, status };
+    });
+
+    const displayedCellStats = filterStatus ? cellStats.filter((cs) => cs.status === filterStatus) : cellStats;
+
+    const totalCells = filteredCells.length;
+    const cellsWithReports = cellStats.filter((cs) => cs.reportCount > 0).length;
+    const cellsPending = totalCells - cellsWithReports;
+    const totalVisitors = displayedCellStats.reduce((s, cs) => s + cs.totalVisitors, 0);
+    const totalPresent = displayedCellStats.reduce((s, cs) => s + cs.totalPresent, 0);
+    const totalAbsent = displayedCellStats.reduce((s, cs) => s + cs.totalAbsent, 0);
+    const totalReportsUsed = displayedCellStats.reduce((s, cs) => s + cs.reportCount, 0);
+    const avgPresence = totalReportsUsed > 0 ? Math.round(totalPresent / totalReportsUsed) : 0;
+    const healthyCells = cellStats.filter((cs) => cs.status === "healthy").length;
+    const alertCells = cellStats.filter((cs) => cs.status === "alert").length;
+    const noReportCells = cellStats.filter((cs) => cs.status === "no-report").length;
+
+    // Tendência semanal: agrupar relatórios por semana ISO
+    const weeklyMap = new Map();
+    const relevantReports = periodReports.filter((r) => filteredCells.some((c) => c.id === r.cellId));
+    relevantReports.forEach((r) => {
+      const d = new Date(r.date + "T12:00:00");
+      const dow = d.getDay();
+      const diff = dow === 0 ? -6 : 1 - dow;
+      const monday = new Date(d);
+      monday.setDate(d.getDate() + diff);
+      const weekKey = monday.toISOString().slice(0, 10);
+      if (!weeklyMap.has(weekKey)) weeklyMap.set(weekKey, { present: 0, visitors: 0 });
+      const entry = weeklyMap.get(weekKey);
+      entry.present += r.presentCount;
+      entry.visitors += r.visitorsCount;
+    });
+    const weeklyTrend = Array.from(weeklyMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([week, data]) => ({ week, ...data }));
+
+    // Estatísticas por coordenador (apenas admin/pastor)
+    const coordStats = [];
+    if ((isAdmin() || isPastor()) && state.profiles.length) {
+      state.profiles.filter((p) => p.role === "coordinator" && p.status === "active").forEach((coord) => {
+        const coordCellIds = new Set(coord.scopeCellIds || []);
+        const coordCells = filteredCells.filter((c) => coordCellIds.has(c.id));
+        if (!coordCells.length) return;
+        const coordReports = relevantReports.filter((r) => coordCells.some((c) => c.id === r.cellId));
+        const coordPresent = coordReports.reduce((s, r) => s + r.presentCount, 0);
+        const avgPres = coordReports.length ? Math.round(coordPresent / coordReports.length) : 0;
+        coordStats.push({ name: coord.name || coord.email, avgPresence: avgPres, cellCount: coordCells.length });
+      });
+    }
+
+    return {
+      from, to, totalCells, cellsWithReports, cellsPending,
+      totalVisitors, totalPresent, totalAbsent, avgPresence,
+      healthyCells, alertCells, noReportCells,
+      displayedCellStats, weeklyTrend, coordStats,
+    };
+  }
+
+  function drawDashboardDonut(canvasId, legendId, slices) {
+    const canvas = $(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const total = slices.reduce((s, sl) => s + sl.value, 0);
+    if (!total) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#e5cfca";
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) / 2 - 6, 0, 2 * Math.PI);
+      ctx.fill();
+      const legend = $(legendId);
+      if (legend) legend.innerHTML = `<span class="chart-legend-item" style="color:var(--ink-soft)">Sem dados</span>`;
+      return;
+    }
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const outerR = Math.min(cx, cy) - 4;
+    const innerR = outerR * 0.55;
+    let angle = -Math.PI / 2;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    slices.forEach((sl) => {
+      if (!sl.value) return;
+      const sweep = (sl.value / total) * 2 * Math.PI;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, outerR, angle, angle + sweep);
+      ctx.closePath();
+      ctx.fillStyle = sl.color;
+      ctx.fill();
+      angle += sweep;
+    });
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerR, 0, 2 * Math.PI);
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#fff";
+    ctx.fill();
+    const biggest = slices.reduce((a, b) => (b.value > a.value ? b : a), slices[0]);
+    ctx.fillStyle = biggest.color;
+    ctx.font = `bold ${Math.round(outerR * 0.38)}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(biggest.value, cx, cy);
+    const legend = $(legendId);
+    if (legend) {
+      legend.innerHTML = slices.map((sl) =>
+        `<span class="chart-legend-item"><span class="chart-legend-dot" style="background:${sl.color}"></span>${escHtml(sl.label)}: ${sl.value}</span>`
+      ).join("");
+    }
+  }
+
+  function drawColumnChart(canvasId, labels, values, colors) {
+    const canvas = $(canvasId);
+    if (!canvas || !labels.length) return;
+    const BAR_W = 44, GAP = 16, PAD_L = 36, PAD_R = 12, PAD_T = 26, PAD_B = 46;
+    canvas.width = Math.max(300, PAD_L + labels.length * (BAR_W + GAP) + PAD_R);
+    const ctx = canvas.getContext("2d");
+    const H = canvas.height;
+    const maxVal = Math.max(1, ...values);
+    const chartH = H - PAD_T - PAD_B;
+    ctx.clearRect(0, 0, canvas.width, H);
+    ctx.strokeStyle = "#e5cfca"; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = PAD_T + (chartH / 4) * i;
+      ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(canvas.width - PAD_R, y); ctx.stroke();
+      const val = Math.round(maxVal - (maxVal / 4) * i);
+      ctx.fillStyle = "#999"; ctx.font = "9px sans-serif"; ctx.textAlign = "right";
+      ctx.fillText(val, PAD_L - 4, y + 3);
+    }
+    labels.forEach((label, i) => {
+      const x = PAD_L + i * (BAR_W + GAP);
+      const barH = values[i] > 0 ? Math.max(4, (values[i] / maxVal) * chartH) : 0;
+      const y = PAD_T + chartH - barH;
+      const color = Array.isArray(colors) ? (colors[i] || "#2d8a5e") : (colors || "#2d8a5e");
+      ctx.fillStyle = color;
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, BAR_W, barH, [4, 4, 0, 0]); ctx.fill(); }
+      else { ctx.fillRect(x, y, BAR_W, barH); }
+      ctx.fillStyle = "#555"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(values[i], x + BAR_W / 2, Math.max(PAD_T + 10, y - 5));
+      const short = label.length > 10 ? label.slice(0, 9) + "…" : label;
+      ctx.fillStyle = "#777"; ctx.font = "9px sans-serif";
+      ctx.save();
+      ctx.translate(x + BAR_W / 2, PAD_T + chartH + 6);
+      ctx.rotate(-Math.PI / 4);
+      ctx.textAlign = "right";
+      ctx.fillText(short, 0, 0);
+      ctx.restore();
+    });
+  }
+
+  function renderDashboardDonutCharts(stats) {
+    drawDashboardDonut("dash-donut-reports", "dash-donut-reports-legend", [
+      { label: "Enviados", value: stats.cellsWithReports, color: "#2d8a5e" },
+      { label: "Pendentes", value: stats.cellsPending, color: "#c0392b" },
+    ]);
+    drawDashboardDonut("dash-donut-presence", "dash-donut-presence-legend", [
+      { label: "Presentes", value: stats.totalPresent, color: "#2d8a5e" },
+      { label: "Ausentes", value: stats.totalAbsent, color: "#c0392b" },
+    ]);
+    drawDashboardDonut("dash-donut-health", "dash-donut-health-legend", [
+      { label: "Saudáveis", value: stats.healthyCells, color: "#2d8a5e" },
+      { label: "Atenção", value: stats.alertCells, color: "#d97706" },
+      { label: "Sem relatório", value: stats.noReportCells, color: "#aaa" },
+    ]);
+  }
+
+  function renderDashboardColumnCharts(stats) {
+    const cs = stats.displayedCellStats;
+    if (!cs.length) return;
+    const labels = cs.map((x) => x.cell.name);
+    const presColors = cs.map((x) => x.status === "healthy" ? "#2d8a5e" : x.status === "alert" ? "#d97706" : "#aaa");
+    drawColumnChart("dash-col-presence", labels, cs.map((x) => x.avgPresence), presColors);
+    drawColumnChart("dash-col-visitors", labels, cs.map((x) => x.totalVisitors), "#2980b9");
+  }
+
+  function renderDashboardTrend(stats) {
+    const trend = stats.weeklyTrend;
+    const canvas = $("dash-line-weekly");
+    if (!canvas) return;
+    if (!trend.length) { canvas.width = 300; canvas.getContext("2d").clearRect(0, 0, 300, canvas.height); return; }
+    canvas.width = Math.max(300, trend.length * 72);
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    const pad = { top: 18, right: 12, bottom: 30, left: 36 };
+    const chartW = W - pad.left - pad.right;
+    const chartH = H - pad.top - pad.bottom;
+    const maxVal = Math.max(1, ...trend.flatMap((t) => [t.present, t.visitors]));
+    ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = "#e5cfca"; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (chartH / 4) * i;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+      const val = Math.round(maxVal - (maxVal / 4) * i);
+      ctx.fillStyle = "#999"; ctx.font = "9px sans-serif"; ctx.textAlign = "right";
+      ctx.fillText(val, pad.left - 4, y + 3);
+    }
+    const xStep = trend.length > 1 ? chartW / (trend.length - 1) : 0;
+    const yScale = (v) => pad.top + chartH - (v / maxVal) * chartH;
+    function drawTL(data, color) {
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+      data.forEach((v, i) => { const x = pad.left + i * xStep, y = yScale(v); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+      ctx.stroke();
+      data.forEach((v, i) => { ctx.beginPath(); ctx.arc(pad.left + i * xStep, yScale(v), 3, 0, 2 * Math.PI); ctx.fillStyle = color; ctx.fill(); });
+    }
+    drawTL(trend.map((t) => t.present), "#2d8a5e");
+    drawTL(trend.map((t) => t.visitors), "#2980b9");
+    ctx.fillStyle = "#888"; ctx.font = "9px sans-serif"; ctx.textAlign = "center";
+    trend.forEach((t, i) => {
+      ctx.fillText(String(t.week).slice(5).replace("-", "/"), pad.left + i * xStep, H - 6);
+    });
+  }
+
+  function renderDashboardCoordChart(stats) {
+    const section = $("dash-charts-coord-section");
+    if (!section) return;
+    if (!(isAdmin() || isPastor()) || stats.coordStats.length < 2) { section.hidden = true; return; }
+    section.hidden = false;
+    drawColumnChart("dash-col-coord", stats.coordStats.map((c) => c.name), stats.coordStats.map((c) => c.avgPresence), "#7c3aed");
+  }
+
+  function renderDashboardKPIs(stats) {
+    const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
+    set("dash-kpi-total-cells", stats.totalCells);
+    set("dash-kpi-reports-sent", `${stats.cellsWithReports}/${stats.totalCells}`);
+    set("dash-kpi-visitors", stats.totalVisitors);
+    set("dash-kpi-avg-presence", stats.avgPresence);
+    set("dash-kpi-alert-cells", stats.alertCells);
+  }
+
+  function applyDashboardFilters() {
+    const period = $("dash-filter-period")?.value || "month";
+    const filterCell = $("dash-filter-cell")?.value || "";
+    const filterStatus = $("dash-filter-status")?.value || "";
+    const filterCoordinator = $("dash-filter-coordinator")?.value || "";
+    const stats = computeDashboardStats({
+      cells: getAccessibleCells(),
+      reports: state.reports,
+      period, filterCellId: filterCell, filterStatus, filterCoordinator,
+    });
+    renderDashboardKPIs(stats);
+    renderDashboardDonutCharts(stats);
+    renderDashboardColumnCharts(stats);
+    renderDashboardTrend(stats);
+    renderDashboardCoordChart(stats);
+    const emptyMsg = $("dash-empty-msg");
+    if (emptyMsg) emptyMsg.hidden = stats.displayedCellStats.length > 0;
+  }
+
+  function populateDashboardFilters() {
+    const cells = getAccessibleCells();
+    const cellSelect = $("dash-filter-cell");
+    if (cellSelect) {
+      cellSelect.innerHTML = `<option value="">Todas as células</option>` +
+        cells.map((c) => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("");
+    }
+    const coordSelect = $("dash-filter-coordinator");
+    if (coordSelect) {
+      if (isAdmin() || isPastor()) {
+        const coords = state.profiles.filter((p) => p.role === "coordinator" && p.status === "active");
+        coordSelect.innerHTML = `<option value="">Todos os coordenadores</option>` +
+          coords.map((p) => `<option value="${escHtml(p.uid)}">${escHtml(p.name || p.email)}</option>`).join("");
+        coordSelect.hidden = coords.length === 0;
+      } else {
+        coordSelect.hidden = true;
+      }
+    }
+  }
+
+  function openDashboardCelulas() {
+    populateDashboardFilters();
+    applyDashboardFilters();
+    openModal("dashboard-celulas-modal");
+  }
+
+  function setupDashboardCelulas() {
+    $("close-dashboard-celulas")?.addEventListener("click", () => closeModal("dashboard-celulas-modal"));
+    ["dash-filter-period", "dash-filter-cell", "dash-filter-status", "dash-filter-coordinator"].forEach((id) => {
+      $(id)?.addEventListener("change", applyDashboardFilters);
+    });
+  }
+
   function init() {
     setupAuthScreen();
     setupHomeScreen();
@@ -2175,6 +2513,7 @@
     setupVisitantesModal();
     setupArenaKidsScreen();
     setupRecepcaoScreen();
+    setupDashboardCelulas();
 
     // Close modals on backdrop click
     document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {

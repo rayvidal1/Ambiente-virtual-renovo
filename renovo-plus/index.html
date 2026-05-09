@@ -212,6 +212,14 @@
               <small>Registre e acompanhe visitantes das celulas.</small>
             </span>
           </button>
+
+          <button class="action-card action-card-dashboard" id="dashboard-celulas-card" type="button">
+            <span class="action-icon">&#128202;</span>
+            <span class="action-content">
+              <strong>Dashboard de Celulas</strong>
+              <small>Resumo grafico de presenca, visitantes e saude das celulas.</small>
+            </span>
+          </button>
         </section>
 
         <section id="tracking-section" class="tracking-section" hidden></section>
@@ -833,6 +841,133 @@
           <div id="recepcao-list" class="env-list"></div>
         </div>
       </main>
+    </div>
+
+    <!-- MODAL: Dashboard de Celulas -->
+    <div class="modal-backdrop" id="dashboard-celulas-modal" hidden>
+      <div class="modal-card modal-card-xl" role="dialog" aria-modal="true" aria-labelledby="dash-modal-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="dash-modal-title">Dashboard de C&eacute;lulas</h2>
+            <p class="panel-sub">Resumo geral de presen&ccedil;a, visitantes e sa&uacute;de das c&eacute;lulas.</p>
+          </div>
+          <button type="button" class="ghost-btn" id="close-dashboard-celulas">Fechar</button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="dash-filters">
+          <select id="dash-filter-period" class="dash-filter-select">
+            <option value="week">Semana atual</option>
+            <option value="month" selected>M&ecirc;s atual</option>
+            <option value="quarter">&Uacute;ltimos 3 meses</option>
+          </select>
+          <select id="dash-filter-coordinator" class="dash-filter-select" hidden>
+            <option value="">Todos os coordenadores</option>
+          </select>
+          <select id="dash-filter-cell" class="dash-filter-select">
+            <option value="">Todas as c&eacute;lulas</option>
+          </select>
+          <select id="dash-filter-status" class="dash-filter-select">
+            <option value="">Qualquer status</option>
+            <option value="healthy">Saud&aacute;vel</option>
+            <option value="alert">Aten&ccedil;&atilde;o</option>
+            <option value="no-report">Sem relat&oacute;rio</option>
+          </select>
+        </div>
+
+        <!-- KPIs -->
+        <div class="dash-kpi-grid">
+          <article class="dash-kpi-card">
+            <p>Total de c&eacute;lulas</p>
+            <strong id="dash-kpi-total-cells">-</strong>
+          </article>
+          <article class="dash-kpi-card">
+            <p>Relat&oacute;rios enviados</p>
+            <strong id="dash-kpi-reports-sent">-</strong>
+          </article>
+          <article class="dash-kpi-card">
+            <p>Visitantes no per&iacute;odo</p>
+            <strong id="dash-kpi-visitors">-</strong>
+          </article>
+          <article class="dash-kpi-card">
+            <p>M&eacute;dia de presen&ccedil;a</p>
+            <strong id="dash-kpi-avg-presence">-</strong>
+          </article>
+          <article class="dash-kpi-card dash-kpi-alert">
+            <p>C&eacute;lulas em alerta</p>
+            <strong id="dash-kpi-alert-cells">-</strong>
+          </article>
+        </div>
+
+        <p id="dash-empty-msg" class="dash-empty" hidden>Nenhum dado dispon&iacute;vel para o per&iacute;odo selecionado.</p>
+
+        <!-- Graficos de pizza -->
+        <section class="dash-section" id="dash-charts-donut-section">
+          <h3 class="dash-section-title">Vis&atilde;o Geral</h3>
+          <div class="dash-charts-row">
+            <article class="dash-chart-card">
+              <p class="dash-chart-title">Relat&oacute;rios enviados vs pendentes</p>
+              <canvas id="dash-donut-reports" width="160" height="160"></canvas>
+              <div id="dash-donut-reports-legend" class="chart-legend"></div>
+            </article>
+            <article class="dash-chart-card">
+              <p class="dash-chart-title">Presentes vs ausentes</p>
+              <canvas id="dash-donut-presence" width="160" height="160"></canvas>
+              <div id="dash-donut-presence-legend" class="chart-legend"></div>
+            </article>
+            <article class="dash-chart-card">
+              <p class="dash-chart-title">Sa&uacute;de das c&eacute;lulas</p>
+              <canvas id="dash-donut-health" width="160" height="160"></canvas>
+              <div id="dash-donut-health-legend" class="chart-legend"></div>
+            </article>
+          </div>
+        </section>
+
+        <!-- Graficos de colunas por celula -->
+        <section class="dash-section" id="dash-charts-cell-section">
+          <h3 class="dash-section-title">Por C&eacute;lula</h3>
+          <div class="dash-charts-col-group">
+            <article class="dash-chart-card dash-chart-full">
+              <p class="dash-chart-title">Presen&ccedil;a m&eacute;dia por c&eacute;lula</p>
+              <div class="dash-col-wrap">
+                <canvas id="dash-col-presence" height="180"></canvas>
+              </div>
+            </article>
+            <article class="dash-chart-card dash-chart-full">
+              <p class="dash-chart-title">Visitantes por c&eacute;lula</p>
+              <div class="dash-col-wrap">
+                <canvas id="dash-col-visitors" height="180"></canvas>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- Evolucao semanal -->
+        <section class="dash-section" id="dash-charts-trend-section">
+          <h3 class="dash-section-title">Evolu&ccedil;&atilde;o Semanal</h3>
+          <article class="dash-chart-card dash-chart-full">
+            <p class="dash-chart-title">Presen&ccedil;a e visitantes por semana</p>
+            <div class="dash-col-wrap">
+              <canvas id="dash-line-weekly" height="140"></canvas>
+            </div>
+            <div class="chart-legend" style="justify-content:flex-start;margin-top:0.3rem">
+              <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#2d8a5e"></span>Presentes</span>
+              <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#2980b9"></span>Visitantes</span>
+            </div>
+          </article>
+        </section>
+
+        <!-- Comparativo por coordenador (pastor/admin) -->
+        <section class="dash-section" id="dash-charts-coord-section" hidden>
+          <h3 class="dash-section-title">Comparativo por Coordenador</h3>
+          <article class="dash-chart-card dash-chart-full">
+            <p class="dash-chart-title">Presen&ccedil;a m&eacute;dia por coordenador</p>
+            <div class="dash-col-wrap">
+              <canvas id="dash-col-coord" height="160"></canvas>
+            </div>
+          </article>
+        </section>
+      </div>
     </div>
 
     <!-- Firebase SDK -->

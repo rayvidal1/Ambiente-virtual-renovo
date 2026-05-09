@@ -3,6 +3,7 @@
   const COLLECTIONS = {
     users: "renovo_plus_users",
     meta: "renovo_plus_meta",
+    igrejas: "igrejas",
     cells: "renovo_plus_cells",
     members: "renovo_plus_members",
     reports: "renovo_plus_reports",
@@ -39,6 +40,7 @@
     storage: null,
     currentUser: null,
   };
+  const DEFAULT_IGREJA_ID = "renovo";
 
   const authListeners = new Set();
   let initialized = false;
@@ -105,7 +107,7 @@
 
   function normalizeRole(role) {
     const value = String(role || "").trim().toLowerCase();
-    if (["leader", "coordinator", "pastor", "admin"].includes(value)) {
+    if (["leader", "coordinator", "pastor", "admin", "kids", "recepcao"].includes(value)) {
       return value;
     }
     return "pending";
@@ -117,6 +119,15 @@
       return value;
     }
     return "pending";
+  }
+
+  function normalizeIgrejaId(value) {
+    const normalized = String(value || "").trim();
+    return normalized || DEFAULT_IGREJA_ID;
+  }
+
+  function hasPastoralAccess(profile) {
+    return ["admin", "pastor", "coordinator"].includes(String(profile?.role || "").trim());
   }
 
   function normalizeProfile(uid, data) {
@@ -134,6 +145,7 @@
       email: String(data.email || "").trim(),
       role: normalizeRole(data.role),
       status: normalizeStatus(data.status),
+      igrejaId: normalizeIgrejaId(data.igrejaId),
       primaryCellId: String(data.primaryCellId || "").trim(),
       scopeCellIds,
       ministryName: String(data.ministryName || "").trim(),
@@ -212,18 +224,33 @@
     }
 
     const offeringNumber = Number(data.offering);
+    const presentMemberIds = Array.isArray(data.presentMemberIds)
+      ? data.presentMemberIds.map((id) => String(id || "").trim()).filter(Boolean)
+      : [];
+
+    const imageUrls = Array.isArray(data.imageUrls)
+      ? data.imageUrls.map((u) => String(u || "").trim()).filter(Boolean)
+      : [];
 
     return {
       id: String(data.id || docId).trim(),
       cellId: String(data.cellId || "").trim(),
       date: String(data.date || "").trim(),
       leaders: String(data.leaders || "").trim(),
+      coLeaders: String(data.coLeaders || "").trim(),
       host: String(data.host || "").trim(),
       address: String(data.address || "").trim(),
-      presentCount: Number(data.presentCount || 0) || 0,
+      presentMemberIds,
+      presentCount: Number(data.presentCount || presentMemberIds.length || 0) || 0,
       visitorsCount: Number(data.visitorsCount || 0) || 0,
+      visitorNames: String(data.visitorNames || "").trim(),
       offering: Number.isFinite(offeringNumber) ? offeringNumber : 0,
+      snack: String(data.snack || "").trim(),
+      discipleship: String(data.discipleship || "").trim(),
+      communionMinutes: String(data.communionMinutes || "").trim(),
+      foods: String(data.foods || "").trim(),
       notes: String(data.notes || "").trim(),
+      imageUrls,
       createdAt: String(data.createdAt || "").trim(),
       updatedAt: String(data.updatedAt || "").trim(),
       createdByUid: String(data.createdByUid || "").trim(),
@@ -305,6 +332,24 @@
       updatedAt: String(data.updatedAt || "").trim(),
       createdByUid: String(data.createdByUid || "").trim(),
       updatedByUid: String(data.updatedByUid || "").trim(),
+    };
+  }
+
+  function normalizeBannerHome(data) {
+    if (!data || typeof data !== "object") {
+      return null;
+    }
+    const imageUrl = String(data.imageUrl || "").trim();
+    if (!imageUrl) {
+      return null;
+    }
+    return {
+      imageUrl,
+      link: String(data.link || "").trim(),
+      text: String(data.text || "").trim(),
+      ativo: data.ativo !== false,
+      updatedAt: data.updatedAt || "",
+      updatedBy: String(data.updatedBy || "").trim(),
     };
   }
 
@@ -848,6 +893,7 @@
       email: normalizedEmail,
       role: isFirstProfile ? "admin" : "pending",
       status: isFirstProfile ? "active" : "pending",
+      igrejaId: DEFAULT_IGREJA_ID,
       primaryCellId: "",
       scopeCellIds: [],
       ministryName: "",
@@ -884,6 +930,42 @@
     return api.auth.sendPasswordResetEmail(normalizedEmail);
   }
 
+  function igrejaConfigDoc(igrejaId, docId) {
+    return api.db
+      .collection(COLLECTIONS.igrejas)
+      .doc(normalizeIgrejaId(igrejaId))
+      .collection("config")
+      .doc(docId);
+  }
+
+  async function loadBannerHome(igrejaId) {
+    initialize();
+    if (!api.db) return null;
+    const snapshot = await igrejaConfigDoc(igrejaId, "bannerHome").get();
+    return snapshot.exists ? normalizeBannerHome(snapshot.data()) : null;
+  }
+
+  async function saveBannerHome(igrejaId, patch, uid) {
+    initialize();
+    if (!api.db) {
+      throw new Error("Firestore indisponivel na Renovo+.");
+    }
+    const imageUrl = String(patch?.imageUrl || "").trim();
+    if (!imageUrl) {
+      throw new Error("Informe a URL da imagem do banner.");
+    }
+    const payload = {
+      imageUrl,
+      link: String(patch?.link || "").trim(),
+      text: String(patch?.text || "").trim(),
+      ativo: patch?.ativo !== false,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: String(uid || api.currentUser?.uid || "").trim(),
+    };
+    await igrejaConfigDoc(igrejaId, "bannerHome").set(payload, { merge: true });
+    return normalizeBannerHome({ ...payload, updatedAt: new Date() });
+  }
+
   function createSecondaryApp() {
     const appName = `renovo-plus-admin-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     return firebase.initializeApp(FIREBASE_CONFIG, appName);
@@ -908,12 +990,8 @@
     try {
       return await task({ app, auth, db });
     } finally {
-      try {
-        await auth.signOut();
-      } catch (_) {}
-      try {
-        await app.delete();
-      } catch (_) {}
+      try { auth.signOut(); } catch (_) {}
+      setTimeout(() => { try { app.delete(); } catch (_) {} }, 500);
     }
   }
 
@@ -954,10 +1032,18 @@
     return snapshot.exists ? normalizeProfile(snapshot.id, snapshot.data()) : null;
   }
 
-  async function listProfiles() {
+  async function listProfiles(profile) {
     initialize();
     if (!api.db) {
       return [];
+    }
+
+    if (profile?.role === "coordinator") {
+      const snapshot = await api.db.collection(COLLECTIONS.users).where("role", "==", "leader").limit(200).get();
+      return snapshot.docs
+        .map((doc) => normalizeProfile(doc.id, doc.data()))
+        .filter(Boolean)
+        .sort((left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")));
     }
 
     const snapshot = await api.db.collection(COLLECTIONS.users).orderBy("createdAt", "asc").limit(200).get();
@@ -987,9 +1073,10 @@
     const now = new Date().toISOString();
     const payload = {
       name: String(patch?.name || current?.name || "").trim(),
-      email: String(patch?.email || current?.email || "").trim(),
+      email: String(patch?.email || current?.email || "").toLowerCase().trim(),
       role: normalizeRole(patch?.role || current?.role),
       status: normalizeStatus(patch?.status || current?.status),
+      igrejaId: normalizeIgrejaId(patch?.igrejaId || current?.igrejaId),
       primaryCellId: String(patch?.primaryCellId || current?.primaryCellId || "").trim(),
       scopeCellIds: Array.isArray(patch?.scopeCellIds)
         ? patch.scopeCellIds.map((id) => String(id || "").trim()).filter(Boolean)
@@ -1032,12 +1119,14 @@
         } catch (_) {}
       }
 
+      const canonicalEmail = String(user.email || normalizedEmail).toLowerCase().trim();
       const now = new Date().toISOString();
       await db.collection(COLLECTIONS.users).doc(user.uid).set({
         name: normalizedName,
-        email: normalizedEmail,
+        email: canonicalEmail,
         role: "pending",
         status: "pending",
+        igrejaId: normalizeIgrejaId(patch?.igrejaId),
         primaryCellId: "",
         scopeCellIds: [],
         ministryName: "",
@@ -1049,14 +1138,16 @@
       return {
         uid: user.uid,
         createdAt: now,
+        canonicalEmail,
       };
     });
 
     const profile = await saveUserProfile(created.uid, {
       name: normalizedName,
-      email: normalizedEmail,
+      email: String(created.canonicalEmail || normalizedEmail).toLowerCase().trim(),
       role: String(patch?.role || "pending").trim(),
       status: String(patch?.status || "pending").trim(),
+      igrejaId: normalizeIgrejaId(patch?.igrejaId),
       primaryCellId: String(patch?.primaryCellId || "").trim(),
       scopeCellIds: Array.isArray(patch?.scopeCellIds) ? patch.scopeCellIds : [],
       ministryName: String(patch?.ministryName || "").trim(),
@@ -1236,18 +1327,22 @@
     }
 
     const requestedId = String(patch?.id || "").trim();
+    const isNew = patch?._isNew === true;
     const ref = requestedId
       ? api.db.collection(COLLECTIONS.reports).doc(requestedId)
       : api.db.collection(COLLECTIONS.reports).doc();
 
-    const currentSnapshot = requestedId ? await ref.get() : null;
+    const currentSnapshot = requestedId && !isNew ? await ref.get() : null;
     const current = currentSnapshot?.exists ? normalizeReport(currentSnapshot.id, currentSnapshot.data()) : null;
     const now = new Date().toISOString();
     const createdAt = current?.createdAt || String(patch?.createdAt || now).trim() || now;
     const updatedAt = current
       ? now
       : String(patch?.updatedAt || patch?.createdAt || now).trim() || now;
-    const presentCount = Number(patch?.presentCount);
+    const presentMemberIds = Array.isArray(patch?.presentMemberIds)
+      ? patch.presentMemberIds.map((id) => String(id || "").trim()).filter(Boolean)
+      : Array.isArray(current?.presentMemberIds) ? current.presentMemberIds : [];
+    const presentCountRaw = Number(patch?.presentCount);
     const visitorsCount = Number(patch?.visitorsCount);
     const offering = Number(patch?.offering);
 
@@ -1256,12 +1351,22 @@
       cellId: String(patch?.cellId || current?.cellId || "").trim(),
       date: String(patch?.date || current?.date || "").trim(),
       leaders: String(patch?.leaders || current?.leaders || "").trim(),
+      coLeaders: String(patch?.coLeaders !== undefined ? patch.coLeaders : (current?.coLeaders || "")).trim(),
       host: String(patch?.host || current?.host || "").trim(),
       address: String(patch?.address || current?.address || "").trim(),
-      presentCount: Number.isFinite(presentCount) ? presentCount : Number(current?.presentCount || 0) || 0,
+      presentMemberIds,
+      presentCount: Number.isFinite(presentCountRaw) ? presentCountRaw : (presentMemberIds.length || Number(current?.presentCount || 0) || 0),
       visitorsCount: Number.isFinite(visitorsCount) ? visitorsCount : Number(current?.visitorsCount || 0) || 0,
+      visitorNames: String(patch?.visitorNames !== undefined ? patch.visitorNames : (current?.visitorNames || "")).trim(),
       offering: Number.isFinite(offering) ? offering : Number(current?.offering || 0) || 0,
+      snack: String(patch?.snack !== undefined ? patch.snack : (current?.snack || "")).trim(),
+      discipleship: String(patch?.discipleship !== undefined ? patch.discipleship : (current?.discipleship || "")).trim(),
+      communionMinutes: String(patch?.communionMinutes !== undefined ? patch.communionMinutes : (current?.communionMinutes || "")).trim(),
+      foods: String(patch?.foods !== undefined ? patch.foods : (current?.foods || "")).trim(),
       notes: String(patch?.notes || current?.notes || "").trim(),
+      imageUrls: Array.isArray(patch?.imageUrls)
+        ? patch.imageUrls.map((u) => String(u || "").trim()).filter(Boolean)
+        : Array.isArray(current?.imageUrls) ? current.imageUrls : [],
       createdAt,
       updatedAt,
       createdByUid: current?.createdByUid || String(actorUid || "").trim(),
@@ -1449,7 +1554,7 @@
       return [];
     }
 
-    if (profile.role === "admin" || profile.role === "pastor") {
+    if (hasPastoralAccess(profile)) {
       const snapshot = await api.db.collection(COLLECTIONS.visitors).limit(limit).get();
       return snapshot.docs
         .map((doc) => normalizeVisitor(doc.id, doc.data()))
@@ -1487,7 +1592,7 @@
       return [];
     }
 
-    if (profile.role === "admin" || profile.role === "pastor") {
+    if (hasPastoralAccess(profile)) {
       const snapshot = await api.db.collection(COLLECTIONS.alerts).limit(limit).get();
       return snapshot.docs
         .map((doc) => normalizeAlert(doc.id, doc.data()))
@@ -1525,7 +1630,7 @@
       return [];
     }
 
-    if (profile.role === "admin" || profile.role === "pastor") {
+    if (hasPastoralAccess(profile)) {
       const snapshot = await api.db.collection(COLLECTIONS.reports).limit(limit).get();
       const reports = snapshot.docs
         .map((doc) => normalizeReport(doc.id, doc.data()))
@@ -1563,7 +1668,7 @@
       return [];
     }
 
-    if (profile.role === "admin" || profile.role === "pastor") {
+    if (hasPastoralAccess(profile)) {
       return listAllCells(200);
     }
 
@@ -1595,7 +1700,7 @@
       return [];
     }
 
-    if (profile.role === "admin" || profile.role === "pastor") {
+    if (hasPastoralAccess(profile)) {
       const snapshot = await api.db.collection(COLLECTIONS.members).limit(limit).get();
       return snapshot.docs
         .map((doc) => normalizeMember(doc.id, doc.data()))
@@ -2016,6 +2121,67 @@
     return summary;
   }
 
+  async function saveArenaKidsCadastro(data, actorUid) {
+    initialize();
+    if (!api.db) throw new Error("Firestore indisponivel.");
+    const col = "arenaKidsCadastros";
+    const ref = data.id ? api.db.collection(col).doc(data.id) : api.db.collection(col).doc();
+    const now = new Date().toISOString();
+    const doc = {
+      id: ref.id,
+      nomeCrianca: String(data.nomeCrianca || "").trim(),
+      idade: String(data.idade || "").trim(),
+      nomeResponsavel: String(data.nomeResponsavel || "").trim(),
+      telefone: String(data.telefone || "").trim(),
+      endereco: String(data.endereco || "").trim(),
+      observacoes: String(data.observacoes || "").trim(),
+      criadoEm: data.criadoEm || now,
+      criadoPor: String(actorUid || "").trim(),
+      igrejaId: String(data.igrejaId || "").trim(),
+    };
+    await ref.set(doc);
+    return doc;
+  }
+
+  async function listArenaKidsCadastros() {
+    initialize();
+    if (!api.db) throw new Error("Firestore indisponivel.");
+    const snap = await api.db.collection("arenaKidsCadastros")
+      .orderBy("criadoEm", "desc")
+      .limit(500)
+      .get();
+    return snap.docs.map((d) => d.data());
+  }
+
+  async function saveVisitanteCulto(data, actorUid) {
+    initialize();
+    if (!api.db) throw new Error("Firestore indisponivel.");
+    const col = "visitantesCulto";
+    const ref = data.id ? api.db.collection(col).doc(data.id) : api.db.collection(col).doc();
+    const now = new Date().toISOString();
+    const doc = {
+      id: ref.id,
+      nome: String(data.nome || "").trim(),
+      telefone: String(data.telefone || "").trim(),
+      observacoes: String(data.observacoes || "").trim(),
+      criadoEm: data.criadoEm || now,
+      criadoPor: String(actorUid || "").trim(),
+      igrejaId: String(data.igrejaId || "").trim(),
+    };
+    await ref.set(doc);
+    return doc;
+  }
+
+  async function listVisitantesCulto() {
+    initialize();
+    if (!api.db) throw new Error("Firestore indisponivel.");
+    const snap = await api.db.collection("visitantesCulto")
+      .orderBy("criadoEm", "desc")
+      .limit(500)
+      .get();
+    return snap.docs.map((d) => d.data());
+  }
+
   window.renovoPlusFirebase = {
     initialize,
     waitForAuthReady,
@@ -2024,6 +2190,8 @@
     signUpWithEmail,
     signOut,
     sendPasswordReset,
+    loadBannerHome,
+    saveBannerHome,
     loadUserProfile,
     listProfiles,
     hasAnyProfiles,
@@ -2051,6 +2219,10 @@
     listAllCells,
     loadLegacySummary,
     importLegacyData,
+    saveArenaKidsCadastro,
+    listArenaKidsCadastros,
+    saveVisitanteCulto,
+    listVisitantesCulto,
     get collections() {
       return COLLECTIONS;
     },

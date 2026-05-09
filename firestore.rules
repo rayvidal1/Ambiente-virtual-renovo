@@ -21,6 +21,16 @@ service cloud.firestore {
       return get(userDoc(request.auth.uid)).data;
     }
 
+    function profileIgrejaId(data) {
+      return data.keys().hasAny(["igrejaId"]) && data.igrejaId is string && data.igrejaId != ""
+        ? data.igrejaId
+        : "renovo";
+    }
+
+    function isOwnIgreja(igrejaId) {
+      return isActiveProfile() && profileIgrejaId(currentProfile()) == igrejaId;
+    }
+
     function bootstrapCompleted() {
       return exists(systemDoc()) && get(systemDoc()).data.bootstrapCompleted == true;
     }
@@ -37,8 +47,69 @@ service cloud.firestore {
       return isActiveProfile() && currentProfile().role == "pastor";
     }
 
+    function isCoordinator() {
+      return isActiveProfile() && currentProfile().role == "coordinator";
+    }
+
     function isAdminOrPastor() {
-      return isAdmin() || isPastor();
+      return isAdmin() || isPastor() || isCoordinator();
+    }
+
+    function canReadManagedUser(data) {
+      return isAdmin()
+        || isPastor()
+        || (
+          isCoordinator()
+          && data.role in ["pending", "leader"]
+        );
+    }
+
+    function validManagedRoleScope(data) {
+      return (
+          data.role == "leader"
+          && data.primaryCellId is string
+          && data.primaryCellId != ""
+          && data.scopeCellIds.size() == 0
+        )
+        || (
+          data.role != "leader"
+        );
+    }
+
+    function canUpdateManagedUser(oldData, newData) {
+      return (
+          isAdmin()
+          && profileIgrejaId(currentProfile()) == profileIgrejaId(oldData)
+          && profileIgrejaId(newData) == profileIgrejaId(oldData)
+          && validManagedRoleScope(newData)
+        )
+        || (
+          isPastor()
+          && profileIgrejaId(currentProfile()) == profileIgrejaId(oldData)
+          && profileIgrejaId(newData) == profileIgrejaId(oldData)
+          && oldData.role in ["pending", "leader", "coordinator", "pastor", "admin", "kids", "recepcao"]
+          && newData.role in ["leader", "coordinator", "pastor", "admin", "kids", "recepcao"]
+          && validManagedRoleScope(newData)
+        )
+        || (
+          isCoordinator()
+          && profileIgrejaId(currentProfile()) == profileIgrejaId(oldData)
+          && profileIgrejaId(newData) == profileIgrejaId(oldData)
+          && oldData.role in ["pending", "leader"]
+          && newData.role == "leader"
+          && newData.primaryCellId is string
+          && newData.primaryCellId != ""
+          && currentProfile().scopeCellIds.hasAny([newData.primaryCellId])
+          && newData.scopeCellIds.size() == 0
+        );
+    }
+
+    function canAccessArenaKids() {
+      return isActiveProfile() && currentProfile().role in ["admin", "pastor", "kids"];
+    }
+
+    function canAccessRecepcao() {
+      return isActiveProfile() && currentProfile().role in ["admin", "pastor", "recepcao"];
     }
 
     function isCellVisible(cellId) {
@@ -58,6 +129,7 @@ service cloud.firestore {
           "email",
           "role",
           "status",
+          "igrejaId",
           "primaryCellId",
           "scopeCellIds",
           "ministryName",
@@ -70,6 +142,7 @@ service cloud.firestore {
           "email",
           "role",
           "status",
+          "igrejaId",
           "primaryCellId",
           "scopeCellIds",
           "ministryName",
@@ -83,8 +156,9 @@ service cloud.firestore {
       return validUserKeys(data)
         && data.name is string
         && data.email is string
-        && data.role in ["pending", "leader", "coordinator", "pastor", "admin"]
+        && data.role in ["pending", "leader", "coordinator", "pastor", "admin", "kids", "recepcao"]
         && data.status in ["pending", "active", "inactive"]
+        && data.igrejaId is string
         && data.primaryCellId is string
         && data.scopeCellIds is list
         && data.ministryName is string
@@ -149,12 +223,20 @@ service cloud.firestore {
           "cellId",
           "date",
           "leaders",
+          "coLeaders",
           "host",
           "address",
+          "presentMemberIds",
           "presentCount",
           "visitorsCount",
+          "visitorNames",
           "offering",
+          "snack",
+          "discipleship",
+          "communionMinutes",
+          "foods",
           "notes",
+          "imageUrls",
           "createdAt",
           "updatedAt",
           "createdByUid",
@@ -165,12 +247,20 @@ service cloud.firestore {
           "cellId",
           "date",
           "leaders",
+          "coLeaders",
           "host",
           "address",
+          "presentMemberIds",
           "presentCount",
           "visitorsCount",
+          "visitorNames",
           "offering",
+          "snack",
+          "discipleship",
+          "communionMinutes",
+          "foods",
           "notes",
+          "imageUrls",
           "createdAt",
           "updatedAt",
           "createdByUid",
@@ -184,12 +274,20 @@ service cloud.firestore {
         && data.cellId is string
         && data.date is string
         && data.leaders is string
+        && data.coLeaders is string
         && data.host is string
         && data.address is string
+        && data.presentMemberIds is list
         && data.presentCount is number
         && data.visitorsCount is number
+        && data.visitorNames is string
         && data.offering is number
+        && data.snack is string
+        && data.discipleship is string
+        && data.communionMinutes is string
+        && data.foods is string
         && data.notes is string
+        && data.imageUrls is list
         && data.createdAt is string
         && data.updatedAt is string
         && data.createdByUid is string
@@ -262,6 +360,32 @@ service cloud.firestore {
         && data.updatedAt is string;
     }
 
+    function validBannerHomeData(data) {
+      return data.keys().hasAll([
+          "imageUrl",
+          "link",
+          "text",
+          "ativo",
+          "updatedAt",
+          "updatedBy"
+        ])
+        && data.keys().hasOnly([
+          "imageUrl",
+          "link",
+          "text",
+          "ativo",
+          "updatedAt",
+          "updatedBy"
+        ])
+        && data.imageUrl is string
+        && data.imageUrl != ""
+        && data.link is string
+        && data.text is string
+        && data.ativo is bool
+        && data.updatedAt is timestamp
+        && data.updatedBy == request.auth.uid;
+    }
+
     match /renovo/{document=**} {
       allow read, write: if true;
     }
@@ -280,12 +404,14 @@ service cloud.firestore {
 
     match /renovo_plus_users/{uid} {
       allow read: if signedIn()
-        && (request.auth.uid == uid || isAdminOrPastor());
+        && (request.auth.uid == uid || canReadManagedUser(resource.data));
 
       allow create: if signedIn()
         && request.auth.uid == uid
         && validUserData(request.resource.data)
         && request.resource.data.email == request.auth.token.email
+        && request.resource.data.igrejaId is string
+        && request.resource.data.igrejaId != ""
         && request.resource.data.primaryCellId == ""
         && request.resource.data.scopeCellIds.size() == 0
         && (
@@ -304,16 +430,12 @@ service cloud.firestore {
       allow update: if validUserData(request.resource.data)
         && request.resource.data.createdAt == resource.data.createdAt
         && (
-          isAdmin()
-          || (
-            isPastor()
-            && resource.data.role != "admin"
-            && request.resource.data.role != "admin"
-          )
+          canUpdateManagedUser(resource.data, request.resource.data)
           || (
             signedIn()
             && request.auth.uid == uid
             && request.resource.data.email == resource.data.email
+            && profileIgrejaId(request.resource.data) == profileIgrejaId(resource.data)
             && request.resource.data.role == resource.data.role
             && request.resource.data.status == resource.data.status
             && request.resource.data.primaryCellId == resource.data.primaryCellId
@@ -321,6 +443,14 @@ service cloud.firestore {
           )
         );
 
+      allow delete: if false;
+    }
+
+    match /igrejas/{igrejaId}/config/bannerHome {
+      allow read: if isOwnIgreja(igrejaId);
+      allow create, update: if isOwnIgreja(igrejaId)
+        && (isAdmin() || isPastor())
+        && validBannerHomeData(request.resource.data);
       allow delete: if false;
     }
 
@@ -336,7 +466,8 @@ service cloud.firestore {
       allow create, update: if isActiveProfile()
         && validMemberData(request.resource.data, memberId)
         && isCellVisible(request.resource.data.cellId);
-      allow delete: if isAdminOrPastor();
+      allow delete: if isActiveProfile()
+        && isCellVisible(resource.data.cellId);
     }
 
     match /renovo_plus_reports/{reportId} {
@@ -381,6 +512,14 @@ service cloud.firestore {
       allow create, update: if isActiveProfile()
         && isCellVisible(request.resource.data.cellId);
       allow delete: if isAdminOrPastor();
+    }
+
+    match /arenaKidsCadastros/{docId} {
+      allow read, write: if canAccessArenaKids();
+    }
+
+    match /visitantesCulto/{docId} {
+      allow read, write: if canAccessRecepcao();
     }
 
     match /{document=**} {

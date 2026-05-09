@@ -20,7 +20,11 @@ service firebase.storage {
 
     function isAdminOrPastor() {
       return isActiveProfile()
-        && (currentProfile().role == "admin" || currentProfile().role == "pastor");
+        && (
+          currentProfile().role == "admin"
+          || currentProfile().role == "pastor"
+          || currentProfile().role == "coordinator"
+        );
     }
 
     match /studies/{allPaths=**} {
@@ -30,6 +34,11 @@ service firebase.storage {
     match /renovo-plus/studies/{studyId}/{fileName} {
       allow read: if isActiveProfile();
       allow write: if isAdminOrPastor();
+    }
+
+    match /renovo-plus/reports/{reportId}/{fileName} {
+      allow read: if isActiveProfile();
+      allow write: if isActiveProfile();
     }
 
     match /{allPaths=**} {

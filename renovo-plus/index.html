@@ -10,8 +10,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="icon" type="image/png" href="../icon.png" />
     <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=0.1.0-alpha.8" />
-    <script src="./app-version.js?v=0.1.0-alpha.8"></script>
+    <link rel="manifest" href="./manifest.webmanifest?v=0.1.0-alpha.14" />
+    <script src="./app-version.js?v=0.1.0-alpha.14"></script>
     <script>
       (function () {
         if (!("serviceWorker" in navigator)) return;
@@ -39,7 +39,7 @@
         }).catch(function () {});
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=0.1.0-alpha.8" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.0-alpha.14" />
   </head>
   <body>
     <!-- Tela de carregamento -->
@@ -100,10 +100,27 @@
         <section class="home-cards">
           <button class="home-card home-card-celulas" id="go-to-celulas" type="button">
             <span class="home-card-icon">🌿</span>
-            <strong>Ambiente Digital</strong>
+            <strong>Ambiente de Células</strong>
             <small>Gerencie células, membros e relatórios semanais.</small>
           </button>
+          <button class="home-card home-card-arena-kids" id="go-to-arena-kids" type="button">
+            <span class="home-card-icon">🎈</span>
+            <strong>Arena Kids</strong>
+            <small>Cadastre crianças, responsáveis e informações importantes.</small>
+          </button>
+          <button class="home-card home-card-recepcao" id="go-to-recepcao" type="button">
+            <span class="home-card-icon">👋</span>
+            <strong>Recepção</strong>
+            <small>Registre visitantes do culto de forma rápida.</small>
+          </button>
+          <button class="home-card home-card-admin" id="go-to-admin" type="button">
+            <span class="home-card-icon">&#9881;</span>
+            <strong>Administra&ccedil;&atilde;o</strong>
+            <small>Gerencie usu&aacute;rios, c&eacute;lulas e configura&ccedil;&otilde;es da igreja.</small>
+          </button>
         </section>
+
+        <section id="home-banner-wrap" class="home-banner-wrap" hidden></section>
       </main>
     </div>
 
@@ -195,9 +212,102 @@
               <small>Registre e acompanhe visitantes das celulas.</small>
             </span>
           </button>
+
+          <button class="action-card action-card-dashboard" id="dashboard-celulas-card" type="button">
+            <span class="action-icon">&#128202;</span>
+            <span class="action-content">
+              <strong>Dashboard de Celulas</strong>
+              <small>Resumo grafico de presenca, visitantes e saude das celulas.</small>
+            </span>
+          </button>
         </section>
 
         <section id="tracking-section" class="tracking-section" hidden></section>
+      </main>
+    </div>
+
+    <!-- TELA: ADMINISTRACAO -->
+    <div id="admin-screen" hidden>
+      <main class="page">
+        <header class="hero">
+          <div class="hero-top-row">
+            <div>
+              <p class="eyebrow">Igreja Renovo</p>
+              <h1>Administra&ccedil;&atilde;o</h1>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <button id="admin-back" type="button" class="ghost-btn">&larr; In&iacute;cio</button>
+              <button id="admin-logout" type="button" class="ghost-btn">Sair</button>
+            </div>
+          </div>
+          <p class="subtitle">Gest&atilde;o geral de usu&aacute;rios, c&eacute;lulas e estrutura da igreja.</p>
+        </header>
+
+        <section class="stats" aria-label="Resumo administrativo">
+          <article class="stat-card">
+            <p>Usu&aacute;rios</p>
+            <strong id="admin-total-users">0</strong>
+          </article>
+          <article class="stat-card">
+            <p>C&eacute;lulas</p>
+            <strong id="admin-total-cells">0</strong>
+          </article>
+        </section>
+
+        <section class="action-cards">
+          <button class="action-card action-card-access" id="admin-manage-access-card" type="button">
+            <span class="action-icon">&#128275;</span>
+            <span class="action-content">
+              <strong>Gerenciar usu&aacute;rios</strong>
+              <small>Crie acessos de admin, pastor, coordenador, kids e recep&ccedil;&atilde;o.</small>
+            </span>
+          </button>
+
+          <button class="action-card action-card-create" id="admin-create-cell-card" type="button">
+            <span class="action-icon">+</span>
+            <span class="action-content">
+              <strong>Criar c&eacute;lula</strong>
+              <small>Cadastre uma nova c&eacute;lula da igreja.</small>
+            </span>
+          </button>
+
+          <button class="action-card action-card-cells" id="admin-manage-cells-card" type="button">
+            <span class="action-icon">&#128101;</span>
+            <span class="action-content">
+              <strong>Gerenciar c&eacute;lulas</strong>
+              <small>Veja, edite e organize as c&eacute;lulas cadastradas.</small>
+            </span>
+          </button>
+        </section>
+
+        <section class="admin-banner-panel">
+          <div class="admin-banner-head">
+            <div>
+              <h2>Gerenciar Banner da Home</h2>
+              <p>Configure o banner exibido para a opera&ccedil;&atilde;o da igreja.</p>
+            </div>
+          </div>
+          <form id="banner-home-form" class="env-form admin-banner-form">
+            <label>
+              URL da imagem <span class="req-mark">*</span>
+              <input name="imageUrl" type="url" required placeholder="https://..." />
+            </label>
+            <label>
+              Link ao clicar
+              <input name="link" type="url" placeholder="https://..." />
+            </label>
+            <label>
+              Texto
+              <textarea name="text" rows="3" placeholder="Texto opcional do banner"></textarea>
+            </label>
+            <label class="inline-check-label">
+              <input name="ativo" type="checkbox" checked />
+              Ativo
+            </label>
+            <p id="banner-home-feedback" class="access-feedback"></p>
+            <button type="submit" id="save-banner-home-button" class="env-submit-btn">Salvar banner</button>
+          </form>
+        </section>
       </main>
     </div>
 
@@ -619,13 +729,254 @@
       </div>
     </div>
 
+    <!-- TELA: Arena Kids -->
+    <div id="arena-kids-screen" hidden>
+      <main class="page">
+        <header class="hero">
+          <div class="hero-top-row">
+            <div>
+              <p class="eyebrow">Igreja Renovo</p>
+              <h1>Arena Kids</h1>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <button id="arena-kids-back" type="button" class="ghost-btn">← Início</button>
+              <button id="arena-kids-logout" type="button" class="ghost-btn">Sair</button>
+            </div>
+          </div>
+        </header>
+
+        <div id="arena-kids-form-section" hidden>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+            <h2 style="margin:0;font-size:1.2rem;font-weight:700">Novo cadastro</h2>
+            <button type="button" class="ghost-btn" id="arena-kids-cancel-form">← Voltar</button>
+          </div>
+          <form id="arena-kids-form" class="env-form">
+            <label>
+              Nome da criança <span class="req-mark">*</span>
+              <input name="nomeCrianca" maxlength="80" autocomplete="off" placeholder="Nome da criança" />
+            </label>
+            <label>
+              Idade
+              <input name="idade" maxlength="10" placeholder="Ex: 7 anos" autocomplete="off" />
+            </label>
+            <label>
+              Nome do responsável <span class="req-mark">*</span>
+              <input name="nomeResponsavel" maxlength="80" autocomplete="off" placeholder="Nome do pai/mãe/responsável" />
+            </label>
+            <label>
+              Telefone <span class="req-mark">*</span>
+              <input name="telefone" maxlength="20" placeholder="(11) 99999-9999" autocomplete="tel" inputmode="tel" />
+            </label>
+            <label>
+              Endereço
+              <input name="endereco" maxlength="120" autocomplete="off" placeholder="Rua, bairro..." />
+            </label>
+            <label>
+              Observações
+              <textarea name="observacoes" rows="3" placeholder="Alergias, necessidades especiais..."></textarea>
+            </label>
+            <p id="arena-kids-form-error" class="env-error" hidden></p>
+            <button type="submit" id="arena-kids-submit-btn" class="env-submit-btn">Salvar cadastro</button>
+          </form>
+        </div>
+
+        <div id="arena-kids-list-section">
+          <button type="button" id="arena-kids-new-btn" class="env-new-btn">➕ Novo cadastro</button>
+          <input id="arena-kids-search" type="search" placeholder="Buscar por nome ou telefone..." class="env-search" />
+          <div id="arena-kids-loading" class="env-loading" hidden>
+            <div class="loading-spinner" style="width:28px;height:28px;margin:0 auto"></div>
+          </div>
+          <p id="arena-kids-empty" class="env-empty" hidden>Nenhum cadastro ainda.</p>
+          <div id="arena-kids-list" class="env-list"></div>
+        </div>
+      </main>
+    </div>
+
+    <!-- TELA: Recepção -->
+    <div id="recepcao-screen" hidden>
+      <main class="page">
+        <header class="hero">
+          <div class="hero-top-row">
+            <div>
+              <p class="eyebrow">Igreja Renovo</p>
+              <h1>Recepção</h1>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <button id="recepcao-back" type="button" class="ghost-btn">← Início</button>
+              <button id="recepcao-logout" type="button" class="ghost-btn">Sair</button>
+            </div>
+          </div>
+        </header>
+
+        <div id="recepcao-form-section" hidden>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+            <h2 style="margin:0;font-size:1.2rem;font-weight:700">Novo visitante</h2>
+            <button type="button" class="ghost-btn" id="recepcao-cancel-form">← Voltar</button>
+          </div>
+          <form id="recepcao-form" class="env-form">
+            <label>
+              Nome <span class="req-mark">*</span>
+              <input name="nome" maxlength="80" autocomplete="off" placeholder="Nome do visitante" />
+            </label>
+            <label>
+              Telefone <small style="font-weight:400;color:var(--ink-soft)">(opcional)</small>
+              <input name="telefone" maxlength="20" placeholder="(11) 99999-9999" autocomplete="tel" inputmode="tel" />
+            </label>
+            <label>
+              Observações
+              <textarea name="observacoes" rows="2" placeholder="Como chegou até nós..."></textarea>
+            </label>
+            <p id="recepcao-form-error" class="env-error" hidden></p>
+            <button type="submit" id="recepcao-submit-btn" class="env-submit-btn">Registrar visitante</button>
+          </form>
+        </div>
+
+        <div id="recepcao-list-section">
+          <button type="button" id="recepcao-new-btn" class="env-new-btn">➕ Novo visitante</button>
+          <input id="recepcao-search" type="search" placeholder="Buscar por nome ou telefone..." class="env-search" />
+          <div id="recepcao-loading" class="env-loading" hidden>
+            <div class="loading-spinner" style="width:28px;height:28px;margin:0 auto"></div>
+          </div>
+          <p id="recepcao-empty" class="env-empty" hidden>Nenhum cadastro ainda.</p>
+          <div id="recepcao-list" class="env-list"></div>
+        </div>
+      </main>
+    </div>
+
+    <!-- MODAL: Dashboard de Celulas -->
+    <div class="modal-backdrop" id="dashboard-celulas-modal" hidden>
+      <div class="modal-card modal-card-xl" role="dialog" aria-modal="true" aria-labelledby="dash-modal-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="dash-modal-title">Dashboard de C&eacute;lulas</h2>
+            <p class="panel-sub">Resumo geral de presen&ccedil;a, visitantes e sa&uacute;de das c&eacute;lulas.</p>
+          </div>
+          <button type="button" class="ghost-btn" id="close-dashboard-celulas">Fechar</button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="dash-filters">
+          <select id="dash-filter-period" class="dash-filter-select">
+            <option value="week">Semana atual</option>
+            <option value="month" selected>M&ecirc;s atual</option>
+            <option value="quarter">&Uacute;ltimos 3 meses</option>
+          </select>
+          <select id="dash-filter-coordinator" class="dash-filter-select" hidden>
+            <option value="">Todos os coordenadores</option>
+          </select>
+          <select id="dash-filter-cell" class="dash-filter-select">
+            <option value="">Todas as c&eacute;lulas</option>
+          </select>
+          <select id="dash-filter-status" class="dash-filter-select">
+            <option value="">Qualquer status</option>
+            <option value="healthy">Saud&aacute;vel</option>
+            <option value="alert">Aten&ccedil;&atilde;o</option>
+            <option value="no-report">Sem relat&oacute;rio</option>
+          </select>
+        </div>
+
+        <!-- KPIs -->
+        <div class="dash-kpi-grid">
+          <article class="dash-kpi-card">
+            <p>Total de c&eacute;lulas</p>
+            <strong id="dash-kpi-total-cells">-</strong>
+          </article>
+          <article class="dash-kpi-card">
+            <p>Relat&oacute;rios enviados</p>
+            <strong id="dash-kpi-reports-sent">-</strong>
+          </article>
+          <article class="dash-kpi-card">
+            <p>Visitantes no per&iacute;odo</p>
+            <strong id="dash-kpi-visitors">-</strong>
+          </article>
+          <article class="dash-kpi-card">
+            <p>M&eacute;dia de presen&ccedil;a</p>
+            <strong id="dash-kpi-avg-presence">-</strong>
+          </article>
+          <article class="dash-kpi-card dash-kpi-alert">
+            <p>C&eacute;lulas em alerta</p>
+            <strong id="dash-kpi-alert-cells">-</strong>
+          </article>
+        </div>
+
+        <p id="dash-empty-msg" class="dash-empty" hidden>Nenhum dado dispon&iacute;vel para o per&iacute;odo selecionado.</p>
+
+        <!-- Graficos de pizza -->
+        <section class="dash-section" id="dash-charts-donut-section">
+          <h3 class="dash-section-title">Vis&atilde;o Geral</h3>
+          <div class="dash-charts-row">
+            <article class="dash-chart-card">
+              <p class="dash-chart-title">Relat&oacute;rios enviados vs pendentes</p>
+              <canvas id="dash-donut-reports" width="160" height="160"></canvas>
+              <div id="dash-donut-reports-legend" class="chart-legend"></div>
+            </article>
+            <article class="dash-chart-card">
+              <p class="dash-chart-title">Presentes vs ausentes</p>
+              <canvas id="dash-donut-presence" width="160" height="160"></canvas>
+              <div id="dash-donut-presence-legend" class="chart-legend"></div>
+            </article>
+            <article class="dash-chart-card">
+              <p class="dash-chart-title">Sa&uacute;de das c&eacute;lulas</p>
+              <canvas id="dash-donut-health" width="160" height="160"></canvas>
+              <div id="dash-donut-health-legend" class="chart-legend"></div>
+            </article>
+          </div>
+        </section>
+
+        <!-- Graficos de colunas por celula -->
+        <section class="dash-section" id="dash-charts-cell-section">
+          <h3 class="dash-section-title">Por C&eacute;lula</h3>
+          <div class="dash-charts-col-group">
+            <article class="dash-chart-card dash-chart-full">
+              <p class="dash-chart-title">Presen&ccedil;a m&eacute;dia por c&eacute;lula</p>
+              <div class="dash-col-wrap">
+                <canvas id="dash-col-presence" height="180"></canvas>
+              </div>
+            </article>
+            <article class="dash-chart-card dash-chart-full">
+              <p class="dash-chart-title">Visitantes por c&eacute;lula</p>
+              <div class="dash-col-wrap">
+                <canvas id="dash-col-visitors" height="180"></canvas>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- Evolucao semanal -->
+        <section class="dash-section" id="dash-charts-trend-section">
+          <h3 class="dash-section-title">Evolu&ccedil;&atilde;o Semanal</h3>
+          <article class="dash-chart-card dash-chart-full">
+            <p class="dash-chart-title">Presen&ccedil;a e visitantes por semana</p>
+            <div class="dash-col-wrap">
+              <canvas id="dash-line-weekly" height="140"></canvas>
+            </div>
+            <div class="chart-legend" style="justify-content:flex-start;margin-top:0.3rem">
+              <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#2d8a5e"></span>Presentes</span>
+              <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#2980b9"></span>Visitantes</span>
+            </div>
+          </article>
+        </section>
+
+        <!-- Comparativo por coordenador (pastor/admin) -->
+        <section class="dash-section" id="dash-charts-coord-section" hidden>
+          <h3 class="dash-section-title">Comparativo por Coordenador</h3>
+          <article class="dash-chart-card dash-chart-full">
+            <p class="dash-chart-title">Presen&ccedil;a m&eacute;dia por coordenador</p>
+            <div class="dash-col-wrap">
+              <canvas id="dash-col-coord" height="160"></canvas>
+            </div>
+          </article>
+        </section>
+      </div>
+    </div>
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-    <script src="./firebase-plus.js?v=0.1.0-alpha.8"></script>
-    <script src="./app.js?v=0.1.0-alpha.8"></script>
+    <script src="./firebase-plus.js?v=0.1.0-alpha.14"></script>
+    <script src="./app.js?v=0.1.0-alpha.14"></script>
     <script>
       (function () {
         const debugEl = document.getElementById("loading-debug");

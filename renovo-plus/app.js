@@ -46,6 +46,23 @@
     return state.cells.filter((c) => ids.has(c.id));
   }
 
+  function getCoordinatorAssignableCellIds() {
+    return new Set(
+      [session?.primaryCellId, ...(Array.isArray(session?.scopeCellIds) ? session.scopeCellIds : [])]
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+    );
+  }
+
+  function getAssignableAccessCells() {
+    if (isAdmin() || isPastor()) return state.cells;
+    if (isCoordinator()) {
+      const ids = getCoordinatorAssignableCellIds();
+      return state.cells.filter((cell) => ids.has(String(cell?.id || "").trim()));
+    }
+    return [];
+  }
+
   function getAssignableAccessRoles() {
     if (isAdmin() || isPastor()) return ["leader", "coordinator", "pastor", "kids", "recepcao", "admin"];
     if (isCoordinator()) return ["leader"];
@@ -1412,11 +1429,23 @@
     if (!form) return;
     form.reset();
     form.elements.userUid.value = "";
+    document.querySelectorAll("#scope-cells-checkboxes input").forEach((cb) => {
+      cb.checked = false;
+    });
+    if ($("access-scope-textarea")) $("access-scope-textarea").value = "";
     editingAccessUid = null;
     if ($("save-access-button")) $("save-access-button").textContent = "Salvar acesso";
     if ($("cancel-access-edit")) $("cancel-access-edit").hidden = true;
     if ($("email-label")) $("email-label").style.display = "";
     if ($("password-label")) $("password-label").style.display = "";
+    if (form.elements.email) {
+      form.elements.email.disabled = false;
+      form.elements.email.required = true;
+    }
+    if (form.elements.password) {
+      form.elements.password.disabled = false;
+      form.elements.password.required = true;
+    }
     if ($("status-label")) $("status-label").style.display = "none";
     showFeedback("access-feedback", "");
     updateAccessFormVisibility();
@@ -1429,6 +1458,14 @@
     if ($("assigned-cell-label")) $("assigned-cell-label").style.display = role === "leader" ? "" : "none";
     if ($("scope-cells-label")) $("scope-cells-label").style.display = role === "coordinator" ? "" : "none";
     if ($("scope-cells-checkboxes")) $("scope-cells-checkboxes").style.display = role === "coordinator" ? "" : "none";
+    if (form.elements.assignedCellId) {
+      form.elements.assignedCellId.required = role === "leader";
+      form.elements.assignedCellId.disabled = role !== "leader";
+      if (role !== "leader") form.elements.assignedCellId.value = "";
+    }
+    if (form.elements.scopeCellIds) {
+      form.elements.scopeCellIds.disabled = role !== "coordinator";
+    }
   }
 
   function populateAccessRoleSelect(selectedRole) {
@@ -1469,7 +1506,7 @@
   }
 
   function populateAccessCellSelects() {
-    const visibleCells = (isAdmin() || isPastor()) ? state.cells : getAccessibleCells();
+    const visibleCells = getAssignableAccessCells();
 
     const cellSel = $("access-cell-select");
     if (cellSel) {
@@ -1536,6 +1573,15 @@
     form.elements.role.value = canAssignAccessRole(p.role) ? p.role : getAssignableAccessRoles()[0] || "leader";
     if ($("password-label")) $("password-label").style.display = "none";
     if ($("email-label")) $("email-label").style.display = "none";
+    if (form.elements.password) {
+      form.elements.password.value = "";
+      form.elements.password.disabled = true;
+      form.elements.password.required = false;
+    }
+    if (form.elements.email) {
+      form.elements.email.disabled = true;
+      form.elements.email.required = false;
+    }
     if ($("status-label")) $("status-label").style.display = "";
     form.elements.status.value = p.status;
     if (p.role === "leader" && form.elements.assignedCellId) {
@@ -1570,15 +1616,17 @@
     const btn = $("save-access-button");
     setButtonLoading(btn, true, "Salvando...");
     showFeedback("access-feedback", "");
-    const uid = form.elements.userUid.value;
+    const uid = String(form.elements.userUid.value || "").trim();
     const name = form.elements.name.value.trim();
-    const email = form.elements.email.value.trim();
+    const email = form.elements.email.value.trim().toLowerCase();
     const password = form.elements.password?.value || "";
     const role = form.elements.role.value;
     const status = form.elements.status?.value || "pending";
-    const primaryCellId = role === "leader" ? (form.elements.assignedCellId?.value || "") : "";
+    const primaryCellId = role === "leader" ? String(form.elements.assignedCellId?.value || "").trim() : "";
     const scopeIds = role === "coordinator"
-      ? Array.from(document.querySelectorAll("#scope-cells-checkboxes input:checked")).map((cb) => cb.value)
+      ? Array.from(document.querySelectorAll("#scope-cells-checkboxes input:checked"))
+          .map((cb) => String(cb.value || "").trim())
+          .filter(Boolean)
       : [];
     console.log("[access] submit uid=%s name=%s email=%s role=%s", uid, name, email, role);
     try {
@@ -1588,13 +1636,25 @@
       if (role === "leader" && !primaryCellId) {
         throw new Error("Selecione uma célula para vincular ao líder.");
       }
+      if (role === "leader" && isCoordinator() && !getCoordinatorAssignableCellIds().has(primaryCellId)) {
+        throw new Error("Esta celula nao esta liberada para o seu perfil de coordenador.");
+      }
+      if (role === "coordinator" && !scopeIds.length) {
+        throw new Error("Selecione pelo menos uma celula para o coordenador supervisionar.");
+      }
       if (uid) {
         const existing = state.profiles.find((p) => p.uid === uid);
         if (!canManageProfile(existing)) {
           throw new Error("Seu perfil nao pode gerenciar este usuario.");
         }
         console.log("[access] updating existing profile...");
-        await fb().saveUserProfile(uid, { name, role, status, igrejaId: currentIgrejaId(), primaryCellId, scopeCellIds: scopeIds });
+        const saved = await fb().saveUserProfile(uid, { name, role, status, igrejaId: currentIgrejaId(), primaryCellId, scopeCellIds: scopeIds });
+        if (role === "leader" && saved.primaryCellId !== primaryCellId) {
+          throw new Error("O perfil foi salvo, mas a celula vinculada nao foi confirmada. Tente novamente.");
+        }
+        if (role === "coordinator" && saved.scopeCellIds.length !== scopeIds.length) {
+          throw new Error("O perfil foi salvo, mas as celulas supervisionadas nao foram confirmadas. Tente novamente.");
+        }
         console.log("[access] profile updated");
         showFeedback("access-feedback", "Perfil atualizado!");
       } else {
@@ -1606,7 +1666,13 @@
           {}
         );
         console.log("[access] provisionManagedAccess done, newUid=%s", newUid);
-        await fb().saveUserProfile(newUid, { name, role, status: "active", igrejaId: currentIgrejaId(), primaryCellId, scopeCellIds: scopeIds });
+        const saved = await fb().saveUserProfile(newUid, { name, role, status: "active", igrejaId: currentIgrejaId(), primaryCellId, scopeCellIds: scopeIds });
+        if (role === "leader" && saved.primaryCellId !== primaryCellId) {
+          throw new Error("O acesso foi criado, mas a celula vinculada nao foi confirmada. Edite o acesso antes de entregar a senha.");
+        }
+        if (role === "coordinator" && saved.scopeCellIds.length !== scopeIds.length) {
+          throw new Error("O acesso foi criado, mas as celulas supervisionadas nao foram confirmadas. Edite o acesso antes de entregar a senha.");
+        }
         console.log("[access] saveUserProfile done");
         showFeedback("access-feedback", `Acesso criado para ${email}!`);
         form.reset();
@@ -2156,11 +2222,31 @@
       };
 
       renderHomeScreen();
+      registerPushNotifications(user.uid);
     } catch (err) {
       console.error("[Renovo+] auth boot:", err);
       alert("Erro ao carregar perfil: " + (err.message || err));
       try { await fb().signOut(); } catch (_) {}
       showScreen("auth-screen");
+    }
+  }
+
+  // ─── PUSH NOTIFICATIONS ───────────────────────────────────────────────────
+  async function registerPushNotifications(uid) {
+    try {
+      if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") return;
+      const registration = await navigator.serviceWorker.ready;
+      const messaging = fb().messaging;
+      if (!messaging) return;
+      const token = await messaging.getToken({
+        vapidKey: "BNx7B2peZ2pJ9LxtIT9gcfien8KvgVNTtmxxqJ4LUQvzKquppDOvsraQPx4XzFfV_-9qRlDNCdkp1gTLlxrWFEE",
+        serviceWorkerRegistration: registration,
+      });
+      if (token) await fb().saveFcmToken(uid, token);
+    } catch (err) {
+      console.warn("[Renovo+] push registration:", err?.message || err);
     }
   }
 

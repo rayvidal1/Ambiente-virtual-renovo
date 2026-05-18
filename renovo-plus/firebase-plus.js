@@ -84,6 +84,7 @@
     api.auth = firebase.auth();
     api.db = typeof firebase.firestore === "function" ? firebase.firestore() : null;
     api.storage = typeof firebase.storage === "function" ? firebase.storage() : null;
+    api.messaging = typeof firebase.messaging === "function" ? firebase.messaging() : null;
   }
 
   function initialize() {
@@ -1039,9 +1040,19 @@
     }
 
     if (profile?.role === "coordinator") {
-      const snapshot = await api.db.collection(COLLECTIONS.users).where("role", "==", "leader").limit(200).get();
-      return snapshot.docs
-        .map((doc) => normalizeProfile(doc.id, doc.data()))
+      const igrejaId = normalizeIgrejaId(profile.igrejaId);
+      const snapshots = await Promise.all([
+        api.db.collection(COLLECTIONS.users).where("igrejaId", "==", igrejaId).where("role", "==", "leader").limit(200).get(),
+        api.db.collection(COLLECTIONS.users).where("igrejaId", "==", igrejaId).where("role", "==", "pending").limit(200).get(),
+      ]);
+      const byUid = new Map();
+      snapshots.forEach((snapshot) => {
+        snapshot.docs.forEach((doc) => {
+          byUid.set(doc.id, doc.data());
+        });
+      });
+      return Array.from(byUid.entries())
+        .map(([uid, data]) => normalizeProfile(uid, data))
         .filter(Boolean)
         .sort((left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")));
     }
@@ -1071,13 +1082,14 @@
 
     const current = await loadUserProfile(normalizedUid);
     const now = new Date().toISOString();
+    const hasPrimaryCellPatch = Object.prototype.hasOwnProperty.call(patch || {}, "primaryCellId");
     const payload = {
       name: String(patch?.name || current?.name || "").trim(),
       email: String(patch?.email || current?.email || "").toLowerCase().trim(),
       role: normalizeRole(patch?.role || current?.role),
       status: normalizeStatus(patch?.status || current?.status),
       igrejaId: normalizeIgrejaId(patch?.igrejaId || current?.igrejaId),
-      primaryCellId: String(patch?.primaryCellId || current?.primaryCellId || "").trim(),
+      primaryCellId: String(hasPrimaryCellPatch ? patch.primaryCellId : (current?.primaryCellId || "")).trim(),
       scopeCellIds: Array.isArray(patch?.scopeCellIds)
         ? patch.scopeCellIds.map((id) => String(id || "").trim()).filter(Boolean)
         : Array.isArray(current?.scopeCellIds)
@@ -1091,6 +1103,14 @@
 
     await api.db.collection(COLLECTIONS.users).doc(normalizedUid).set(payload, { merge: true });
     return normalizeProfile(normalizedUid, payload);
+  }
+
+  async function saveFcmToken(uid, token) {
+    initialize();
+    if (!api.db || !uid || !token) return;
+    await api.db.collection(COLLECTIONS.users).doc(uid).update({
+      fcmTokens: firebase.firestore.FieldValue.arrayUnion(token),
+    });
   }
 
   async function provisionManagedAccess(patch, options = {}) {
@@ -2196,6 +2216,7 @@
     listProfiles,
     hasAnyProfiles,
     saveUserProfile,
+    saveFcmToken,
     provisionManagedAccess,
     claimInitialAdminProfile,
     saveCell,
@@ -2236,6 +2257,10 @@
     get storage() {
       initialize();
       return api.storage;
+    },
+    get messaging() {
+      initialize();
+      return api.messaging;
     },
   };
 

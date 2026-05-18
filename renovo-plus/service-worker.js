@@ -7,9 +7,9 @@ const APP_SHELL = [
   "./index.html",
   "./manifest.webmanifest",
   "./app-version.js",
-  "./styles.css?v=0.1.0-alpha.14",
-  "./firebase-plus.js?v=0.1.0-alpha.14",
-  "./app.js?v=0.1.0-alpha.14",
+  "./styles.css?v=0.1.0-alpha.17",
+  "./firebase-plus.js?v=0.1.0-alpha.17",
+  "./app.js?v=0.1.0-alpha.17",
   "../icon.png",
   "../pwa-192.png",
   "../pwa-512.png",
@@ -32,6 +32,33 @@ self.addEventListener("activate", (event) => {
     )
   );
   self.clients.claim();
+});
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let payload;
+  try { payload = event.data.json(); } catch (_) { payload = { notification: { title: "Ambiente Digital", body: event.data.text() } }; }
+  const n = payload.notification || {};
+  event.waitUntil(
+    self.registration.showNotification(n.title || "Ambiente Digital", {
+      body: n.body || "",
+      icon: n.icon || "../icon.png",
+      badge: "../pwa-192.png",
+      data: payload.data || {},
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ("focus" in client) return client.focus();
+      }
+      if (clients.openWindow) return clients.openWindow("./");
+    })
+  );
 });
 
 self.addEventListener("fetch", (event) => {

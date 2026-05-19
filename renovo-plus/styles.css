@@ -148,17 +148,17 @@ body.modal-open {
 /* --- Keyframes --- */
 @keyframes breathe-circle {
   0%, 100% { transform: scale(1); }
-  50%       { transform: scale(1.025); }
+  50%       { transform: scale(1.08); }
 }
 
 @keyframes breathe-border {
   0%, 100% { transform: scale(1); }
-  50%       { transform: scale(1.035); }
+  50%       { transform: scale(1.11); }
 }
 
 @keyframes breathe-r {
   0%, 100% { transform: scale(1); }
-  50%       { transform: scale(1.02); }
+  50%       { transform: scale(1.06); }
 }
 
 /* Cruz: duração total 2950ms (2800ms + pausa final de 150ms)
@@ -167,7 +167,7 @@ body.modal-open {
    Pausa:   94.92% → 100% (150ms) — sensação de fundamento espiritual */
 @keyframes breathe-cross {
   0%      { transform: scale(1); }
-  47.46%  { transform: scale(1.04); }
+  47.46%  { transform: scale(1.13); }
   94.92%  { transform: scale(1); }
   100%    { transform: scale(1); }
 }

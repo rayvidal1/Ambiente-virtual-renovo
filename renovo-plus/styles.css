@@ -27,9 +27,9 @@ body {
   font-family: "Sora", "Segoe UI", sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at top left, rgba(204, 152, 141, 0.45), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(166, 60, 52, 0.18), transparent 24%),
-    linear-gradient(145deg, #fbf5f2, #efe5df 52%, #f6efea);
+    linear-gradient(180deg, rgba(14, 4, 5, 0.70), rgba(14, 4, 5, 0.70)),
+    url("./bg-renovo.avif") center / cover no-repeat fixed;
+  background-color: #4E0A0D;
   min-height: 100vh;
   max-width: 100%;
   overflow-x: hidden;
@@ -80,7 +80,10 @@ body.modal-open {
 .loading-screen {
   position: fixed;
   inset: 0;
-  background: #4E0A0D;
+  background:
+    linear-gradient(180deg, rgba(14, 4, 5, 0.68), rgba(14, 4, 5, 0.68)),
+    url("./bg-renovo.avif") center / cover no-repeat;
+  background-color: #4E0A0D;
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -199,9 +199,8 @@ body.modal-open {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(8, 6, 6, 0.42), rgba(24, 8, 10, 0.78)),
-    linear-gradient(135deg, rgba(139, 13, 18, 0.2), rgba(36, 26, 25, 0.25)),
-    url("./entrada renovo.png") center / cover no-repeat;
+    linear-gradient(180deg, rgba(8, 6, 6, 0.48), rgba(24, 8, 10, 0.82)),
+    url("./bg-renovo.avif") center / cover no-repeat;
   transform: scale(1.03);
   z-index: -2;
 }

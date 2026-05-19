@@ -44,13 +44,14 @@
   <body>
     <!-- Tela de carregamento -->
     <div id="loading-screen" class="loading-screen">
-      <div class="loading-inner">
-        <p class="eyebrow">Igreja Renovo</p>
-        <h1 class="loading-title">Ambiente Digital</h1>
-        <p class="loading-text">Preparando autenticação e dados do sistema.</p>
-        <div class="loading-spinner"></div>
-        <p id="loading-debug" class="loading-debug" hidden></p>
+      <div class="splash-stage">
+        <div class="splash-layer splash-circle"></div>
+        <div class="splash-layer splash-border"></div>
+        <img class="splash-layer splash-logo" src="../icon.png" alt="" draggable="false" />
+        <div class="splash-layer splash-cross"></div>
       </div>
+      <p class="splash-brand">Igreja Renovo</p>
+      <p id="loading-debug" class="loading-debug" hidden></p>
     </div>
 
     <div class="bg-shape bg-shape-1" aria-hidden="true"></div>
